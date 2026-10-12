@@ -17,3 +17,4 @@ Rules
 5. Do not start the next feature until the lead confirms the latest integrated build on master passes with your patch. Meanwhile only fix review feedback.
 6. Never modify another bot's branch or worktree. Never push anywhere external.
 7. Art: stylised low-poly/toon, original only. No Marvel/third-party IP or assets.
+8. Creative assets are owned by the USER: hero names, ability names, map names, characters, art direction, lore. Any new or renamed creative asset must be proposed to the lead and approved by the user BEFORE it is added. Current names (Kestrel, Rampart, Willow, Twin Spires, ability names) are placeholders.
