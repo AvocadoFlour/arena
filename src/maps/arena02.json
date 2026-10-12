@@ -1,0 +1,66 @@
+{
+  "name": "Twin Spires",
+  "bounds": 30,
+  "spawns": {
+    "0": [[-4, 0.2, 27], [0, 0.2, 27], [4, 0.2, 27], [-4, 0.2, 24.5], [4, 0.2, 24.5]],
+    "1": [[-4, 0.2, -27], [0, 0.2, -27], [4, 0.2, -27], [-4, 0.2, -24.5], [4, 0.2, -24.5]]
+  },
+  "spawn_rooms": {
+    "0": {"pos": [0, 3, 26], "size": [16, 6, 8]},
+    "1": {"pos": [0, 3, -26], "size": [16, 6, 8]}
+  },
+  "zones": [
+    {"id": "A", "kind": "capture", "pos": [0, 2.5, 0], "size": [10, 3, 10]}
+  ],
+  "blocks": [
+    {"kind": "floor", "pos": [0, -0.5, 0], "size": [80, 1, 64], "color": "#56606e", "grid": true},
+    {"kind": "wall", "pos": [0, 4, -32.5], "size": [82, 8, 1], "color": "#363b48"},
+    {"kind": "wall", "pos": [0, 4, 32.5], "size": [82, 8, 1], "color": "#363b48"},
+    {"kind": "wall", "pos": [-40.5, 4, 0], "size": [1, 8, 64], "color": "#363b48"},
+    {"kind": "wall", "pos": [40.5, 4, 0], "size": [1, 8, 64], "color": "#363b48"},
+
+    {"kind": "wall", "pos": [-8.5, 3, 26], "size": [1, 6, 9], "color": "#3d5a8a"},
+    {"kind": "wall", "pos": [8.5, 3, 26], "size": [1, 6, 9], "color": "#3d5a8a"},
+    {"kind": "wall", "pos": [-5.5, 3, 21.5], "size": [5, 6, 1], "color": "#3d5a8a"},
+    {"kind": "wall", "pos": [5.5, 3, 21.5], "size": [5, 6, 1], "color": "#3d5a8a"},
+    {"kind": "cover", "pos": [0, 1, 18.5], "size": [4, 2, 1], "color": "#6a86b8"},
+
+    {"kind": "wall", "pos": [-8.5, 3, -26], "size": [1, 6, 9], "color": "#8a3d3d"},
+    {"kind": "wall", "pos": [8.5, 3, -26], "size": [1, 6, 9], "color": "#8a3d3d"},
+    {"kind": "wall", "pos": [-5.5, 3, -21.5], "size": [5, 6, 1], "color": "#8a3d3d"},
+    {"kind": "wall", "pos": [5.5, 3, -21.5], "size": [5, 6, 1], "color": "#8a3d3d"},
+    {"kind": "cover", "pos": [0, 1, -18.5], "size": [4, 2, 1], "color": "#b86a6a"},
+
+    {"kind": "platform", "pos": [0, 0.5, 0], "size": [12, 1, 12], "color": "#c8a050", "grid": true},
+    {"kind": "ramp", "pos": [0, 0.38, 8], "size": [4, 0.3, 4.2], "rot_deg": [14, 0, 0], "color": "#a88a50"},
+    {"kind": "ramp", "pos": [0, 0.38, -8], "size": [4, 0.3, 4.2], "rot_deg": [-14, 0, 0], "color": "#a88a50"},
+    {"kind": "ramp", "pos": [8, 0.38, 0], "size": [4.2, 0.3, 4], "rot_deg": [0, 0, 14], "color": "#a88a50"},
+    {"kind": "ramp", "pos": [-8, 0.38, 0], "size": [4.2, 0.3, 4], "rot_deg": [0, 0, -14], "color": "#a88a50"},
+    {"kind": "cover", "pos": [-3, 2, -3], "size": [1.5, 2, 1.5], "color": "#d08a40"},
+    {"kind": "cover", "pos": [3, 2, 3], "size": [1.5, 2, 1.5], "color": "#d08a40"},
+
+    {"kind": "wall", "pos": [-16, 1.5, -9], "size": [1, 3, 10], "color": "#4a505e"},
+    {"kind": "wall", "pos": [-16, 1.5, 9], "size": [1, 3, 10], "color": "#4a505e"},
+    {"kind": "wall", "pos": [16, 1.5, -9], "size": [1, 3, 10], "color": "#4a505e"},
+    {"kind": "wall", "pos": [16, 1.5, 9], "size": [1, 3, 10], "color": "#4a505e"},
+    {"kind": "cover", "pos": [-22, 0.75, 6], "size": [3, 1.5, 1], "color": "#c08040"},
+    {"kind": "cover", "pos": [22, 0.75, -6], "size": [3, 1.5, 1], "color": "#c08040"},
+
+    {"kind": "platform", "pos": [-28, 3.5, 0], "size": [8, 1, 36], "color": "#6a7a58", "grid": true},
+    {"kind": "platform", "pos": [28, 3.5, 0], "size": [8, 1, 36], "color": "#6a7a58", "grid": true},
+    {"kind": "ramp", "pos": [-27, 1.85, 22], "size": [4, 0.4, 8.95], "rot_deg": [26.6, 0, 0], "color": "#8a7a64"},
+    {"kind": "ramp", "pos": [-27, 1.85, -22], "size": [4, 0.4, 8.95], "rot_deg": [-26.6, 0, 0], "color": "#8a7a64"},
+    {"kind": "ramp", "pos": [27, 1.85, 22], "size": [4, 0.4, 8.95], "rot_deg": [26.6, 0, 0], "color": "#8a7a64"},
+    {"kind": "ramp", "pos": [27, 1.85, -22], "size": [4, 0.4, 8.95], "rot_deg": [-26.6, 0, 0], "color": "#8a7a64"},
+    {"kind": "cover", "pos": [-24.5, 4.6, -15], "size": [1, 1.2, 4], "color": "#c08040"},
+    {"kind": "cover", "pos": [24.5, 4.6, 15], "size": [1, 1.2, 4], "color": "#c08040"},
+
+    {"kind": "platform", "pos": [-12, 3.75, -10], "size": [24, 0.5, 3], "color": "#7a6a58"},
+    {"kind": "platform", "pos": [12, 3.75, 10], "size": [24, 0.5, 3], "color": "#7a6a58"},
+
+    {"kind": "ramp", "pos": [-30.5, 5.35, -5], "size": [3, 0.4, 6.7], "rot_deg": [-26.6, 0, 0], "color": "#8a7a64"},
+    {"kind": "platform", "pos": [-30, 6.5, 1], "size": [4, 1, 6], "color": "#5a8a8a", "grid": true},
+    {"kind": "ramp", "pos": [30.5, 5.35, 5], "size": [3, 0.4, 6.7], "rot_deg": [26.6, 0, 0], "color": "#8a7a64"},
+    {"kind": "platform", "pos": [30, 6.5, -1], "size": [4, 1, 6], "color": "#5a8a8a", "grid": true}
+  ]
+}
