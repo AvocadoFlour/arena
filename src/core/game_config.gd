@@ -1,13 +1,14 @@
 extends Node
 ## Match configuration (autoload "GameConfig"). Contract: INTERFACES.md section 8.
-## Set by command line now (-- --hero=ID --map=ID --bots=easy|normal|hard), by a hero-select UI later.
+## Set by command line now (-- --hero=ID --map=ID --difficulty=easy|normal|hard; --bots= is an alias), by a hero-select UI later.
 
 const HERO_DIR := "res://src/heroes"
 const MAP_DIR := "res://src/maps"
+## Aim/reaction presets live in BotBrain.DIFFICULTY (ai-owned); core only scales bot damage.
 const DIFFICULTY := {
-    "easy":   {"spread_deg": 9.0, "turn_rate": 3.0, "damage_scale": 0.2},
-    "normal": {"spread_deg": 6.0, "turn_rate": 4.0, "damage_scale": 0.3},
-    "hard":   {"spread_deg": 3.5, "turn_rate": 6.0, "damage_scale": 0.45},
+    "easy":   {"damage_scale": 0.2},
+    "normal": {"damage_scale": 0.3},
+    "hard":   {"damage_scale": 0.45},
 }
 signal changed
 
@@ -24,7 +25,7 @@ func _ready() -> void:
         match kv[0]:
             "hero": set_hero(kv[1])
             "map": map_id = kv[1]
-            "bots": bot_difficulty = kv[1] if DIFFICULTY.has(kv[1]) else "normal"
+            "bots", "difficulty": bot_difficulty = kv[1] if DIFFICULTY.has(kv[1]) else "normal"
 
 ## Sorted ids of every hero definition (src/heroes/*.json).
 func hero_ids() -> Array:

@@ -41,13 +41,14 @@ func _ready() -> void:
     if args.has("smoke"):
         player.ult.add(player.ult.cost * 0.8)   # smoke: start near-full so the ultimate is exercised on big maps
     if demo:
-        player.input_source = BotBrain.new({"use_abilities": true, "turn_rate": 6.0, "fire_cone": 0.08, "bounds": float(map.get_meta("bounds"))})
+        player.input_source = BotBrain.new({"difficulty": "hard", "use_abilities": true, "seek_cover": false, "turn_rate": 6.0, "fire_cone": 0.08, "spread_deg": 1.0, "reaction_time": 0.1, "bounds": float(map.get_meta("bounds"))})
     else:
         player.input_source = Actions
         player.aim_camera = rig.cam
     var roster: Array = GameConfig.hero_ids()   # mixed bot roster: cycle through all heroes
     var diff: Dictionary = GameConfig.difficulty()
     stats["bots"] = []
+    stats["difficulty"] = GameConfig.bot_difficulty
     for i in GameConfig.bot_count:
         var bid: String = roster[i % roster.size()]
         var b := Hero.from_def(GameConfig.hero_path(bid))
@@ -55,7 +56,7 @@ func _ready() -> void:
         stats.bots.append(bid)
         b.set_team(1)
         b.damage_scale = diff.damage_scale
-        var brain := BotBrain.new({"bounds": float(map.get_meta("bounds")), "spread_deg": diff.spread_deg, "turn_rate": diff.turn_rate})
+        var brain := BotBrain.new({"bounds": float(map.get_meta("bounds")), "difficulty": GameConfig.bot_difficulty})
         b.input_source = brain
         b.extra_spread_deg = brain.spread_deg
         b.spawn_point = spawns[1][i % spawns[1].size()]

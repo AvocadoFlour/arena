@@ -1,8 +1,8 @@
 extends SceneTree
 ## Headless test runner: godot --headless --path . -s tests/run_tests.gd
 ## Auto-discovers (see tests/README.md):
-##   unit suites:  tests/test_*.gd (core) and tests/<owner>_test_*.gd  -> methods test_*
-##   integration:  tests/physics_driver.gd and tests/<owner>_sim.gd   -> Node with `done`, `results`
+##   unit suites:  tests/test_*.gd and tests/<owner>_*test*.gd (not *run*)  -> methods test_*
+##   integration:  tests/physics_driver.gd, tests/<owner>_*_sim.gd, tests/<owner>_*_driver.gd -> Node with `done`, `results`
 ## Integration scenes run one at a time, each in its own SubViewport world.
 var passed := 0
 var failed := 0
@@ -16,9 +16,11 @@ func _discover() -> Dictionary:
     for f in DirAccess.get_files_at("res://tests"):
         if not f.ends_with(".gd") or f == "test_base.gd":
             continue
-        if f.begins_with("test_") or f.contains("_test_") or f.ends_with("_test.gd"):
+        if f.contains("run"):
+            continue   # per-branch runners (heroes_run.gd, ai_run_tests.gd, ...) are not suites
+        if f.begins_with("test_") or f.contains("_test"):
             units.append("res://tests/" + f)
-        elif f.ends_with("_sim.gd"):
+        elif f.ends_with("_sim.gd") or (f.ends_with("_driver.gd") and f != "physics_driver.gd"):
             integ.append("res://tests/" + f)
     units.sort()
     return {"units": units, "integ": integ}

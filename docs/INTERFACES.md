@@ -76,9 +76,25 @@ UI/FX/audio/network only listen; they never mutate gameplay.
 
 ## 5. Bot AI hooks (src/ai)
 A bot is a normal `Hero` whose `input_source` is a `BotBrain` — bots get no special powers.
-`BotBrain.new(params)` params: `spread_deg, turn_rate, sight, fire_cone, bounds, use_abilities`.
-Spawner sets `hero.extra_spread_deg = brain.spread_deg` (inaccuracy). States: `wander`, `chase`.
-Heroes are found via group `"heroes"` (`team`, `dead`, `eye_position()`).
+`BotBrain.new(params)`; `difficulty` is applied first, explicit params override it.
+| param | default | meaning |
+|---|---|---|
+| `difficulty` | `"normal"` | `easy`/`normal`/`hard` preset (BotBrain.DIFFICULTY) for the aim params below |
+| `spread_deg` | 6 | spawner copies to `hero.extra_spread_deg` |
+| `turn_rate` | 4 | rad/s aim turn speed |
+| `fire_cone` | 0.15 | rad aim error under which it fires |
+| `reaction_time` | 0.35 | s before firing at a newly acquired target |
+| `aim_jitter` | 0.05 | rad random aim offset |
+| `ability_delay` | 0.6 | mean s before using an ability whose conditions hold |
+| `low_hp_frac`, `cover_time` | 0.35, 3 | enter `cover` state below this HP fraction, for this long |
+| `sight`, `bounds` | 40, 17 | target range; wander half-size (spawner passes the map's `bounds`) |
+| `use_abilities`, `use_navmesh`, `seek_cover` | true | feature switches |
+States: `wander`, `chase`, `cover`. Navmesh: `BotNav` lazily bakes a `BotNavRegion` (NavigationRegion3D)
+under the map root from static colliders at first use. Cover = StaticBody3D whose **name contains "cover"**:
+MapLoader names every block `<kind>_<index>` (e.g. `cover_08`) and sets meta `kind`; this naming is part of the map contract.
+Dynamic shield walls are not in the navmesh: bots are blocked by them until they expire (tested, no stuck state).
+Core sets difficulty from `GameConfig.bot_difficulty` (`-- --difficulty=` or `--bots=`) and scales bot damage
+by `GameConfig.difficulty().damage_scale`. Heroes are found via group `"heroes"` (`team`, `dead`, `eye_position()`).
 
 ## 6. Map format (src/maps/*.json)
 ```json

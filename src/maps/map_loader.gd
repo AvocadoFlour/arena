@@ -10,8 +10,13 @@ static func build(path: String) -> Node3D:
     var root := Node3D.new()
     root.name = "Map"
     var grid := _grid_tex()
+    var i := 0
     for b in d.get("blocks", []):
-        root.add_child(_box(b, grid))
+        var body := _box(b, grid)
+        body.name = "%s_%02d" % [String(b.get("kind", "block")), i]   # unique, keeps kind prefix (AI finds "cover")
+        body.set_meta("kind", String(b.get("kind", "block")))
+        root.add_child(body)
+        i += 1
     var env := WorldEnvironment.new()
     var e := Environment.new()
     var sky := Sky.new()
