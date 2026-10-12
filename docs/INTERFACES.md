@@ -79,7 +79,10 @@ match. Any test flag (`--demo --smoke --screenshot --hero --map`) bypasses the m
 - `hero.damage_scale` multiplies outgoing damage (bots use 0.3).
 
 ## 4. Event bus (`Events` autoload)
-`damage_dealt(ev)`, `killed(ev)`, `respawned(hero)`, `ability_used(hero, slot, ability_id)`.
+`damage_dealt(ev)`, `killed(ev)`, `respawned(hero)`, `ability_used(hero, slot, ability_id)`,
+`zone_changed({zone, owner, capturing_team, progress, contested})`, `zone_captured({zone, team, previous})`,
+`zone_contested({zone, contested})`, `match_score({mode, scores, target})`, `match_ended({winner, mode, scores, time})`.
+Teams are ints; neutral = -1.
 UI/FX/audio/network only listen; they never mutate gameplay.
 
 ## 5. Bot AI hooks (src/ai)
@@ -121,6 +124,13 @@ Optional keys (approved v0.2, maps request):
   enemy can see (layer-1 ray), else fewest watchers / farthest. **Core calls it 0.1 s before every respawn**
   (main.gd `_schedule_respawn_pick`) and sets `hero.spawn_point`.
 - `MapGrid.from_def(def)` walkability grid + `flood()`.
+Capture zones (approved v0.2 round 2): zone keys `capture_time` (s for one player, default 8),
+`player_scale` (rate multiplier by player count, last value = cap, default [1, 1.5, 2]), `decay_rate`
+(progress/s lost when empty, default 0.1), `revert_rate` (default 1); `zones` meta entries carry them.
+Rules: ≥ 2 teams inside = contested, progress pauses; a lone team first reverts another team's partial
+progress; an owner on its zone reverts enemy progress; an empty zone decays; progress 1.0 sets the owner and
+resets progress. Core creates one `CaptureZone` node per zone (`CaptureZone.from_map(map)`) and forwards
+its signals to `Events.zone_changed / zone_captured / zone_contested` (payloads in §4 / events.gd).
 Map selection: `GameConfig.map_id` / `-- --map=ID`; smoke runs on every map JSON.
 
 ## 8. Match config (`GameConfig` autoload, src/core/game_config.gd)
@@ -135,6 +145,17 @@ Map selection: `GameConfig.map_id` / `-- --map=ID`; smoke runs on every map JSON
 | signal `changed` | emitted by `set_hero` |
 A future hero-select UI sets these, then (re)loads `res://src/main.tscn`. Bots use a mixed roster:
 bot *i* gets `hero_ids()[i % n]`.
+
+## 9. Match modes & win condition (core: src/core/match_rules.gd, node "MatchRules" under main)
+| mode | when | rule |
+|---|---|---|
+| `control` | map has ≥ 1 capture zone (arena02) | each zone owned by a team adds **1 % per second** to that team; first to **100 %** wins |
+| `ffa` | no zones (arena01) | deathmatch vs bots, no end yet |
+UI contract (scoreboard / match-end screen): listen to `Events.match_score` (~1 Hz, `scores` = {team: percent},
+`target` = 100) and `Events.match_ended` (once; `winner` team int). Live values: `MatchRules.mode, scores, ended,
+winner, elapsed`. After `match_ended` core pauses the tree (outside test mode), sets `Actions.gameplay_enabled =
+false` and frees the cursor; the end screen must use `process_mode = ALWAYS` and offer "back to menu"
+(reload `res://src/main.tscn`).
 
 ## 7. Command line (testing)
 `-- --hero=ID --map=ID --bots=easy|normal|hard` (GameConfig); `--smoke=S` (autopilot S game-seconds, exit 1 on fail), `--demo=S`, `--screenshot=PATH --delay=S [--menu]`.

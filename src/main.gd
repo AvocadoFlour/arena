@@ -16,6 +16,7 @@ var _shot_done := false
 var _used := false
 var _spawns: Dictionary = {}
 var main_menu = null
+var rules: MatchRules
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS   # screenshot/smoke timers keep running while paused
@@ -55,6 +56,19 @@ func _start_match() -> void:
     var map := MapLoader.build(GameConfig.map_path())
     add_child(map)
     var spawns: Dictionary = map.get_meta("spawns")
+    var zones: Array = CaptureZone.from_map(map)
+    for z in zones:
+        add_child(z)
+        z.state_changed.connect(Events.zone_changed.emit)
+        z.captured.connect(Events.zone_captured.emit)
+        z.contested_changed.connect(Events.zone_contested.emit)
+    rules = MatchRules.new()
+    rules.name = "MatchRules"
+    add_child(rules)
+    rules.setup(zones)
+    stats["mode"] = rules.mode
+    Events.zone_captured.connect(func(ev): stats["zone_captures"] = stats.get("zone_captures", 0) + 1)
+    Events.match_ended.connect(_on_match_ended)
     _spawns = spawns
     stats["map"] = GameConfig.map_id
     player = Hero.from_def(GameConfig.hero_path(GameConfig.hero_id))
@@ -123,6 +137,14 @@ func _schedule_respawn_pick(ev: Dictionary) -> void:
     get_tree().create_timer(maxf(0.0, Hero.RESPAWN_TIME - 0.1), false, true).timeout.connect(func():
         if is_instance_valid(h) and h.dead:
             h.spawn_point = SpawnPicker.pick_for(h, _spawns.get(h.team, [h.spawn_point])))
+
+func _on_match_ended(ev: Dictionary) -> void:
+    stats["winner"] = ev.winner
+    print("MATCH ENDED ", JSON.stringify(ev))
+    if not _test_mode():
+        get_tree().paused = true   # UI bot's match-end screen listens to Events.match_ended
+        Actions.gameplay_enabled = false
+        Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 func _on_kill(ev: Dictionary) -> void:
     if ev.killer == player:
