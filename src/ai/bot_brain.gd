@@ -61,10 +61,14 @@ func _init(p: Dictionary = {}) -> void:
         if k != "difficulty":
             set(k, p[k])
 
+## Preset name actually used for `d` (unknown -> "normal"); pure, no warning.
+static func resolve_difficulty(d: String) -> String:
+    return d if DIFFICULTY.has(d) else "normal"
+
 func set_difficulty(d: String) -> void:
     if not DIFFICULTY.has(d):
         push_warning("BotBrain: unknown difficulty '%s', using normal" % d)
-        d = "normal"
+    d = resolve_difficulty(d)
     difficulty = d
     for k in DIFFICULTY[d]:
         set(k, DIFFICULTY[d][k])
@@ -122,20 +126,43 @@ func _do_chase(h, f: InputFrame, dt: float, low: bool) -> void:
         _strafe_left = _rng.randf_range(0.8, 2.0)
     var t2 := slot_type(h, "ability2")
     var slam_ready: bool = use_abilities and t2 == "ground_slam" and _ab_ready(h, "ability2")
-    var keep := 3.0 if slam_ready and not low else 10.0   # close in to use the slam
+    var mrange := melee_range(h)
+    var flat := Vector2(to.x, to.z).length()
+    var keep := standoff(mrange, slam_ready and not low)
     var los: bool = _visible(h, target)
-    if dist > keep + 2.0 or not los:
-        f.move = _follow(h, target.global_position)
+    if mrange > 0.0:
+        # melee: drive straight in to weapon range, light strafing only once in reach
+        if flat > keep + 0.5 or not los:
+            f.move = _follow(h, target.global_position)
+        else:
+            f.move = Vector2(_strafe * 0.3, 0.6 if flat > keep else 0.0)
+        f.fire = los and flat <= mrange and err < maxf(fire_cone, 0.35) and _react_left <= 0.0
     else:
-        var fwd := 1.0 if dist > keep else (-0.6 if dist < minf(5.0, keep - 1.0) else 0.0)
-        f.move = Vector2(_strafe * 0.7, fwd).limit_length(1.0)
-    f.fire = los and err < fire_cone and _react_left <= 0.0
+        if dist > keep + 2.0 or not los:
+            f.move = _follow(h, target.global_position)
+        else:
+            var fwd := 1.0 if dist > keep else (-0.6 if dist < minf(5.0, keep - 1.0) else 0.0)
+            f.move = Vector2(_strafe * 0.7, fwd).limit_length(1.0)
+        f.fire = los and err < fire_cone and _react_left <= 0.0
     if use_abilities:
         var ctx := _ctx(h, low, false)
         ctx.merge({"dist": dist, "flat_dist": Vector2(to.x, to.z).length(),
             "height_above": h.global_position.y - target.global_position.y, "los": los,
             "aim_ok": err < 0.25, "moving": f.move.length() > 0.5}, true)
         _apply_abilities(f, decide_abilities(ctx), dt)
+
+## Primary melee reach (0 for ranged heroes), from the hero def (INTERFACES §2.1).
+static func melee_range(h) -> float:
+    var p: Dictionary = h.def.get("primary", {})
+    if String(p.get("type", "hitscan")) != "melee":
+        return 0.0
+    return float(p.get("range", 3.0))
+
+## Distance a bot tries to hold from its target (pure; unit-tested).
+static func standoff(mrange: float, slam_ready: bool) -> float:
+    if mrange > 0.0:
+        return mrange * 0.6
+    return 3.0 if slam_ready else 10.0   # close in to use the slam
 
 ## Ability context shared by chase/cover. Slot types come from the hero def (type-aware policy).
 func _ctx(h, low: bool, fleeing: bool) -> Dictionary:
@@ -147,10 +174,16 @@ func _ctx(h, low: bool, fleeing: bool) -> Dictionary:
         ready[slot] = _ab_ready(h, slot)
     if h.abilities.has("ultimate"):
         ult_r = float(h.abilities["ultimate"].def.get("radius", 10.0)) * 0.8
+    var leap_r := 0.0
+    for slot in types:
+        if types[slot] == "leap":
+            var d: Dictionary = h.abilities[slot].def
+            leap_r = float(d.get("forward_speed", 14.0)) * float(d.get("air_time", 0.7)) + float(d.get("radius", 3.5)) * 0.5
     return {"types": types, "ready": ready, "dist": 99.0, "flat_dist": 99.0, "on_floor": h.is_on_floor(),
         "height_above": 0.0, "los": false, "low_hp": low, "hurt": h.health.hp < h.health.max_hp * 0.7,
         "ult_range": ult_r, "ult_targets": _enemies_within(h, ult_r), "allies_hurt": _allies_hurt_within(h, ult_r),
-        "aim_ok": false, "moving": false, "fleeing": fleeing}
+        "aim_ok": false, "moving": false, "fleeing": fleeing, "melee": melee_range(h) > 0.0,
+        "leap_range": leap_r, "engage_range": maxf(melee_range(h) * 2.0, 6.0)}
 
 static func slot_type(h, slot: String) -> String:
     if not h.abilities.has(slot):
@@ -282,10 +315,22 @@ static func want_ability(t: String, c: Dictionary) -> bool:
             if c.get("on_floor", true):
                 return dist < SLAM_RANGE
             return float(c.get("height_above", 0.0)) > 1.0 and float(c.get("flat_dist", 99.0)) < 5.0
-        "dash":      # escape to cover, or close a long gap on a visible enemy (never while hurt)
+        "dash":      # escape to cover, or close a gap on a visible enemy (never while hurt)
             if not c.get("moving", false):
                 return false
-            return fleeing or (los and not c.get("low_hp", false) and dist > DASH_MIN_DIST)
+            if fleeing:
+                return true
+            if not los or c.get("low_hp", false):
+                return false
+            if c.get("melee", false):   # melee: dash into reach from mid range
+                return dist > 5.0 and dist < 12.0
+            return dist > DASH_MIN_DIST
+        "leap":      # jump onto an aimed, visible enemy beyond melee reach but inside the leap arc
+            return not fleeing and los and c.get("aim_ok", false) and c.get("on_floor", true) \
+                and dist > 4.5 and dist < float(c.get("leap_range", 10.0))
+        "team_buff": # power up when engaged at close range (or hurt in a fight): damage + overheal
+            return not fleeing and los and (dist < float(c.get("engage_range", 6.0)) \
+                or (c.get("hurt", false) and dist < 15.0))
         "charge":    # rush goes along the aim: only when aimed at a visible enemy in reach
             return not fleeing and los and c.get("aim_ok", false) and dist > 2.5 and dist < 9.0
         "shield_wall":   # block incoming fire when hurt and engaged

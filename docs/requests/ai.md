@@ -25,3 +25,15 @@ Test discovery, INTERFACES §5 params, GameConfig difficulty -> BotBrain.
    for dash, charge, ground_slam, nova, rally, shield_wall, projectile, heal_beam.
    Convention for abilities adding transient world geometry: add it as a direct child of the world
    node (hero.get_parent()), StaticBody3D with BoxShape3D, so bots see it.
+
+## Round 3
+1. **tests/expected_warnings.txt (lead, tests infra)**: remove the `BotBrain: unknown difficulty 'bogus'`
+   line (empty the file). AI tests no longer trigger it: they check `BotBrain.DIFFICULTY.has()` and the
+   pure `BotBrain.resolve_difficulty()` instead. The runtime warning for a really unknown preset stays.
+2. **src/core/melee_closer.gd + src/main.gd lines wrapping `MeleeCloser.wrap(...)` (lead)**: can be
+   deleted. BotBrain now closes melee heroes (`primary.type == "melee"`) to ~0.6 × `primary.range`
+   and only swings in reach; tests/ai_melee_driver.gd checks this with a plain, unwrapped BotBrain
+   (The Best reaches 0.8 m and lands 9 hits in 6 s; a ranged bot still holds ~9-10 m).
+   Input/ability interface unchanged: still `poll(hero) -> InputFrame` with the same fields.
+3. **INTERFACES §5 (lead)**: add `leap` and `team_buff` to the type-based policy list; note melee
+   awareness (stand-off = 0.6 × melee range) and `BotBrain.resolve_difficulty(name)`.

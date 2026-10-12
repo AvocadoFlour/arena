@@ -24,8 +24,10 @@ func test_default_is_normal_and_params_override() -> void:
     near(b.spread_deg, 6.0, 0.001, "normal spread kept (spawner contract)")
     near(b.turn_rate, 6.0, 0.001, "explicit param overrides preset")
     near(b.bounds, 12.0, 0.001, "bounds param")
-    var u := BotBrain.new({"difficulty": "bogus"})
-    check(u.difficulty == "normal", "unknown difficulty falls back to normal")
+    check(not BotBrain.DIFFICULTY.has("bogus"), "bogus is not a preset")
+    check(BotBrain.resolve_difficulty("bogus") == "normal", "unknown difficulty resolves to normal (no warning path)")
+    for d in ["easy", "normal", "hard"]:
+        check(BotBrain.DIFFICULTY.has(d) and BotBrain.resolve_difficulty(d) == d, "preset " + d)
 
 func test_world_to_move_mapping() -> void:
     var b := Basis()   # yaw 0: forward is -Z, right is +X
@@ -135,3 +137,41 @@ func test_box_footprint() -> void:
         minz = minf(minz, p.z)
         maxz = maxf(maxz, p.z)
     near(maxz - minz, 4.0, 0.01, "rotated width along z")
+
+func test_melee_standoff() -> void:
+    near(BotBrain.standoff(3.2, false), 1.92, 0.01, "melee holds inside weapon range")
+    check(BotBrain.standoff(3.2, true) < 3.2, "melee ignores slam stand-off, stays in reach")
+    near(BotBrain.standoff(0.0, false), 10.0, 0.01, "ranged keeps 10 m")
+    near(BotBrain.standoff(0.0, true), 3.0, 0.01, "ranged closes for slam")
+    var mel := {"def": {"primary": {"type": "melee", "range": 3.2}}}
+    var gun := {"def": {"primary": {"type": "hitscan", "range": 60}}}
+    near(BotBrain.melee_range(_Def.new(mel.def)), 3.2, 0.001, "melee range from def")
+    near(BotBrain.melee_range(_Def.new(gun.def)), 0.0, 0.001, "hitscan -> 0")
+
+class _Def:
+    var def: Dictionary
+    func _init(d: Dictionary) -> void:
+        def = d
+
+func test_melee_dash_gap_close() -> void:
+    check(BotBrain.decide_abilities(_ctx({"dist": 8.0, "melee": true})).ability1, "melee dashes in from mid range")
+    check(not BotBrain.decide_abilities(_ctx({"dist": 8.0})).ability1, "ranged does not dash at 8 m")
+    check(not BotBrain.decide_abilities(_ctx({"dist": 3.0, "melee": true})).ability1, "no dash when already in reach")
+
+func test_leap_policy() -> void:
+    var t := {"ability1": "leap", "ability2": "dash", "ultimate": "team_buff"}
+    check(BotBrain.decide_abilities(_typed(t, {"dist": 8.0, "aim_ok": true, "leap_range": 11.5})).ability1, "leap onto aimed enemy in arc")
+    check(not BotBrain.decide_abilities(_typed(t, {"dist": 3.0, "aim_ok": true, "leap_range": 11.5})).ability1, "no leap when already in reach")
+    check(not BotBrain.decide_abilities(_typed(t, {"dist": 14.0, "aim_ok": true, "leap_range": 11.5})).ability1, "no leap beyond arc")
+    check(not BotBrain.decide_abilities(_typed(t, {"dist": 8.0, "aim_ok": false, "leap_range": 11.5})).ability1, "no leap unaimed")
+    check(not BotBrain.decide_abilities(_typed(t, {"dist": 8.0, "aim_ok": true, "leap_range": 11.5, "on_floor": false})).ability1, "no leap in air")
+    check(not BotBrain.decide_abilities(_typed(t, {"dist": 8.0, "aim_ok": true, "leap_range": 11.5, "los": false})).ability1, "no blind leap")
+    check(not BotBrain.decide_abilities(_typed(t, {"dist": 8.0, "aim_ok": true, "leap_range": 11.5, "fleeing": true})).ability1, "no leap while fleeing")
+
+func test_team_buff_policy() -> void:
+    var t := {"ability1": "leap", "ability2": "dash", "ultimate": "team_buff"}
+    check(BotBrain.decide_abilities(_typed(t, {"dist": 3.0, "engage_range": 6.4})).ultimate, "buff when engaged close")
+    check(not BotBrain.decide_abilities(_typed(t, {"dist": 20.0, "engage_range": 6.4})).ultimate, "no buff at range")
+    check(BotBrain.decide_abilities(_typed(t, {"dist": 12.0, "engage_range": 6.4, "hurt": true})).ultimate, "buff when hurt in a fight")
+    check(not BotBrain.decide_abilities(_typed(t, {"dist": 3.0, "los": false})).ultimate, "no buff without enemy in sight")
+    check(not BotBrain.decide_abilities(_typed(t, {"dist": 3.0, "fleeing": true})).ultimate, "no buff while fleeing")
