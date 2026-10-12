@@ -33,6 +33,6 @@ func tick(dt: float) -> void:
             continue
         if h.global_position.distance_to(hero.global_position) <= r:
             hit.append(h)
-            h.take_damage(float(def.get("damage", 40.0)) * hero.damage_scale, hero, h.global_position + Vector3(0, 1.2, 0), "charge")
+            h.take_damage(float(def.get("damage", 40.0)) * hero.damage_mult(), hero, h.global_position + Vector3(0, 1.2, 0), "charge")
             var kb: Vector3 = hero.dash_vel.normalized() * float(def.get("knockback", 8.0))
-            h.velocity += Vector3(kb.x, 4.0, kb.z)
+            h.knockback(Vector3(kb.x, 4.0, kb.z))

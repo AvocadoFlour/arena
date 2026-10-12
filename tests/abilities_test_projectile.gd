@@ -23,5 +23,5 @@ func test_gravity_drop() -> void:
     near(p.y, -5.0, 0.1, "drop ~ g t^2 / 2")
 
 func test_registry_has_types() -> void:
-    for t in ["projectile", "shield_wall", "charge", "heal_beam", "rally"]:
+    for t in ["projectile", "shield_wall", "charge", "heal_beam", "rally", "leap", "team_buff"]:
         check(AbilityRegistry.TYPES.has(t), t)

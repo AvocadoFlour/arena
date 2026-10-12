@@ -1,0 +1,25 @@
+{
+  "id": "rampart",
+  "name": "Rampart",
+  "role": "tank",
+  "max_hp": 500,
+  "movement": {"speed": 6.0, "accel_ground": 55, "accel_air": 12, "jump_velocity": 7.5, "gravity": 22},
+  "collider": {"radius": 0.5, "height": 2.0},
+  "primary": {"type": "hitscan", "damage": 9, "fire_rate": 6, "mag": 40, "reload_time": 2.0, "spread_deg": 2.5, "range": 25},
+  "ultimate_cost": 600,
+  "abilities": {
+    "ability1": {"id": "charge", "type": "charge", "name": "Bull Rush", "cooldown": 7.0, "distance": 9.0, "duration": 0.5, "damage": 40, "hit_radius": 1.4, "knockback": 9.0},
+    "ability2": {"id": "shield_wall", "type": "shield_wall", "name": "Bulwark", "cooldown": 12.0, "width": 4.0, "height": 2.4, "thickness": 0.25, "distance": 1.6, "duration": 5.0, "color": "#60c0ff"},
+    "ultimate": {"id": "quake", "type": "nova", "name": "Fault Line", "cooldown": 1.0, "radius": 8.0, "damage": 180}
+  },
+  "model": [
+    {"shape": "box", "size": [0.95, 1.2, 0.6], "pos": [0, 0.95, 0], "color": "team"},
+    {"shape": "box", "size": [0.45, 0.4, 0.45], "pos": [0, 1.75, 0], "color": "#c8b8a0"},
+    {"shape": "box", "size": [0.38, 0.08, 0.1], "pos": [0, 1.78, -0.23], "color": "#ffb020"},
+    {"shape": "box", "size": [0.3, 0.3, 0.3], "pos": [-0.62, 1.45, 0], "color": "#505058"},
+    {"shape": "box", "size": [0.3, 0.3, 0.3], "pos": [0.62, 1.45, 0], "color": "#505058"},
+    {"shape": "box", "size": [0.16, 0.16, 0.6], "pos": [0.45, 1.05, -0.4], "color": "#303038", "muzzle": true},
+    {"shape": "box", "size": [0.25, 0.5, 0.25], "pos": [-0.25, 0.25, 0], "color": "#404048"},
+    {"shape": "box", "size": [0.25, 0.5, 0.25], "pos": [0.25, 0.25, 0], "color": "#404048"}
+  ]
+}

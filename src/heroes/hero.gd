@@ -30,6 +30,13 @@ var move_cfg: Dictionary = {}
 var slow_mult := 1.0                 ## movement speed multiplier from slows (1 = none)
 var slow_left := 0.0
 var charge_hits: Array = []          ## heroes already hit by the current charge
+var buff_mult := 1.0                 ## outgoing damage multiplier from buffs (stacks with damage_scale)
+var buff_left := 0.0
+var knockback_immune := false        ## set while a buff grants it; knockback() is ignored
+var overheal := 0.0                  ## temporary HP above max, absorbed before health, decays
+var overheal_decay := 0.0            ## overheal lost per second
+var combo_step := 0                  ## melee primary: index in the combo
+var combo_left := 0.0                ## melee primary: time left to continue the combo
 var _rng := RandomNumberGenerator.new()
 var _muzzle: Node3D
 var _team_mats: Array = []
@@ -128,6 +135,7 @@ func _physics_process(dt: float) -> void:
     if f.ultimate:
         _use("ultimate")
     var was_air := not is_on_floor()
+    _tick_buffs(dt)
     if slow_left > 0.0:
         slow_left -= dt
         if slow_left <= 0.0:
@@ -157,6 +165,9 @@ func _use(slot: String) -> void:
 func _try_fire() -> void:
     if not weapon.try_fire():
         return
+    if String(def.get("primary", {}).get("type", "hitscan")) == "melee":
+        melee_swing()
+        return
     var origin: Vector3
     var dir: Vector3
     if aim_camera:
@@ -174,9 +185,100 @@ func _try_fire() -> void:
         end = hit.position
         var c = hit.collider
         if c is Hero and c.team != team and not c.dead:
-            c.take_damage(weapon.damage * damage_scale, self, end, "primary")
+            c.take_damage(weapon.damage * damage_mult(), self, end, "primary")
     var from := _muzzle.global_position if _muzzle else eye_position()
     Fx.tracer(get_parent(), from, end, Color(1, 0.9, 0.4) if team == 0 else Color(1, 0.4, 0.3))
+
+## Outgoing damage multiplier: bot/difficulty scale x active buffs.
+func damage_mult() -> float:
+    return damage_scale * buff_mult
+
+## Melee primary (hero JSON "primary": {"type":"melee", "damage", "fire_rate", "range", "arc_deg",
+## "combo": [mult, ...], "combo_window", "lunge"}). Hits every enemy in the frontal arc.
+## Returns number of heroes hit. Successive swings within combo_window step through `combo`.
+func melee_swing() -> int:
+    var p: Dictionary = def.get("primary", {})
+    var combo: Array = p.get("combo", [1.0])
+    if combo_left <= 0.0:
+        combo_step = 0
+    var mult := float(combo[combo_step % combo.size()])
+    var final_hit := combo_step % combo.size() == combo.size() - 1
+    combo_step += 1
+    combo_left = float(p.get("combo_window", 0.8))
+    var rng := float(p.get("range", 3.0))
+    var arc := deg_to_rad(float(p.get("arc_deg", 100.0))) * 0.5
+    var fwd := look_dir()
+    fwd = Vector3(fwd.x, 0, fwd.z).normalized()
+    var n := 0
+    if not is_inside_tree():
+        return 0
+    # Lunge: if the nearest enemy in the arc is beyond sword range but within `lunge`, dash to it
+    # and extend the reach for this swing.
+    var lunge := float(p.get("lunge", 0.0))
+    if lunge > 0.0:
+        var best_d := INF
+        for h in get_tree().get_nodes_in_group("heroes"):
+            if h == self or h.dead or h.team == team:
+                continue
+            if MeleeMath.in_arc(global_position, fwd, h.global_position, rng + lunge, deg_to_rad(30.0)):
+                best_d = minf(best_d, Vector2(h.global_position.x - global_position.x, h.global_position.z - global_position.z).length())
+        if best_d < INF and best_d > rng * 0.8:
+            var gap := best_d - rng * 0.6
+            dash_time = 0.15
+            dash_vel = fwd * gap / dash_time
+            rng = best_d + 0.5
+    for h in get_tree().get_nodes_in_group("heroes"):
+        if h == self or h.dead or h.team == team:
+            continue
+        if MeleeMath.in_arc(global_position, fwd, h.global_position, rng, arc):
+            h.take_damage(weapon.damage * mult * damage_mult(), self, h.global_position + Vector3(0, 1.2, 0), "primary")
+            if final_hit and h.has_method("knockback"):
+                h.knockback(fwd * float(p.get("finisher_knockback", 6.0)) + Vector3(0, 3, 0))
+            n += 1
+    var col := Color(1, 0.85, 0.4) if final_hit else Color(0.9, 0.9, 1.0)
+    Fx.ring(get_parent(), global_position + Vector3(0, 1.1, 0) + fwd * rng * 0.5, rng * 0.5, col, 0.15)
+    return n
+
+## External push (charges, finishers). Ignored while knockback_immune.
+func knockback(v: Vector3) -> void:
+    if knockback_immune or dead:
+        return
+    velocity += v
+
+## Temporary buff: outgoing damage x mult, optional knockback immunity, for dur seconds.
+func apply_buff(mult: float, dur: float, kb_immune: bool) -> void:
+    if dead:
+        return
+    buff_mult = maxf(buff_mult, mult)
+    buff_left = maxf(buff_left, dur)
+    if kb_immune:
+        knockback_immune = true
+
+## Temporary HP above max (absorbed first), decaying to 0 over `dur` seconds.
+func add_overheal(amount: float, dur: float) -> void:
+    if dead or amount <= 0.0:
+        return
+    overheal = maxf(overheal, amount)
+    overheal_decay = overheal / maxf(dur, 0.01)
+
+func _tick_buffs(dt: float) -> void:
+    if combo_left > 0.0:
+        combo_left -= dt
+    if buff_left > 0.0:
+        buff_left -= dt
+        if buff_left <= 0.0:
+            buff_mult = 1.0
+            knockback_immune = false
+    if overheal > 0.0:
+        overheal = maxf(0.0, overheal - overheal_decay * dt)
+
+func clear_buffs() -> void:
+    buff_mult = 1.0
+    buff_left = 0.0
+    knockback_immune = false
+    overheal = 0.0
+    combo_step = 0
+    combo_left = 0.0
 
 ## Movement config with active slows applied.
 func effective_move_cfg() -> Dictionary:
@@ -210,7 +312,7 @@ func aoe(center: Vector3, radius: float, dmg: float, kind: String) -> int:
             continue
         var amt := HitMath.aoe_damage(center, radius, dmg, h.global_position + Vector3(0, 0.9, 0))
         if amt > 0.0:
-            h.take_damage(amt * damage_scale, self, h.global_position + Vector3(0, 1.2, 0), kind)
+            h.take_damage(amt * damage_mult(), self, h.global_position + Vector3(0, 1.2, 0), kind)
             n += 1
     return n
 
@@ -218,7 +320,12 @@ func aoe(center: Vector3, radius: float, dmg: float, kind: String) -> int:
 func take_damage(amount: float, source, pos: Vector3, kind: String) -> float:
     if dead:
         return 0.0
-    var d := health.apply(amount)
+    var absorbed := 0.0
+    if overheal > 0.0 and amount > 0.0:
+        absorbed = minf(overheal, amount)
+        overheal -= absorbed
+        amount -= absorbed
+    var d := health.apply(amount) + absorbed
     if d <= 0.0:
         return 0.0
     var killed := health.is_dead()
@@ -243,6 +350,7 @@ func _die(killer, kind: String) -> void:
     respawn_left = RESPAWN_TIME
     slow_mult = 1.0
     slow_left = 0.0
+    clear_buffs()
     Events.killed.emit({"killer": killer, "victim": self, "kind": kind})
 
 func respawn() -> void:

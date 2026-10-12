@@ -42,4 +42,4 @@ func tick(dt: float) -> void:
     target = pick_target()
     target.heal(float(def.get("hps", 60.0)) * dt)
     if target != hero and hero.is_inside_tree():
-        Fx.tracer(hero.get_parent(), hero.eye_position(), target.global_position + Vector3(0, 1.0, 0), Color(0.3, 1.0, 0.5))
+        Fx.tracer(hero.get_parent(), hero.eye_position(), target.global_position + Vector3(0, 1.0, 0), Color(String(def.get("color", "#4dff80"))))

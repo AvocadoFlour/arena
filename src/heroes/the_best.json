@@ -1,0 +1,29 @@
+{
+  "id": "the_best",
+  "name": "The Best",
+  "role": "brawler",
+  "max_hp": 375,
+  "movement": {"speed": 7.4, "accel_ground": 75, "accel_air": 16, "jump_velocity": 8.8, "gravity": 22},
+  "collider": {"radius": 0.45, "height": 1.9},
+  "primary": {"type": "melee", "damage": 32, "fire_rate": 2.2, "mag": 999, "reload_time": 0.1, "spread_deg": 0, "range": 3.2, "arc_deg": 110, "combo": [1.0, 1.0, 1.6], "combo_window": 0.9, "finisher_knockback": 7.0, "lunge": 5.0},
+  "ultimate_cost": 550,
+  "abilities": {
+    "ability1": {"id": "fearless_leap", "type": "leap", "name": "Fearless Leap", "cooldown": 7.0, "forward_speed": 14.0, "up_speed": 9.0, "air_time": 0.75, "radius": 3.5, "damage": 55, "knockback": 7.0},
+    "ability2": {"id": "swagger_step", "type": "dash", "name": "Swagger Step", "cooldown": 5.0, "distance": 5.0, "duration": 0.16},
+    "ultimate": {"id": "no_limits", "type": "team_buff", "name": "No Limits", "cooldown": 1.0, "needs_ult": true, "radius": 9.0, "duration": 7.0, "damage_mult": 1.35, "knockback_immune": true, "overheal": 120}
+  },
+  "model": [
+    {"shape": "box", "size": [0.5, 0.55, 0.32], "pos": [0, 0.45, 0], "color": "team"},
+    {"shape": "capsule", "radius": 0.36, "height": 0.9, "pos": [0, 1.15, 0], "color": "#d9a882"},
+    {"shape": "box", "size": [1.0, 0.18, 0.34], "pos": [0, 1.48, 0], "color": "#d9a882"},
+    {"shape": "box", "size": [0.9, 1.2, 0.05], "pos": [0, 1.0, 0.3], "color": "#7a1830"},
+    {"shape": "sphere", "radius": 0.24, "pos": [0, 1.78, 0], "color": "#d9a882"},
+    {"shape": "box", "size": [0.3, 0.2, 0.3], "pos": [0, 1.98, 0.02], "color": "#2a1a10"},
+    {"shape": "box", "size": [0.56, 0.07, 0.06], "pos": [0, 1.8, -0.22], "color": "#141418"},
+    {"shape": "box", "size": [0.14, 0.04, 0.05], "pos": [-0.34, 1.85, -0.2], "color": "#141418"},
+    {"shape": "box", "size": [0.14, 0.04, 0.05], "pos": [0.34, 1.85, -0.2], "color": "#141418"},
+    {"shape": "box", "size": [0.08, 0.3, 0.08], "pos": [0.5, 1.15, -0.25], "color": "#3a2a1a"},
+    {"shape": "box", "size": [0.3, 0.06, 0.1], "pos": [0.5, 1.3, -0.25], "color": "#b0b0b8"},
+    {"shape": "box", "size": [0.22, 2.0, 0.05], "pos": [0.5, 2.3, -0.25], "color": "#c8ccd4", "muzzle": true}
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "willow",
+  "name": "Willow",
+  "role": "support",
+  "max_hp": 225,
+  "movement": {"speed": 7.0, "accel_ground": 70, "accel_air": 18, "jump_velocity": 8.5, "gravity": 22},
+  "collider": {"radius": 0.38, "height": 1.75},
+  "primary": {"type": "hitscan", "damage": 11, "fire_rate": 7, "mag": 24, "reload_time": 1.5, "spread_deg": 1.0, "range": 60},
+  "ultimate_cost": 450,
+  "abilities": {
+    "ability1": {"id": "heal_beam", "type": "heal_beam", "name": "Mending Beam", "cooldown": 8.0, "duration": 3.0, "hps": 60, "range": 15.0, "cone_deg": 15.0},
+    "ability2": {"id": "frost_bolt", "type": "projectile", "name": "Frost Bolt", "cooldown": 5.0, "speed": 28.0, "damage": 30, "gravity": 0.0, "lifetime": 2.5, "hit_radius": 0.35, "splash_radius": 2.0, "slow": {"mult": 0.5, "duration": 2.0}, "kind": "projectile", "color": "#80d8ff", "size": 0.18},
+    "ultimate": {"id": "rally", "type": "rally", "name": "Second Wind", "cooldown": 1.0, "radius": 10.0, "heal": 150}
+  },
+  "model": [
+    {"shape": "capsule", "radius": 0.34, "height": 1.25, "pos": [0, 0.72, 0], "color": "team"},
+    {"shape": "sphere", "radius": 0.24, "pos": [0, 1.55, 0], "color": "#f0dcc8"},
+    {"shape": "box", "size": [0.36, 0.08, 0.1], "pos": [0, 1.58, -0.2], "color": "#60ff90"},
+    {"shape": "box", "size": [0.1, 0.1, 0.55], "pos": [0.3, 1.1, -0.3], "color": "#d0d0e0", "muzzle": true},
+    {"shape": "sphere", "radius": 0.1, "pos": [0.3, 1.1, -0.62], "color": "#60ff90"},
+    {"shape": "box", "size": [0.45, 0.4, 0.12], "pos": [0, 1.05, 0.28], "color": "#3a5040"}
+  ]
+}

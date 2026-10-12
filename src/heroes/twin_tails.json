@@ -1,0 +1,33 @@
+{
+  "id": "twin_tails",
+  "name": "Twin Tails",
+  "role": "support",
+  "max_hp": 225,
+  "movement": {"speed": 7.2, "accel_ground": 72, "accel_air": 18, "jump_velocity": 8.7, "gravity": 22},
+  "collider": {"radius": 0.38, "height": 1.75},
+  "primary": {"type": "hitscan", "damage": 11, "fire_rate": 7, "mag": 24, "reload_time": 1.5, "spread_deg": 1.0, "range": 60},
+  "ultimate_cost": 450,
+  "abilities": {
+    "ability1": {"id": "encore_beam", "type": "heal_beam", "name": "Encore Beam", "cooldown": 8.0, "duration": 3.0, "hps": 60, "range": 15.0, "cone_deg": 15.0, "color": "#b8e4ff"},
+    "ability2": {"id": "staccato_note", "type": "projectile", "name": "Staccato Note", "cooldown": 5.0, "speed": 28.0, "damage": 30, "gravity": 0.0, "lifetime": 2.5, "hit_radius": 0.35, "splash_radius": 2.0, "slow": {"mult": 0.5, "duration": 2.0}, "kind": "projectile", "color": "#d8ecff", "size": 0.18},
+    "ultimate": {"id": "grand_finale", "type": "rally", "name": "Grand Finale", "cooldown": 1.0, "radius": 12.0, "heal": 175}
+  },
+  "model": [
+    {"shape": "capsule", "radius": 0.32, "height": 1.2, "pos": [0, 0.72, 0], "color": "#a8d8ff"},
+    {"shape": "box", "size": [0.62, 0.1, 0.44], "pos": [0, 0.95, 0], "color": "team"},
+    {"shape": "box", "size": [0.5, 0.22, 0.36], "pos": [0, 1.2, 0], "color": "#c8d0dc"},
+    {"shape": "sphere", "radius": 0.24, "pos": [0, 1.55, 0], "color": "#f2e2d4"},
+    {"shape": "sphere", "radius": 0.26, "pos": [0, 1.62, 0.05], "color": "#bfe6ff"},
+    {"shape": "box", "size": [0.56, 0.05, 0.05], "pos": [0, 1.7, 0], "color": "#c8d0dc"},
+    {"shape": "box", "size": [0.06, 0.12, 0.16], "pos": [-0.27, 1.55, 0], "color": "#c8d0dc"},
+    {"shape": "box", "size": [0.06, 0.12, 0.16], "pos": [0.27, 1.55, 0], "color": "#c8d0dc"},
+    {"shape": "box", "size": [0.12, 0.03, 0.03], "pos": [0.2, 1.48, -0.18], "color": "#e8f4ff"},
+    {"shape": "sphere", "radius": 0.08, "pos": [-0.3, 1.7, 0.08], "color": "#c8d0dc"},
+    {"shape": "sphere", "radius": 0.08, "pos": [0.3, 1.7, 0.08], "color": "#c8d0dc"},
+    {"shape": "capsule", "radius": 0.1, "height": 1.5, "pos": [-0.42, 1.0, 0.15], "color": "#bfe6ff"},
+    {"shape": "capsule", "radius": 0.1, "height": 1.5, "pos": [0.42, 1.0, 0.15], "color": "#bfe6ff"},
+    {"shape": "capsule", "radius": 0.08, "height": 0.7, "pos": [-0.44, 0.32, 0.18], "color": "#a8d8ff"},
+    {"shape": "capsule", "radius": 0.08, "height": 0.7, "pos": [0.44, 0.32, 0.18], "color": "#a8d8ff"},
+    {"shape": "box", "size": [0.08, 0.08, 0.5], "pos": [0.3, 1.1, -0.28], "color": "#c8d0dc", "muzzle": true}
+  ]
+}

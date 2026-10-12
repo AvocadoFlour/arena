@@ -2,6 +2,7 @@ extends SceneTree
 ## Heroes/abilities test runner (until these suites are registered in tests/run_tests.gd):
 ## godot --headless --path . -s tests/heroes_run.gd
 const SUITES := ["res://tests/heroes_test_defs.gd", "res://tests/abilities_test_projectile.gd"]
+const SIMS := ["res://tests/abilities_sim.gd", "res://tests/heroes_kits_sim.gd"]
 var passed := 0
 var failed := 0
 var sim
@@ -23,8 +24,21 @@ func _initialize() -> void:
                 failed += 1
                 print("  FAIL  %s::%s  %s" % [path.get_file(), n, s.errors])
     print("== abilities integration (Jolt, 60 Hz) ==")
-    sim = load("res://tests/abilities_sim.gd").new()
-    root.add_child(sim)
+    _next_sim()
+
+var queue: Array = SIMS.duplicate()
+func _next_sim() -> void:
+    if sim:
+        sim.queue_free()
+    sim = null
+    if queue.is_empty():
+        return
+    var holder := SubViewport.new()
+    holder.own_world_3d = true
+    root.add_child(holder)
+    sim = load(queue.pop_front()).new()
+    holder.add_child(sim)
+    sim.tree_exited.connect(holder.queue_free)
 
 func _process(_dt: float) -> bool:
     if sim == null or not sim.done:
@@ -35,7 +49,8 @@ func _process(_dt: float) -> bool:
         else:
             failed += 1
         print("  %s  sim::%s  %s" % ["ok  " if r[1] else "FAIL", r[0], r[2]])
-    print("HEROES RESULT: %d passed, %d failed" % [passed, failed])
-    quit(0 if failed == 0 else 1)
-    sim = null
+    _next_sim()
+    if sim == null:
+        print("HEROES RESULT: %d passed, %d failed" % [passed, failed])
+        quit(0 if failed == 0 else 1)
     return false

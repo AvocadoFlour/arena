@@ -40,10 +40,10 @@ func _hero(path: String, team: int, pos: Vector3) -> Hero:
 
 func _ready() -> void:
     _box(Vector3(0, -0.5, 0), Vector3(80, 1, 80))
-    willow = _hero("res://src/heroes/willow.json", 0, Vector3(0, 0, 0))
-    dummy = _hero("res://src/heroes/kestrel.json", 1, Vector3(0, 0, -12))
-    ally = _hero("res://src/heroes/kestrel.json", 0, Vector3(-20, 0, -5))
-    rampart = _hero("res://src/heroes/rampart.json", 0, Vector3(20, 0, 0))
+    willow = _hero("res://src/heroes/twin_tails.json", 0, Vector3(0, 0, 0))
+    dummy = _hero("res://src/heroes/archive/kestrel.json", 1, Vector3(0, 0, -12))
+    ally = _hero("res://src/heroes/archive/kestrel.json", 0, Vector3(-20, 0, -5))
+    rampart = _hero("res://src/heroes/cob.json", 0, Vector3(20, 0, 0))
     willow.pitch = -0.08   # aim a little down toward dummy torso
 
 func _physics_process(_dt: float) -> void:
