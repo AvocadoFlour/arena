@@ -14,3 +14,8 @@ action `scoreboard`, rebindable) fed by `match_stats.gd` (K/D/damage from Events
 `match_end_screen.gd` (VICTORY/DEFEAT/DRAW + final board, Play again/Main menu/Quit);
 `capture_widget.gd` (capture progress bars, binds to Events capture signals once they exist) and
 `mock_capture_source.gd`. Tests: `tests/ui_round2_test.gd`.
+
+Round 3: ammo counter hidden for melee / no-ammo primaries (`Hud.shows_ammo`); hero select shows
+role labels (`UiCatalog.role_label`); Settings adds FOV (applied to the current Camera3D) and
+Master/Music/SFX volumes (applied only to existing buses); MainMenu network hook
+(`network_slot`, `add_menu_entry()`, `add_screen()`). Tests: `tests/ui_round3_test.gd`.

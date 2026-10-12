@@ -44,3 +44,8 @@ static func list_maps(dir := MAP_DIR) -> Array:
             continue
         out.append({"name": d.get("name", p.get_file().get_basename()), "path": p})
     return out
+
+## Display label for a hero def role ("support" -> "Support"); "Unknown role" if the def has none.
+static func role_label(role) -> String:
+    var r := str(role).strip_edges() if role != null else ""
+    return r.capitalize() if r != "" else "Unknown role"

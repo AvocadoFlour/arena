@@ -11,13 +11,17 @@ var window_mode := "Windowed"
 var resolution := Vector2i(1280, 720)
 var sensitivity := 1.0
 var skip_apply := false
+## FOV (degrees) for the player camera; applied by UI to the current Camera3D (CameraRig default 75).
+const FOV_MIN := 60.0
+const FOV_MAX := 110.0
+var fov := 75.0
+## Volumes 0..1 per bus name. Applied to an AudioServer bus only if one with that name exists
+## (today only "Master"); otherwise just persisted for when audio arrives.
+const AUDIO_BUSES := ["Master", "Music", "SFX"]
+var volumes := {"Master": 1.0, "Music": 0.8, "SFX": 1.0}
 
 func _ready() -> void:
-    var cfg := ConfigFile.new()
-    if cfg.load(PATH) == OK:
-        window_mode = cfg.get_value("video", "window_mode", window_mode)
-        resolution = cfg.get_value("video", "resolution", resolution)
-        sensitivity = cfg.get_value("input", "sensitivity", sensitivity)
+    load_from(PATH)
     for a in OS.get_cmdline_user_args():
         if a.begins_with("--screenshot") or a.begins_with("--smoke") or a.begins_with("--demo"):
             skip_apply = true
@@ -25,16 +29,56 @@ func _ready() -> void:
     if not skip_apply:
         apply()
 
-func save() -> void:
+func load_from(path: String) -> bool:
+    var cfg := ConfigFile.new()
+    if cfg.load(path) != OK:
+        return false
+    window_mode = cfg.get_value("video", "window_mode", window_mode)
+    resolution = cfg.get_value("video", "resolution", resolution)
+    sensitivity = cfg.get_value("input", "sensitivity", sensitivity)
+    fov = clampf(float(cfg.get_value("video", "fov", fov)), FOV_MIN, FOV_MAX)
+    for b in AUDIO_BUSES:
+        volumes[b] = clampf(float(cfg.get_value("audio", b, volumes[b])), 0.0, 1.0)
+    return true
+
+func save(path := PATH) -> void:
     var cfg := ConfigFile.new()
     cfg.set_value("video", "window_mode", window_mode)
     cfg.set_value("video", "resolution", resolution)
     cfg.set_value("input", "sensitivity", sensitivity)
-    cfg.save(PATH)
+    cfg.set_value("video", "fov", fov)
+    for b in AUDIO_BUSES:
+        cfg.set_value("audio", b, volumes[b])
+    cfg.save(path)
 
 ## Windowed: resolution = window size. Fullscreen: desktop size; resolution sets 3D render scale.
+func volume(bus: String) -> float:
+    return volumes.get(bus, 1.0)
+
+## Returns true if a real audio bus was changed (false = stored only).
+func set_volume(bus: String, v: float) -> bool:
+    volumes[bus] = clampf(v, 0.0, 1.0)
+    var i := AudioServer.get_bus_index(bus)
+    if i < 0:
+        return false
+    AudioServer.set_bus_volume_db(i, linear_to_db(maxf(volumes[bus], 0.0001)))
+    AudioServer.set_bus_mute(i, volumes[bus] <= 0.0)
+    return true
+
+func apply_audio() -> void:
+    for b in AUDIO_BUSES:
+        set_volume(b, volumes[b])
+
+## Sets the camera FOV (view-only, not gameplay state). No-op without a camera.
+func apply_fov(cam: Camera3D) -> void:
+    if cam:
+        cam.fov = clampf(fov, FOV_MIN, FOV_MAX)
+
 func apply() -> void:
     Actions.mouse_sensitivity = 0.0025 * sensitivity
+    apply_audio()
+    if is_inside_tree():
+        apply_fov(get_viewport().get_camera_3d())
     if DisplayServer.get_name() == "headless":
         return
     match window_mode:
