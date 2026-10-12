@@ -15,7 +15,11 @@ signal changed
 var hero_id := "kestrel"
 var map_id := "arena01"
 var bot_difficulty := "normal"
-var bot_count := 3
+var enemy_count := 3        ## bots on team 1
+var ally_count := -1        ## bots on the player's team 0; -1 = map default (see allies_for)
+var bot_count: int:         ## alias of enemy_count (v0.2 name)
+    get: return enemy_count
+    set(v): enemy_count = v
 var skip_menu_once := false   ## set by "Play again": next main.tscn load starts the match directly
 
 func _ready() -> void:
@@ -26,6 +30,8 @@ func _ready() -> void:
         match kv[0]:
             "hero": set_hero(kv[1])
             "map": map_id = kv[1]
+            "allies": ally_count = maxi(0, int(kv[1]))
+            "enemies": enemy_count = maxi(0, int(kv[1]))
             "bots", "difficulty": bot_difficulty = kv[1] if DIFFICULTY.has(kv[1]) else "normal"
 
 ## Sorted ids of every hero definition (src/heroes/*.json).
@@ -54,3 +60,11 @@ func set_hero(id: String) -> bool:
 
 func difficulty() -> Dictionary:
     return DIFFICULTY.get(bot_difficulty, DIFFICULTY.normal)
+
+## Ally bots for a built map: only maps with team spawn_rooms (team modes, e.g. arena02 Control) get allies;
+## default there is 2 (3v3 with the player). FFA maps without spawn_rooms (arena01) always get 0.
+func allies_for(map: Node3D) -> int:
+    var rooms: Dictionary = map.get_meta("spawn_rooms", {})
+    if not rooms.has(0):
+        return 0
+    return 2 if ally_count < 0 else ally_count

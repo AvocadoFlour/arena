@@ -102,10 +102,18 @@ A bot is a normal `Hero` whose `input_source` is a `BotBrain` — bots get no sp
 | `low_hp_frac`, `cover_time` | 0.35, 3 | enter `cover` state below this HP fraction, for this long |
 | `sight`, `bounds` | 40, 17 | target range; wander half-size (spawner passes the map's `bounds`) |
 | `use_abilities`, `use_navmesh`, `seek_cover` | true | feature switches |
-States: `wander`, `chase`, `cover`. Navmesh: `BotNav` lazily bakes a `BotNavRegion` (NavigationRegion3D)
+Navmesh: `BotNav` lazily bakes a `BotNavRegion` (NavigationRegion3D)
 under the map root from static colliders at first use. Cover = StaticBody3D whose **name contains "cover"**:
 MapLoader names every block `<kind>_<index>` (e.g. `cover_08`) and sets meta `kind`; this naming is part of the map contract.
-Dynamic shield walls are not in the navmesh: bots are blocked by them until they expire (tested, no stuck state).
+`BotNav.sync_dynamic(map_root)` (called from bot path following, at most once per physics frame per map) rebakes
+the navmesh when the set of layer-1 StaticBody3D boxes that are siblings of the map root changes (shield walls);
+they become projected obstructions, so bots path around active walls; the navmesh is restored when they expire.
+Convention: abilities adding transient world geometry add it as a direct child of the world node
+(`hero.get_parent()`), StaticBody3D with BoxShape3D, so bots see it.
+Cover detection: meta `kind == "cover"` (fallback: name prefix `cover`). States: `wander`, `chase`, `cover`, `support`.
+Param `escort_allies` (true): idle bots escort teammates; support bots (Willow) heal hurt allies.
+Ability policy is type-based: `BotBrain.want_ability(type, ctx)` for dash, charge, ground_slam, nova, rally,
+shield_wall, projectile, heal_beam. Team-0 bots are the player's allies (never target team 0).
 Core sets difficulty from `GameConfig.bot_difficulty` (`-- --difficulty=` or `--bots=`) and scales bot damage
 by `GameConfig.difficulty().damage_scale`. Heroes are found via group `"heroes"` (`team`, `dead`, `eye_position()`).
 
@@ -143,12 +151,14 @@ Map selection: `GameConfig.map_id` / `-- --map=ID`; smoke runs on every map JSON
 | `hero_id: String` | player hero (default `kestrel`); set with `set_hero(id) -> bool` (rejects unknown ids) |
 | `map_id: String` | map file id in src/maps (default `arena01`) |
 | `bot_difficulty: String` | `easy` / `normal` / `hard` → `difficulty()` = {spread_deg, turn_rate, damage_scale} |
-| `bot_count: int` | default 3 |
+| `enemy_count: int` | team-1 bots, default 3 (`-- --enemies=N`); `bot_count` is an alias |
+| `ally_count: int` | team-0 bots, default -1 = map default (`-- --allies=N`) |
+| `allies_for(map) -> int` | allies actually spawned: 0 on maps without team-0 `spawn_rooms` (FFA, arena01); otherwise `ally_count`, default **2** (3v3 with the player on arena02 Control) |
 | `hero_ids() -> Array` | every `src/heroes/*.json` id, sorted (hero select lists this) |
 | `hero_path(id)`, `map_path()` | resource paths |
 | signal `changed` | emitted by `set_hero` |
 A future hero-select UI sets these, then (re)loads `res://src/main.tscn`. Bots use a mixed roster:
-bot *i* gets `hero_ids()[i % n]`.
+enemy *i* gets `hero_ids()[i % n]`; ally *i* gets the (i+1)-th hero after the player's in `hero_ids()`.
 
 ## 9. Match modes & win condition (core: src/core/match_rules.gd, node "MatchRules" under main)
 | mode | when | rule |

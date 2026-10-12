@@ -17,6 +17,7 @@ var _used := false
 var _spawns: Dictionary = {}
 var main_menu = null
 var rules: MatchRules
+var _forced_check := false
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS   # screenshot/smoke timers keep running while paused
@@ -85,7 +86,7 @@ func _start_match() -> void:
     if args.has("smoke"):
         player.ult.add(player.ult.cost * 0.8)   # smoke: start near-full so the ultimate is exercised on big maps
     if demo:
-        player.input_source = BotBrain.new({"difficulty": "hard", "use_abilities": true, "seek_cover": false, "turn_rate": 6.0, "fire_cone": 0.08, "spread_deg": 1.0, "reaction_time": 0.1, "bounds": float(map.get_meta("bounds"))})
+        player.input_source = BotBrain.new({"difficulty": "hard", "use_abilities": true, "seek_cover": false, "escort_allies": false, "turn_rate": 6.0, "fire_cone": 0.08, "spread_deg": 1.0, "reaction_time": 0.1, "bounds": float(map.get_meta("bounds"))})
     else:
         player.input_source = Actions
         player.aim_camera = rig.cam
@@ -93,20 +94,17 @@ func _start_match() -> void:
     var diff: Dictionary = GameConfig.difficulty()
     stats["bots"] = []
     stats["difficulty"] = GameConfig.bot_difficulty
-    for i in GameConfig.bot_count:
+    var n_allies := GameConfig.allies_for(map)
+    stats["allies"] = []
+    var pidx: int = maxi(0, roster.find(GameConfig.hero_id))
+    for i in n_allies:
+        var aid: String = roster[(pidx + 1 + i) % roster.size()]   # allies: the heroes after the player's in the roster
+        _spawn_bot(aid, 0, i, spawns, map, diff, "Ally %d (%s)", (i + 1))
+        stats.allies.append(aid)
+    for i in GameConfig.enemy_count:
         var bid: String = roster[i % roster.size()]
-        var b := Hero.from_def(GameConfig.hero_path(bid))
-        b.display_name = "Bot %d (%s)" % [i + 1, b.def.get("name", bid)]
+        _spawn_bot(bid, 1, i, spawns, map, diff, "Bot %d (%s)", i)
         stats.bots.append(bid)
-        b.set_team(1)
-        b.damage_scale = diff.damage_scale
-        var brain := BotBrain.new({"bounds": float(map.get_meta("bounds")), "difficulty": GameConfig.bot_difficulty})
-        b.input_source = brain
-        b.extra_spread_deg = brain.spread_deg
-        b.spawn_point = spawns[1][i % spawns[1].size()]
-        add_child(b)
-        b.global_position = b.spawn_point
-        b.yaw = PI
     hud = Hud.new()
     add_child(hud)
     hud.setup(player)
@@ -149,6 +147,22 @@ func _on_match_ended(ev: Dictionary) -> void:
         get_tree().paused = true   # UI bot's match-end screen listens to Events.match_ended
         Actions.gameplay_enabled = false
         Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+## Spawns one bot hero. Team 0 = ally of the player, team 1 = enemy. spawn_slot indexes the team's spawns.
+func _spawn_bot(id: String, team: int, i: int, spawns: Dictionary, map: Node3D, diff: Dictionary, label: String, spawn_slot: int) -> Hero:
+    var b := Hero.from_def(GameConfig.hero_path(id))
+    b.display_name = label % [i + 1, b.def.get("name", id)]
+    b.set_team(team)
+    b.damage_scale = diff.damage_scale
+    var brain := BotBrain.new({"bounds": float(map.get_meta("bounds")), "difficulty": GameConfig.bot_difficulty})
+    b.input_source = brain
+    b.extra_spread_deg = brain.spread_deg
+    var arr: Array = spawns[team]
+    b.spawn_point = arr[spawn_slot % arr.size()]
+    add_child(b)
+    b.global_position = b.spawn_point
+    b.yaw = PI if team == 1 else 0.0
+    return b
 
 func _restart(skip_menu: bool) -> void:
     GameConfig.skip_menu_once = skip_menu
@@ -195,6 +209,15 @@ func _process(dt: float) -> void:
         get_viewport().get_texture().get_image().save_png(args.screenshot)
         print("SCREENSHOT ", args.screenshot, " ", get_viewport().get_visible_rect().size)
         _finish()
+    if args.has("smoke") and not _forced_check and el >= float(args.smoke) * 0.6:
+        _forced_check = true   # autopilot policy (src/ai) may skip situational abilities: exercise them anyway
+        for slot in ["ability1", "ability2", "ultimate"]:
+            if stats.get(slot, 0) == 0 and player.abilities.has(slot) and not player.dead:
+                player.abilities[slot].cooldown.remaining = 0.0
+                if slot == "ultimate":
+                    player.ult.add(player.ult.cost)
+                player._use(slot)
+                stats["forced"] = stats.get("forced", []) + [slot]
     if args.has("smoke") and el >= float(args.smoke):
         _finish()
     if args.has("demo") and args.demo != "1" and el >= float(args.demo):
