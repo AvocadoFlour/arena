@@ -2,6 +2,6 @@
 
 1. **Twin Tails**: pop-idol fighter inspired by (not copying) a Vocaloid idol. Very long twin tails, futuristic stage outfit. Colours: NOT teal/grey; proposal magenta+white or electric violet (awaiting user pick). No "01" tattoo, no leek, original headset. Kit idea: sound-based (soundwave shots, rhythm dash, concert-stage ult).
 2. **The Best** (capital T, capital B): cocky fearless brawler-leader inspired by an anime hot-blooded leader archetype. Bare chest + cape, pointed shades, giant sword, "nothing is impossible" attitude. Avoid flaming-skull emblem, exact red-flame shades, any Gurren Lagann symbols.
-3. **Cob** (C-O-B, single b; NOT "Cob"): non-humanoid creature. Proposal: stocky stony beetle-golem with mossy shell, rolls into a boulder to charge, plants crystal spikes; tank role.
+3. **Cob** (C-O-B, single b; NOT "Cobb" with two b): non-humanoid creature. Proposal: stocky stony beetle-golem with mossy shell, rolls into a boulder to charge, plants crystal spikes; tank role.
 
 Placeholders to be replaced: Kestrel, Rampart, Willow (and their ability names), map "Twin Spires". Mapping of kits to new heroes pending user approval.
