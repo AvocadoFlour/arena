@@ -13,7 +13,7 @@ Rules
 1. Work in your own git worktree: /workspace/arena-wt/<branch> (`git -C /workspace/arena worktree add /workspace/arena-wt/<branch> -b <branch> master` if missing). Never edit /workspace/arena (master) directly.
 2. Edit only paths you own. If you need a change outside them (esp. src/core or INTERFACES.md), write a request in docs/requests/<branch>.md in your branch and message the lead. Do not work around the interface.
 3. Before handing in: rebase on latest master, run ./build.sh in your worktree; it must pass (tests + automated gameplay run + export, zero script errors).
-4. Hand in at most once per hour: commit, then message the lead with branch, commit hash, summary, test result.
+4. Hand in as soon as your task is done and ./build.sh passes (no waiting for an hour mark). If a task runs longer than an hour, send the lead a short status note at least hourly. Commit, then message the lead with branch, commit hash, summary, test result.
 5. Do not start the next feature until the lead confirms the latest integrated build on master passes with your patch. Meanwhile only fix review feedback.
 6. Never modify another bot's branch or worktree. Never push anywhere external.
 7. Art: stylised low-poly/toon, original only. No Marvel/third-party IP or assets.
