@@ -21,6 +21,7 @@ func _ready() -> void:
     for a in OS.get_cmdline_user_args():
         if a.begins_with("--screenshot") or a.begins_with("--smoke") or a.begins_with("--demo"):
             skip_apply = true
+    Keybinds.load_saved()   # user key rebinds on top of Actions defaults
     if not skip_apply:
         apply()
 
