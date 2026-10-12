@@ -41,13 +41,16 @@ func poll(h) -> InputFrame:
         if _strafe_left <= 0.0:
             _strafe = -1.0 if _rng.randf() < 0.5 else 1.0
             _strafe_left = _rng.randf_range(0.8, 2.0)
-        var fwd := 1.0 if dist > 10.0 else (-0.6 if dist < 5.0 else 0.0)
+        var keep := 10.0
+        if use_abilities and h.abilities.has("ability2") and h.abilities["ability2"].cooldown.is_ready():
+            keep = 3.0   # autopilot closes in to use ground slam
+        var fwd := 1.0 if dist > keep else (-0.6 if dist < minf(5.0, keep - 1.0) else 0.0)
         f.move = Vector2(_strafe * 0.7, fwd).limit_length(1.0)
         f.fire = err < fire_cone
         if use_abilities:
             if dist > 9.0 and _rng.randf() < 0.02:
                 f.ability1 = true
-            if dist < 4.5:
+            if dist < 4.5 or (dist < 6.0 and not h.is_on_floor()):
                 f.ability2 = true
             if dist < 9.0 and h.ult.is_full():
                 f.ultimate = true
