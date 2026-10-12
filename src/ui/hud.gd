@@ -100,6 +100,7 @@ func setup(p) -> void:
     Events.damage_dealt.connect(_on_damage)
     Events.killed.connect(_on_kill)
     _setup_round2()
+    Settings.apply_fov(get_viewport().get_camera_3d())   # player camera exists (rig set up before HUD)
 
 var match_stats: MatchStats
 var scoreboard: Scoreboard
@@ -125,6 +126,14 @@ func _setup_round2() -> void:
     if Events.has_signal("match_ended"):
         Events.connect("match_ended", func(result: Dictionary): match_end.show_results(result, match_stats, player))
 
+## Ammo counter only for weapons with real ammo: hidden for primary.type "melee" (INTERFACES §2.1)
+## and for the "no ammo" sentinel mag >= 999.
+static func shows_ammo(def) -> bool:
+    if not def is Dictionary:
+        return true
+    var p: Dictionary = def.get("primary", {})
+    return str(p.get("type", "hitscan")) != "melee" and int(p.get("mag", 0)) < 999
+
 ## Live binding text for an action (reflects rebinds immediately; read from InputMap each frame).
 static func key_label(action: String) -> String:
     return Keybinds.binding_text(action).to_upper()
@@ -139,6 +148,7 @@ func _process(dt: float) -> void:
     hp_bar.value = player.health.hp
     hp_label.text = "%s   %d / %d" % [player.display_name, ceil(player.health.hp), player.health.max_hp]
     var w = player.weapon
+    ammo_label.visible = shows_ammo(player.def)
     ammo_label.text = ("RELOADING" if w.reloading() else "%d / %d" % [w.ammo, w.mag_size])
     for slot in ab_labels:
         if not player.abilities.has(slot):
