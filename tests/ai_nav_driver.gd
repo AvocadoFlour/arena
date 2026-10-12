@@ -1,7 +1,7 @@
 extends Node3D
 ## AI integration tests on the real map: navmesh bake, path around cover, bot reaching a goal
 ## behind cover, and low-health cover seeking.
-const HERO := "res://src/heroes/kestrel.json"
+const HERO := "res://src/heroes/archive/kestrel.json"
 const MAP := "res://src/maps/arena01.json"
 var results: Array = []
 var done := false

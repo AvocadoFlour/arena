@@ -6,7 +6,7 @@ func test_catalog_lists_heroes_from_data() -> void:
     var hs := UiCatalog.list_heroes()
     check(hs.size() >= 1, "at least one hero")
     var ids: Array = hs.map(func(h): return h.id)
-    check(ids.has("kestrel"), "kestrel discovered: %s" % [ids])
+    check(ids.has("twin_tails"), "twin_tails discovered: %s" % [ids])
     for f in DirAccess.get_files_at("res://src/heroes"):
         if f.ends_with(".json"):
             check(hs.any(func(h): return h.path.ends_with(f)), "every hero json listed: " + f)

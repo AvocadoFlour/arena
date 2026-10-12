@@ -38,6 +38,15 @@ Gameplay code never reads `Input` directly.
   "abilities": {"ability1": {...}, "ability2": {...}, "ultimate": {...}},
   "model": [{"shape":"capsule|sphere|box","radius","height","size":[x,y,z],"pos":[x,y,z],"color":"#hex|team","muzzle":bool}] }
 ```
+### 2.1 Primary types
+- `hitscan` (default): `damage, fire_rate, mag, reload_time, spread_deg, range` — core `Weapon`.
+- `melee` (v0.3): `{"type":"melee","damage","fire_rate","mag" (999 = no ammo),"reload_time","range","arc_deg",
+  "combo":[mult…],"combo_window","finisher_knockback","lunge"}`. `Weapon` still gates rate; hero.gd
+  `melee_swing()` hits every enemy within `range` inside the frontal `arc_deg` (`MeleeMath.in_arc`), damage =
+  `damage × combo[i] × damage_mult()`, combo index resets after `combo_window` s; the last combo hit knocks back
+  by `finisher_knockback`. Damage kind `primary`. Bots should close to `primary.range`.
+- `projectile` primary: still deferred.
+
 ### 2.2 Ability
 Ability def: `{"id","type","name","cooldown", ...type params}`. `type` → script via
 `AbilityRegistry.TYPES`. Script extends `Ability`: `_init(hero, def)`, `can_activate()`,
@@ -54,7 +63,21 @@ Hero API for abilities (v0.2, approved with the heroes merge):
 | `effective_move_cfg()` | `movement` dict with slows applied (what `Motion.step_velocity` gets) |
 | `eye_position()`, `look_dir()`, `aim_camera`, `yaw`, `pitch`, `team`, `damage_scale` | aim/teaming; read-only for abilities |
 | `get_parent()` | the world node: abilities may add transient nodes there (projectiles, shield walls, FX) |
-Ability types (registry): `dash, ground_slam, nova, projectile, shield_wall, charge, heal_beam, rally`.
+v0.3 hero API (heroes round 2):
+| member | contract |
+|---|---|
+| `damage_mult() -> float` | `damage_scale × active buff`; ALL hero/ability damage must use it |
+| `apply_buff(mult, dur, kb_immune)` | outgoing damage × mult for dur s; optional knockback immunity |
+| `knockback(v: Vector3)` | adds velocity; ignored while `knockback_immune` |
+| `add_overheal(amount, dur)`, `overheal` | shield HP absorbed before health inside `take_damage`; the returned amount includes absorbed overheal |
+| `clear_buffs()` | called on death |
+Ability def option `"needs_ult": true`: any type can be an ultimate (requires and consumes a full meter).
+Ability types (registry): `dash, ground_slam, nova, projectile, shield_wall, charge, heal_beam, rally, leap, team_buff`.
+- `leap`: `{forward_speed, up_speed, air_time, radius, damage, knockback}` — jump forward, AoE + knockback on landing; query `leaping()`.
+- `team_buff`: `{radius, duration, damage_mult, knockback_immune, overheal}` — buffs self + allies in radius.
+- `ground_slam` now impacts only on landing after its own dive. Optional `color` on heal_beam / ground_slam.
+Roles: `tank, support, brawler, duelist`. Selectable heroes = top-level `src/heroes/*.json` only
+(v0.3: Twin Tails, The Best, Cob); retired defs live in `src/heroes/archive/` (tests only, not scanned).
 Optional ability query methods: `channeling()` (heal_beam), `active()` (shield_wall), `charging()` (charge).
 Shield walls are StaticBody3D on layer 1: they block movement, hitscan and projectiles of both teams.
 
@@ -148,7 +171,7 @@ Map selection: `GameConfig.map_id` / `-- --map=ID`; smoke runs on every map JSON
 ## 8. Match config (`GameConfig` autoload, src/core/game_config.gd)
 | member | meaning |
 |---|---|
-| `hero_id: String` | player hero (default `kestrel`); set with `set_hero(id) -> bool` (rejects unknown ids) |
+| `hero_id: String` | player hero (default `DEFAULT_HERO` = `twin_tails`); set with `set_hero(id) -> bool` (rejects unknown ids) |
 | `map_id: String` | map file id in src/maps (default `arena01`) |
 | `bot_difficulty: String` | `easy` / `normal` / `hard` → `difficulty()` = {spread_deg, turn_rate, damage_scale} |
 | `enemy_count: int` | team-1 bots, default 3 (`-- --enemies=N`); `bot_count` is an alias |

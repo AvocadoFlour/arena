@@ -17,7 +17,6 @@ var _used := false
 var _spawns: Dictionary = {}
 var main_menu = null
 var rules: MatchRules
-var _forced_check := false
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS   # screenshot/smoke timers keep running while paused
@@ -87,6 +86,7 @@ func _start_match() -> void:
         player.ult.add(player.ult.cost * 0.8)   # smoke: start near-full so the ultimate is exercised on big maps
     if demo:
         player.input_source = BotBrain.new({"difficulty": "hard", "use_abilities": true, "seek_cover": false, "escort_allies": false, "turn_rate": 6.0, "fire_cone": 0.08, "spread_deg": 1.0, "reaction_time": 0.1, "bounds": float(map.get_meta("bounds"))})
+        player.input_source = MeleeCloser.wrap(player.input_source, player)
     else:
         player.input_source = Actions
         player.aim_camera = rig.cam
@@ -155,7 +155,7 @@ func _spawn_bot(id: String, team: int, i: int, spawns: Dictionary, map: Node3D, 
     b.set_team(team)
     b.damage_scale = diff.damage_scale
     var brain := BotBrain.new({"bounds": float(map.get_meta("bounds")), "difficulty": GameConfig.bot_difficulty})
-    b.input_source = brain
+    b.input_source = MeleeCloser.wrap(brain, b)   # temporary melee shim, see melee_closer.gd
     b.extra_spread_deg = brain.spread_deg
     var arr: Array = spawns[team]
     b.spawn_point = arr[spawn_slot % arr.size()]
@@ -216,10 +216,10 @@ func _process(dt: float) -> void:
         get_viewport().get_texture().get_image().save_png(args.screenshot)
         print("SCREENSHOT ", args.screenshot, " ", get_viewport().get_visible_rect().size)
         _finish()
-    if args.has("smoke") and not _forced_check and el >= float(args.smoke) * 0.6:
-        _forced_check = true   # autopilot policy (src/ai) may skip situational abilities: exercise them anyway
+    if args.has("smoke") and el >= float(args.smoke) * 0.6 and not player.dead:
+        # autopilot policy (src/ai) may skip situational abilities: exercise each unused slot once (retries while dead)
         for slot in ["ability1", "ability2", "ultimate"]:
-            if stats.get(slot, 0) == 0 and player.abilities.has(slot) and not player.dead:
+            if stats.get(slot, 0) == 0 and player.abilities.has(slot) and not stats.get("forced", []).has(slot):
                 player.abilities[slot].cooldown.remaining = 0.0
                 if slot == "ultimate":
                     player.ult.add(player.ult.cost)

@@ -47,6 +47,13 @@ implemented as an `Actions.sources` provider (see INTERFACES.md §1).
 Deferred to v0.2: projectile *primary* fire (`"primary": {"type": "projectile"}`, heroes request 3) —
 needs a Weapon/schema change in core; declined for now.
 
+## v0.3 roster (replaces the placeholders, which moved to src/heroes/archive/)
+| Hero | Role | Primary | Ability 1 | Ability 2 | Ultimate |
+|---|---|---|---|---|---|
+| Twin Tails | Support | Hitscan | Encore Beam (heal channel) | Staccato Note (projectile) | Grand Finale (team heal) |
+| The Best | Brawler | Melee 3-hit combo | Fearless Leap | Swagger Step (dash) | No Limits (team buff + overheal) |
+| Cob | Tank | Hitscan | Boulder Roll (charge) | Geode Wall (shield wall) | Quarry Quake (slam) |
+
 ## Roadmap
 1. v0.1 skeleton (this). 2. v0.2: 2–3 more heroes, projectile weapons, team 3v3 vs bots,
 better bot nav (NavigationRegion3D). 3. v0.3: touch controls + Android export. 4. v0.4:

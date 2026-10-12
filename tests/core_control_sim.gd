@@ -26,7 +26,7 @@ func _ready() -> void:
     Events.capture_progress.connect(func(ev): got.changed += 1; got["last"] = ev)
     Events.capture_completed.connect(func(ev): got.captured.append(ev))
     Events.match_ended.connect(func(ev): got.ended.append(ev))
-    hero = Hero.from_def("res://src/heroes/kestrel.json")
+    hero = Hero.from_def("res://src/heroes/twin_tails.json")
     hero.set_team(0)
     add_child(hero)
     hero.global_position = zone.aabb.get_center() + Vector3(0, 1.0, 0)

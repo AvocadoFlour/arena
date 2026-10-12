@@ -12,7 +12,8 @@ const DIFFICULTY := {
 }
 signal changed
 
-var hero_id := "kestrel"
+const DEFAULT_HERO := "twin_tails"
+var hero_id := DEFAULT_HERO
 var map_id := "arena01"
 var bot_difficulty := "normal"
 var enemy_count := 3        ## bots on team 1

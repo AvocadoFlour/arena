@@ -31,7 +31,7 @@ func _rec(n: String, ok: bool, info: String) -> void:
     results.append([n, ok, info])
 
 func _hero(def: String, team: int, pos: Vector3) -> Hero:
-    var h := Hero.from_def("res://src/heroes/%s.json" % def)
+    var h := Hero.from_def("res://src/heroes/archive/%s.json" % def)
     h.set_team(team)
     h.spawn_point = pos
     add_child(h)

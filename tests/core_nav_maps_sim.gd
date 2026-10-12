@@ -39,7 +39,7 @@ func _load(path: String) -> void:
     _rec("navmesh_baked_" + path.get_file().get_basename(), region.navigation_mesh.get_polygon_count() > 10, "polygons=%d" % region.navigation_mesh.get_polygon_count())
 
 func _walker(pos: Vector3, g: Vector3) -> void:
-    walker = Hero.from_def("res://src/heroes/kestrel.json")
+    walker = Hero.from_def("res://src/heroes/the_best.json")
     walker.set_team(1)
     add_child(walker)
     walker.global_position = pos
@@ -77,7 +77,7 @@ func _physics_process(_dt: float) -> void:
             frame = 0
             _load("res://src/maps/arena01.json")
             _walker(Vector3(-3.5, 0.2, 17), Vector3(-3.5, 0.2, 2))
-            var r := Hero.from_def("res://src/heroes/rampart.json")
+            var r := Hero.from_def("res://src/heroes/cob.json")
             r.set_team(0)
             add_child(r)
             r.global_position = Vector3(-3.5, 0.2, 13)
