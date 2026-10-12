@@ -61,6 +61,14 @@ Shield walls are StaticBody3D on layer 1: they block movement, hitscan and proje
 Damage kinds (`kind`): `primary` (hitscan), `slam`, `ultimate`, `projectile` (ability projectiles, incl.
 splash), `charge` (rush contact), `fall`.
 
+### 2.3 Hero / map listing (approved v0.2, UI request)
+`UiCatalog.list_heroes(dir=res://src/heroes) -> [{id,name,role,max_hp,path}]`, `UiCatalog.list_maps() -> [{name,path}]`
+(src/ui/catalog.gd, folder scan, malformed files skipped). **Every `.json` in src/heroes and src/maps must be a
+playable hero/map** — enforced by `tests/core_playable_sim.gd` (valid def, registered ability types, team 0/1 spawns,
+every hero lands at a spawn on every map). Put non-hero data elsewhere.
+Main menu: `MainMenu.play_requested(hero_path, map_path)` → main.gd sets `GameConfig.hero_id/map_id` and starts the
+match. Any test flag (`--demo --smoke --screenshot --hero --map`) bypasses the menu.
+
 ## 3. Damage & health
 - `hero.take_damage(amount, source: Hero|null, pos: Vector3, kind: String) -> float applied`.
   `kind` ∈ `primary, slam, ultimate, fall, …`.

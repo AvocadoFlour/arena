@@ -25,11 +25,19 @@ func _discover() -> Dictionary:
     units.sort()
     return {"units": units, "integ": integ}
 
+var _started := false
+
 func _initialize() -> void:
+    pass
+
+## Suites run on the first frame so autoloads (Actions, Settings, GameConfig, InputMap) are ready.
+func _run_units() -> void:
     var d := _discover()
     print("== unit tests (%d suites) ==" % d.units.size())
     for path in d.units:
         var s = load(path).new()
+        if "tree" in s:
+            s.tree = self
         for m in s.get_method_list():
             var n: String = m.name
             if not n.begins_with("test_"):
@@ -63,6 +71,10 @@ func _next() -> void:
     holder.add_child(current)
 
 func _process(_dt: float) -> bool:
+    if not _started:
+        _started = true
+        _run_units()
+        return false
     if current != null and current.done:
         for r in current.results:
             if r[1]:

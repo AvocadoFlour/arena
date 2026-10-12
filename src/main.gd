@@ -15,6 +15,7 @@ var _game_t := 0.0   ## game time (fixed-step in movie mode)
 var _shot_done := false
 var _used := false
 var _spawns: Dictionary = {}
+var main_menu = null
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS   # screenshot/smoke timers keep running while paused
@@ -22,6 +23,34 @@ func _ready() -> void:
         if a.begins_with("--"):
             var kv := a.substr(2).split("=", true, 1)
             args[kv[0]] = kv[1] if kv.size() > 1 else "1"
+    if _test_mode() or args.has("menu"):
+        _start_match()
+    else:
+        _show_main_menu()
+
+## Any test/automation flag bypasses the main menu.
+func _test_mode() -> bool:
+    for k in ["demo", "smoke", "screenshot", "hero", "map"]:
+        if args.has(k) and not args.has("mainmenu"):
+            return true
+    return false
+
+func _show_main_menu() -> void:
+    main_menu = MainMenu.new()
+    add_child(main_menu)
+    UiCatalog.selected_hero = GameConfig.hero_path(GameConfig.hero_id)
+    UiCatalog.selected_map = GameConfig.map_path()
+    main_menu.play_requested.connect(func(hero_path: String, map_path: String):
+        GameConfig.set_hero(hero_path.get_file().get_basename())
+        GameConfig.map_id = map_path.get_file().get_basename()
+        main_menu.queue_free()
+        main_menu = null
+        _start_match())
+    if args.has("ui_screen"):
+        main_menu.show_screen(args.ui_screen)
+    _t0 = Time.get_ticks_msec()
+
+func _start_match() -> void:
     var demo := args.has("demo") or args.has("smoke") or args.has("screenshot")
     var map := MapLoader.build(GameConfig.map_path())
     add_child(map)
@@ -102,6 +131,8 @@ func _on_kill(ev: Dictionary) -> void:
         stats.deaths += 1
 
 func _unhandled_input(event: InputEvent) -> void:
+    if menu == null:
+        return
     if args.has("demo") or args.has("smoke") or args.has("screenshot"):
         return
     if event.is_action_pressed("pause"):
@@ -115,8 +146,17 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(dt: float) -> void:
     _game_t += dt
     var el := _game_t
+    if player == null:
+        if args.has("screenshot") and not _shot_done and el >= float(args.get("delay", "3")):
+            _shot_done = true
+            get_viewport().get_texture().get_image().save_png(args.screenshot)
+            print("SCREENSHOT ", args.screenshot)
+            get_tree().quit(0)
+        return
     if args.has("use") and not _used and el >= float(args.get("delay", "6")) - float(args.get("use_lead", "0.3")):
         _used = true   # test hook: force an ability right before the screenshot
+        if player.abilities.has(args.use):
+            player.abilities[args.use].cooldown.remaining = 0.0
         player._use(args.use)
     if args.has("screenshot") and not _shot_done and el >= float(args.get("delay", "6")):
         _shot_done = true
