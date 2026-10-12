@@ -28,6 +28,10 @@ func _do() -> bool:
     m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
     mi.material_override = m
     wall.add_child(mi)
+    wall.add_to_group("net_props")
+    wall.set_meta("net_kind", "wall")
+    wall.set_meta("net_size", size)
+    wall.set_meta("net_color", c)
     parent.add_child(wall)
     var f: Vector3 = hero.look_dir()
     f = Vector3(f.x, 0, f.z).normalized()

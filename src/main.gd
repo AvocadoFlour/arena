@@ -4,6 +4,8 @@ extends Node3D
 ##   -- --smoke=SECONDS   run demo, print stats, exit 0 (pass) or 1 (fail)
 ##   -- --screenshot=PATH --delay=S [--menu] [--use=SLOT --use_lead=S]   save a PNG after S seconds and quit
 ##   -- --hero=ID --map=ID --bots=easy|normal|hard   (GameConfig)
+##   -- --net_host=PORT | --net_join=IP:PORT   online (docs/INTERFACES.md §10); --autopilot bot-drives the player;
+##      --net_test=S prints NETDUMP after S seconds (tools/net_test.sh)
 
 var player: Hero
 var hud: Hud
@@ -17,6 +19,11 @@ var _used := false
 var _spawns: Dictionary = {}
 var main_menu = null
 var rules: MatchRules
+var _bots := {0: [], 1: []}   ## team -> bot heroes (host replaces one per joining human)
+var _net_status: Label
+var _dump := {"kills": [], "remote_dmg": 0.0, "match_ended": null}
+var _dump_open := true        ## kills are recorded until match_ended
+var _dumped := false
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS   # screenshot/smoke timers keep running while paused
@@ -24,6 +31,17 @@ func _ready() -> void:
         if a.begins_with("--"):
             var kv := a.substr(2).split("=", true, 1)
             args[kv[0]] = kv[1] if kv.size() > 1 else "1"
+    Net.world = self
+    Net.disconnected.connect(_on_net_lost)
+    if args.has("net_test"):
+        get_tree().create_timer(float(args.net_test), true, true).timeout.connect(func(): _net_dump(); get_tree().quit(0))
+    if args.has("net_join"):
+        var a := NetPanel.parse_address(args.net_join)
+        _join(a[0], a[1])
+        return
+    if args.has("net_host"):
+        Net.host(int(args.net_host))
+        print("NET hosting on ", args.net_host)
     if _test_mode() or args.has("menu") or GameConfig.skip_menu_once:
         GameConfig.skip_menu_once = false
         _start_match()
@@ -32,7 +50,7 @@ func _ready() -> void:
 
 ## Any test/automation flag bypasses the main menu.
 func _test_mode() -> bool:
-    for k in ["demo", "smoke", "screenshot", "hero", "map"]:
+    for k in ["demo", "smoke", "screenshot", "hero", "map", "net_host", "autopilot"]:
         if args.has(k) and not args.has("mainmenu"):
             return true
     return false
@@ -48,12 +66,21 @@ func _show_main_menu() -> void:
         main_menu.queue_free()
         main_menu = null
         _start_match())
+    var col: Node = main_menu.screens.main.get_child(0).get_child(0)
+    var play_btn: Node = col.get_node_or_null("Play")
+    var at := play_btn.get_index() + 1 if play_btn else col.get_child_count()
+    for k in ["join", "host"]:
+        var b := MenuStyle.button("Host online" if k == "host" else "Join online", _open_net_panel.bind(k))
+        b.name = "Net" + k
+        b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+        col.add_child(b)
+        col.move_child(b, at)
     if args.has("ui_screen"):
         main_menu.show_screen(args.ui_screen)
     _t0 = Time.get_ticks_msec()
 
 func _start_match() -> void:
-    var demo := args.has("demo") or args.has("smoke") or args.has("screenshot")
+    var demo := args.has("demo") or args.has("smoke") or args.has("screenshot") or args.has("autopilot")
     var map := MapLoader.build(GameConfig.map_path())
     add_child(map)
     var spawns: Dictionary = map.get_meta("spawns")
@@ -74,6 +101,7 @@ func _start_match() -> void:
     stats["map"] = GameConfig.map_id
     player = Hero.from_def(GameConfig.hero_path(GameConfig.hero_id))
     player.display_name = "You (%s)" % player.def.get("name", GameConfig.hero_id)
+    player.set_meta("net_name", "Host (%s)" % player.def.get("name", GameConfig.hero_id))
     stats["hero"] = GameConfig.hero_id
     player.set_team(0)
     player.spawn_point = spawns[0][0]
@@ -90,6 +118,7 @@ func _start_match() -> void:
     else:
         player.input_source = Actions
         player.aim_camera = rig.cam
+    Net.register(player)
     var roster: Array = GameConfig.hero_ids()   # mixed bot roster: cycle through all heroes
     var diff: Dictionary = GameConfig.difficulty()
     stats["bots"] = []
@@ -116,9 +145,12 @@ func _start_match() -> void:
     Events.killed.connect(_on_kill)
     Events.killed.connect(_schedule_respawn_pick)
     Events.ability_used.connect(func(h, slot, _id): if h == player: stats[slot] = stats.get(slot, 0) + 1)
+    _hook_net_dump()
     for c in get_children():
         if c != menu:
             c.process_mode = Node.PROCESS_MODE_PAUSABLE
+    if Net.is_host():
+        _show_net_status()
     if args.has("menu"):
         menu.open()
     elif not demo:
@@ -144,7 +176,8 @@ func _on_match_ended(ev: Dictionary) -> void:
     stats["winner_team"] = ev.winner_team
     print("MATCH ENDED ", JSON.stringify(ev))
     if not _test_mode():
-        get_tree().paused = true   # UI bot's match-end screen listens to Events.match_ended
+        if not Net.is_client():
+            get_tree().paused = true   # UI bot's match-end screen listens to Events.match_ended
         Actions.gameplay_enabled = false
         Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
@@ -162,9 +195,14 @@ func _spawn_bot(id: String, team: int, i: int, spawns: Dictionary, map: Node3D, 
     add_child(b)
     b.global_position = b.spawn_point
     b.yaw = PI if team == 1 else 0.0
+    Net.register(b)
+    _bots[team].append(b)
     return b
 
 func _restart(skip_menu: bool) -> void:
+    if Net.is_online():   # online sessions end on restart; back to the menu
+        Net.close()
+        skip_menu = false
     GameConfig.skip_menu_once = skip_menu
     get_tree().paused = false
     Actions.gameplay_enabled = true
@@ -186,6 +224,8 @@ func _unhandled_input(event: InputEvent) -> void:
             menu.close()
         else:
             menu.open()
+            if Net.is_online():
+                get_tree().paused = false   # the world never pauses online
     elif event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not menu.visible:
         Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -243,3 +283,190 @@ func _finish() -> void:
     if args.has("smoke"):
         print("SMOKE ", "PASS" if ok else "FAIL")
     get_tree().quit(0 if ok or not args.has("smoke") else 1)
+
+# ---------------------------------------------------------------- online (docs/INTERFACES.md §10)
+func _open_net_panel(kind: String) -> void:
+    var panel := NetPanel.new(kind)
+    add_child(panel)
+    panel.host_requested.connect(func(port: int):
+        var err := Net.host(port)
+        if err != OK:
+            panel.set_status("Could not open UDP port %d (error %d). Is another copy running?" % [port, err])
+            return
+        GameConfig.set_hero(UiCatalog.selected_hero.get_file().get_basename())
+        GameConfig.map_id = UiCatalog.selected_map.get_file().get_basename()
+        panel.queue_free()
+        main_menu.queue_free()
+        main_menu = null
+        _start_match())
+    panel.join_requested.connect(func(addr: String, port: int):
+        GameConfig.set_hero(UiCatalog.selected_hero.get_file().get_basename())
+        if _join(addr, port) != OK:
+            panel.set_status("Invalid address.")
+            return
+        Net.welcomed.connect(func(_i): if is_instance_valid(panel): panel.queue_free(), CONNECT_ONE_SHOT))
+
+func _join(addr: String, port: int) -> int:
+    var err := Net.join(addr, port)
+    if err == OK:
+        Net.welcomed.connect(_start_client, CONNECT_ONE_SHOT)
+        print("NET joining ", addr, ":", port)
+    return err
+
+func _on_net_lost(reason: String) -> void:
+    if args.has("net_test"):
+        _net_dump()
+        get_tree().quit(0)
+        return
+    print("NET lost: ", reason)
+    if player == null and main_menu != null:
+        return   # still in the menu: the panel shows the failure
+    _restart(false)
+
+func _show_net_status() -> void:
+    var cl := CanvasLayer.new()
+    cl.layer = 15
+    _net_status = MenuStyle.label("", 16)
+    _net_status.position = Vector2(12, 8)
+    cl.add_child(_net_status)
+    add_child(cl)
+    var upd := func(_x = null):
+        _net_status.text = "Hosting  %s:%d   players %d/%d" % [Net.public_ip if Net.public_ip != "" else "<your public IP>", Net.port, 1 + Net.peers.size(), Net.MAX_HUMANS]
+    Net.public_ip_ready.connect(upd)
+    Net.peer_count_changed.connect(upd)
+    upd.call()
+    if Net.public_ip == "" and not args.has("net_test"):
+        Net.fetch_public_ip()
+
+## HOST: a remote human said hello. Puts them on the team with fewer humans, replacing one of its bots.
+func net_spawn_human(pid: int, hero_id: String, pname: String) -> Hero:
+    var humans := {0: 0, 1: 0}
+    for h in Net.heroes():
+        if h == player or h.has_meta("peer"):
+            humans[h.team] += 1
+    var team := 0 if humans[0] < humans[1] else 1
+    var spawn: Vector3 = _spawns[team][humans[team] % _spawns[team].size()]
+    _bots[team] = _bots[team].filter(func(b): return is_instance_valid(b))
+    if not _bots[team].is_empty():
+        var bot: Hero = _bots[team].pop_back()
+        spawn = bot.spawn_point
+        Net.despawn(bot)
+    if not GameConfig.hero_ids().has(hero_id):
+        hero_id = GameConfig.DEFAULT_HERO
+    var h := Hero.from_def(GameConfig.hero_path(hero_id))
+    h.display_name = "%s (%s)" % [pname, h.def.get("name", hero_id)]
+    h.set_meta("net_name", h.display_name)
+    h.set_meta("peer", pid)
+    h.set_team(team)
+    h.spawn_point = spawn
+    h.input_source = RemoteInput.new()
+    h.process_mode = Node.PROCESS_MODE_PAUSABLE
+    add_child(h)
+    h.global_position = spawn
+    h.yaw = PI if team == 1 else 0.0
+    Net.register(h)
+    print("NET human joined: ", h.display_name, " team ", team, " id ", h.net_id)
+    return h
+
+func net_peer_left(_pid: int) -> void:
+    pass   # the slot stays empty until the next match (bots are not re-filled mid-match)
+
+## CLIENT: the host accepted us. Builds a passive world: map + heroes driven by snapshots.
+func _start_client(info: Dictionary) -> void:
+    if main_menu:
+        main_menu.queue_free()
+        main_menu = null
+    var map := MapLoader.build(GameConfig.map_path())
+    add_child(map)
+    _spawns = map.get_meta("spawns")
+    stats["map"] = GameConfig.map_id
+    for hi in info.heroes:
+        _client_spawn(hi, map)
+    Net.hero_spawned.connect(func(hi): _client_spawn(hi, map))
+    if player == null:
+        push_error("NET welcome without our hero")
+        return
+    hud = Hud.new()
+    add_child(hud)
+    hud.setup(player)
+    hud.match_end.play_again.connect(func(): _restart(false))
+    hud.match_end.main_menu.connect(func(): _restart(false))
+    menu = PauseMenu.new()
+    add_child(menu)
+    Events.match_ended.connect(_on_match_ended)
+    Events.damage_dealt.connect(_on_dmg)
+    Events.killed.connect(_on_kill)
+    _hook_net_dump()
+    if not args.has("autopilot"):
+        Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+    _t0 = Time.get_ticks_msec()
+
+func _client_spawn(hi: Dictionary, map: Node3D) -> void:
+    var id := int(hi.id)
+    if Net.entities.has(id):
+        return
+    var h := Hero.from_def(GameConfig.hero_path(String(hi.hero_id)))
+    h.display_name = String(hi.name)
+    h.set_team(int(hi.team))
+    add_child(h)
+    h.global_position = hi.pos
+    h.yaw = float(hi.yaw)
+    h.rotation.y = h.yaw
+    Net.register_as(h, id)
+    if id == Net.my_net_id:
+        player = h
+        h.display_name = "You (%s)" % h.def.get("name", hi.hero_id)
+        h.net_role = "predicted"
+        var rig := CameraRig.new()
+        h.add_child(rig)
+        rig.setup(h)
+        var src = Actions
+        if args.has("autopilot"):
+            src = MeleeCloser.wrap(BotBrain.new({"difficulty": "hard", "use_abilities": true, "seek_cover": false, "escort_allies": false, "bounds": float(map.get_meta("bounds"))}), h)
+        else:
+            h.aim_camera = rig.cam
+        h.input_source = ClientInput.new(src)
+        stats["hero"] = String(hi.hero_id)
+    else:
+        h.net_role = "puppet"
+
+# ---------------------------------------------------------------- net test dump (tools/net_test.sh)
+func _hook_net_dump() -> void:
+    if not args.has("net_test"):
+        return
+    var idof := func(n): return int(n.net_id) if is_instance_valid(n) and n is Hero else -1
+    Events.killed.connect(func(ev):
+        if _dump_open and (Net.is_client() or not Net.peers.is_empty()):
+            _dump.kills.append([idof.call(ev.killer), idof.call(ev.victim), String(ev.kind)]))
+    Events.damage_dealt.connect(func(ev):
+        if is_instance_valid(ev.source) and ev.source is Hero and ev.source.has_meta("peer"):
+            _dump.remote_dmg += float(ev.amount))
+    Events.match_ended.connect(func(ev):
+        _dump_open = false
+        _dump.match_ended = {"winner_team": ev.winner_team, "reason": ev.reason, "mode": ev.get("mode", "")})
+
+func _net_dump() -> void:
+    if _dumped:
+        return
+    _dumped = true
+    var d := _dump.duplicate()
+    d["role"] = "client" if Net.is_client() else "host"
+    if Net.is_client():
+        d["server_tick"] = Net.server_tick
+        d["hp"] = Net.last_snap_hp
+        d["me"] = Net.my_net_id
+        d["reconciles"] = Net.reconciles
+        d["max_correction"] = snappedf(Net.max_correction, 0.001)
+        d["sent"] = player.input_source.sent if player and player.input_source is ClientInput else 0
+    else:
+        var log := {}
+        for e in Net.snap_log:
+            log[str(e[0])] = e[1]
+        d["snap_hp"] = log
+        d["peers"] = Net.peers.size()
+        var recv := 0
+        for pid in Net.peers:
+            if is_instance_valid(Net.peers[pid].hero):
+                recv += Net.peers[pid].hero.input_source.received
+        d["inputs_received"] = recv
+    print("NETDUMP ", JSON.stringify(d))

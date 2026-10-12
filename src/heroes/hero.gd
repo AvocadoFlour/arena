@@ -38,6 +38,8 @@ var overheal_decay := 0.0            ## overheal lost per second
 var combo_step := 0                  ## melee primary: index in the combo
 var combo_left := 0.0                ## melee primary: time left to continue the combo
 var _rng := RandomNumberGenerator.new()
+var net_id := -1                   ## network id (Net registry), -1 = unregistered
+var net_role := "auth"             ## "auth" simulates fully; "predicted" (client's own hero) moves only; "puppet" is driven by snapshots
 var _muzzle: Node3D
 var _team_mats: Array = []
 
@@ -111,6 +113,11 @@ func look_dir() -> Vector3:
     return Vector3(-sin(yaw) * cos(pitch), sin(pitch), -cos(yaw) * cos(pitch))
 
 func _physics_process(dt: float) -> void:
+    if net_role == "puppet":
+        return
+    if net_role == "predicted":
+        _predict_step(dt)
+        return
     if dead:
         respawn_left -= dt
         if respawn_left <= 0.0:
@@ -158,6 +165,22 @@ func _physics_process(dt: float) -> void:
         _die(null, "fall")
     var _unused = was_air
 
+## Client-side prediction of our own hero: look + movement only; the host owns everything else.
+func _predict_step(dt: float) -> void:
+    if dead or input_source == null:
+        return
+    var f: InputFrame = input_source.poll(self)
+    yaw = wrapf(yaw + f.look.x, -PI, PI)
+    pitch = clampf(pitch + f.look.y, -1.3, 1.3)
+    rotation.y = yaw
+    var wish := global_transform.basis * Vector3(f.move.x, 0, -f.move.y)
+    wish.y = 0.0
+    last_wish = wish
+    velocity = Motion.step_velocity(velocity, wish, is_on_floor(), f.jump, effective_move_cfg(), dt)
+    move_and_slide()
+    if input_source.has_method("record_pos"):
+        input_source.record_pos(global_position)
+
 func _use(slot: String) -> void:
     if abilities.has(slot) and abilities[slot].activate():
         Events.ability_used.emit(self, slot, abilities[slot].id)
@@ -165,6 +188,13 @@ func _use(slot: String) -> void:
 func _try_fire() -> void:
     if not weapon.try_fire():
         return
+    var rewound := Net.rewind_for(self)   # lag compensation for remote shooters (host only)
+    _fire_shot()
+    Net.restore(rewound)
+
+func _fire_shot() -> void:
+    if Net.is_online():
+        _rng.seed = hash([net_id, Net.tick, weapon.ammo])   # deterministic per-tick spread
     if String(def.get("primary", {}).get("type", "hitscan")) == "melee":
         melee_swing()
         return
@@ -318,7 +348,7 @@ func aoe(center: Vector3, radius: float, dmg: float, kind: String) -> int:
 
 ## Damage contract (INTERFACES.md section 3). Returns damage actually applied.
 func take_damage(amount: float, source, pos: Vector3, kind: String) -> float:
-    if dead:
+    if dead or not Net.is_authority():   # THE authority check: only the host/offline sim applies damage
         return 0.0
     var absorbed := 0.0
     if overheal > 0.0 and amount > 0.0:

@@ -11,6 +11,7 @@ static func _mat(c: Color) -> StandardMaterial3D:
     return m
 
 static func tracer(parent: Node, a: Vector3, b: Vector3, c: Color) -> void:
+    Net.send_fx("tracer", [a, b, c])
     var length := a.distance_to(b)
     if length < 0.05:
         return
@@ -27,6 +28,7 @@ static func tracer(parent: Node, a: Vector3, b: Vector3, c: Color) -> void:
     parent.get_tree().create_timer(0.06).timeout.connect(mi.queue_free)
 
 static func ring(parent: Node, pos: Vector3, radius: float, c: Color, dur: float = 0.4) -> void:
+    Net.send_fx("ring", [pos, radius, c, dur])
     var mi := MeshInstance3D.new()
     var sm := SphereMesh.new()
     sm.radius = 1.0

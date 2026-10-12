@@ -13,6 +13,10 @@ func _do() -> bool:
     var dir: Vector3 = hero.look_dir()
     if hero.aim_camera:
         dir = -hero.aim_camera.global_basis.z
+    s.add_to_group("net_props")
+    s.set_meta("net_kind", "shot")
+    s.set_meta("net_size", Vector3.ONE * float(def.get("size", 0.2)))
+    s.set_meta("net_color", Color(String(def.get("color", "#ffd060"))))
     parent.add_child(s)
     s.launch(origin + dir * 0.6, dir)
     return true
