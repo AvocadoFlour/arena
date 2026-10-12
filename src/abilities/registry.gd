@@ -5,6 +5,11 @@ const TYPES := {
     "dash": preload("res://src/abilities/dash.gd"),
     "ground_slam": preload("res://src/abilities/ground_slam.gd"),
     "nova": preload("res://src/abilities/nova.gd"),
+    "projectile": preload("res://src/abilities/projectile.gd"),
+    "shield_wall": preload("res://src/abilities/shield_wall.gd"),
+    "charge": preload("res://src/abilities/charge.gd"),
+    "heal_beam": preload("res://src/abilities/heal_beam.gd"),
+    "rally": preload("res://src/abilities/rally.gd"),
 }
 
 static func create(hero, d: Dictionary) -> Ability:

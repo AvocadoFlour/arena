@@ -27,6 +27,9 @@ var dash_vel := Vector3.ZERO
 var slam_pending := false
 var last_wish := Vector3.ZERO
 var move_cfg: Dictionary = {}
+var slow_mult := 1.0                 ## movement speed multiplier from slows (1 = none)
+var slow_left := 0.0
+var charge_hits: Array = []          ## heroes already hit by the current charge
 var _rng := RandomNumberGenerator.new()
 var _muzzle: Node3D
 var _team_mats: Array = []
@@ -125,7 +128,11 @@ func _physics_process(dt: float) -> void:
     if f.ultimate:
         _use("ultimate")
     var was_air := not is_on_floor()
-    velocity = Motion.step_velocity(velocity, wish, is_on_floor(), f.jump, move_cfg, dt)
+    if slow_left > 0.0:
+        slow_left -= dt
+        if slow_left <= 0.0:
+            slow_mult = 1.0
+    velocity = Motion.step_velocity(velocity, wish, is_on_floor(), f.jump, effective_move_cfg(), dt)
     if dash_time > 0.0:
         dash_time -= dt
         velocity.x = dash_vel.x
@@ -171,6 +178,30 @@ func _try_fire() -> void:
     var from := _muzzle.global_position if _muzzle else eye_position()
     Fx.tracer(get_parent(), from, end, Color(1, 0.9, 0.4) if team == 0 else Color(1, 0.4, 0.3))
 
+## Movement config with active slows applied.
+func effective_move_cfg() -> Dictionary:
+    if slow_mult >= 1.0:
+        return move_cfg
+    var c := move_cfg.duplicate()
+    c["speed"] = float(move_cfg.get("speed", 7.0)) * slow_mult
+    return c
+
+## Slow movement to mult x speed for dur seconds. Stronger/longer slow wins.
+func apply_slow(mult: float, dur: float) -> void:
+    if dead:
+        return
+    if slow_left <= 0.0 or mult < slow_mult:
+        slow_mult = clampf(mult, 0.0, 1.0)
+    slow_left = maxf(slow_left, dur)
+
+## Restore health. Returns amount actually healed.
+func heal(amount: float) -> float:
+    if dead or amount <= 0.0:
+        return 0.0
+    var before := health.hp
+    health.heal(amount)
+    return health.hp - before
+
 ## Area damage to enemies (used by abilities). Returns number of heroes hit.
 func aoe(center: Vector3, radius: float, dmg: float, kind: String) -> int:
     var n := 0
@@ -210,6 +241,8 @@ func _die(killer, kind: String) -> void:
     collision_layer = 0
     velocity = Vector3.ZERO
     respawn_left = RESPAWN_TIME
+    slow_mult = 1.0
+    slow_left = 0.0
     Events.killed.emit({"killer": killer, "victim": self, "kind": kind})
 
 func respawn() -> void:
