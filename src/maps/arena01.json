@@ -13,7 +13,7 @@
     {"kind": "wall",     "pos": [20.5, 2, 0],   "size": [1, 5, 40],  "color": "#3a3f4c"},
     {"kind": "platform", "pos": [0, 1.5, -10],  "size": [10, 3, 6],  "color": "#7a6a58", "grid": true},
     {"kind": "ramp",     "pos": [0, 1.35, -4.0], "size": [3, 0.4, 6.9], "rot_deg": [26.6, 0, 0], "color": "#8a7a64"},
-    {"kind": "ramp",     "pos": [-8.2, 0.75, -10], "size": [6, 0.4, 3], "rot_deg": [0, 0, -27], "color": "#8a7a64"},
+    {"kind": "ramp",     "pos": [-8.05, 1.55, -10], "size": [6.8, 0.4, 3], "rot_deg": [0, 0, 27], "color": "#8a7a64"},
     {"kind": "cover",    "pos": [-7, 1, 5],     "size": [2, 2, 2],   "color": "#c08040"},
     {"kind": "cover",    "pos": [7, 1, 5],      "size": [2, 2, 2],   "color": "#c08040"},
     {"kind": "cover",    "pos": [-12, 0.75, 10], "size": [4, 1.5, 1], "color": "#c08040"},
