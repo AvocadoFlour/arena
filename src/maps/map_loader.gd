@@ -49,7 +49,12 @@ static func build(path: String) -> Node3D:
     # Optional extensions (arena02+): capture zones and spawn rooms, data only.
     var zones: Array = []
     for z in d.get("zones", []):
-        zones.append({"id": z.get("id", ""), "kind": z.get("kind", "capture"), "pos": _v(z.pos), "size": _v(z.size)})
+        var zd: Dictionary = z.duplicate()
+        zd["id"] = z.get("id", "")
+        zd["kind"] = z.get("kind", "capture")
+        zd["pos"] = _v(z.pos)
+        zd["size"] = _v(z.size)
+        zones.append(zd)
     root.set_meta("zones", zones)
     var rooms := {}
     var sr: Dictionary = d.get("spawn_rooms", {})
