@@ -88,7 +88,16 @@ Heroes are found via group `"heroes"` (`team`, `dead`, `eye_position()`).
               "rot_deg":[x,y,z]?, "color":"#hex", "grid":bool?}] }
 ```
 `MapLoader.build(path) -> Node3D` with metas `spawns` (Dictionary int → Array[Vector3]),
-`bounds`, `map_name`. Every block is a StaticBody3D box (ramps are rotated boxes).
+`bounds`, `map_name`. Every block is a StaticBody3D box (ramps are rotated boxes), node name = its `kind`.
+
+Optional keys (approved v0.2, maps request):
+- `"zones": [{"id","kind":"capture","pos":[x,y,z],"size":[x,y,z]}]` → meta `zones` (Array of {id, kind, pos: Vector3, size: Vector3}). Data only for now.
+- `"spawn_rooms": {"<team>": {"pos","size"}}` → meta `spawn_rooms` (Dictionary int → AABB).
+- `SpawnPicker.pick_for(hero, candidates, default_index) -> Vector3` (src/maps/spawn_picker.gd): spawn no living
+  enemy can see (layer-1 ray), else fewest watchers / farthest. **Core calls it 0.1 s before every respawn**
+  (main.gd `_schedule_respawn_pick`) and sets `hero.spawn_point`.
+- `MapGrid.from_def(def)` walkability grid + `flood()`.
+Map selection: `GameConfig.map_id` / `-- --map=ID`; smoke runs on every map JSON.
 
 ## 8. Match config (`GameConfig` autoload, src/core/game_config.gd)
 | member | meaning |

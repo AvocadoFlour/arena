@@ -14,6 +14,7 @@ var _t0 := 0
 var _game_t := 0.0   ## game time (fixed-step in movie mode)
 var _shot_done := false
 var _used := false
+var _spawns: Dictionary = {}
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS   # screenshot/smoke timers keep running while paused
@@ -25,6 +26,8 @@ func _ready() -> void:
     var map := MapLoader.build(GameConfig.map_path())
     add_child(map)
     var spawns: Dictionary = map.get_meta("spawns")
+    _spawns = spawns
+    stats["map"] = GameConfig.map_id
     player = Hero.from_def(GameConfig.hero_path(GameConfig.hero_id))
     player.display_name = "You (%s)" % player.def.get("name", GameConfig.hero_id)
     stats["hero"] = GameConfig.hero_id
@@ -35,8 +38,10 @@ func _ready() -> void:
     var rig := CameraRig.new()
     player.add_child(rig)
     rig.setup(player)
+    if args.has("smoke"):
+        player.ult.add(player.ult.cost * 0.8)   # smoke: start near-full so the ultimate is exercised on big maps
     if demo:
-        player.input_source = BotBrain.new({"use_abilities": true, "turn_rate": 6.0, "fire_cone": 0.08})
+        player.input_source = BotBrain.new({"use_abilities": true, "turn_rate": 6.0, "fire_cone": 0.08, "bounds": float(map.get_meta("bounds"))})
     else:
         player.input_source = Actions
         player.aim_camera = rig.cam
@@ -64,6 +69,7 @@ func _ready() -> void:
     add_child(menu)
     Events.damage_dealt.connect(_on_dmg)
     Events.killed.connect(_on_kill)
+    Events.killed.connect(_schedule_respawn_pick)
     Events.ability_used.connect(func(h, slot, _id): if h == player: stats[slot] = stats.get(slot, 0) + 1)
     for c in get_children():
         if c != menu:
@@ -80,6 +86,13 @@ func _on_dmg(ev: Dictionary) -> void:
         stats["hits_" + ev.kind] = stats.get("hits_" + ev.kind, 0) + 1
     elif ev.target == player:
         stats.bot_dmg += ev.amount
+
+## Respawn hook (maps request 3): just before a hero respawns, choose the spawn no enemy can see.
+func _schedule_respawn_pick(ev: Dictionary) -> void:
+    var h = ev.victim
+    get_tree().create_timer(maxf(0.0, Hero.RESPAWN_TIME - 0.1), false, true).timeout.connect(func():
+        if is_instance_valid(h) and h.dead:
+            h.spawn_point = SpawnPicker.pick_for(h, _spawns.get(h.team, [h.spawn_point])))
 
 func _on_kill(ev: Dictionary) -> void:
     if ev.killer == player:
