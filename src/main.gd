@@ -16,6 +16,7 @@ var _game_t := 0.0   ## game time (fixed-step in movie mode)
 var _shot_done := false
 
 func _ready() -> void:
+    process_mode = Node.PROCESS_MODE_ALWAYS   # screenshot/smoke timers keep running while paused
     for a in OS.get_cmdline_user_args():
         if a.begins_with("--"):
             var kv := a.substr(2).split("=", true, 1)
@@ -58,6 +59,9 @@ func _ready() -> void:
     Events.damage_dealt.connect(_on_dmg)
     Events.killed.connect(_on_kill)
     Events.ability_used.connect(func(h, _s, id): if h == player: stats[id] = stats.get(id, 0) + 1)
+    for c in get_children():
+        if c != menu:
+            c.process_mode = Node.PROCESS_MODE_PAUSABLE
     if args.has("menu"):
         menu.open()
     elif not demo:
