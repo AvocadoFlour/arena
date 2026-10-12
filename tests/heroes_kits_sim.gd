@@ -73,9 +73,25 @@ func _physics_process(_dt: float) -> void:
         100:
             var dl := _swing()
             _rec("melee_lunge_reaches", dl > 0.0 and best.dash_time > 0.0, "dmg=%.1f" % dl)
-        140:
+        105:
+            best.global_position = Vector3(0, 0, 0)
+            best.velocity = Vector3.ZERO
+            foe.global_position = Vector3(0, 0, -2.2)
+            foe.velocity = Vector3.ZERO
+            foe.health.reset()
+            best.combo_step = 1          # next swing in-window would be the 1.6x finisher
+            best.combo_left = 0.9
+        110:
+            var dmid := _swing()
+            _rec("combo_middle_hit", absf(dmid - 32.0) < 0.01, "dmg=%.1f" % dmid)
+            foe.velocity = Vector3.ZERO
+            foe.global_position = Vector3(0, 0, -2.2)
+        170:
+            foe.velocity = Vector3.ZERO
+            foe.global_position = Vector3(0, 0, -2.2)
             var d4 := _swing()
-            _rec("combo_resets_after_window", absf(d4 - 32.0) < 0.01 or d4 == 0.0, "dmg=%.1f" % d4)
+            # 1.0 s > 0.9 s window: must restart at hit 1 (32), not the finisher (51.2), and must land.
+            _rec("combo_resets_after_window", absf(d4 - 32.0) < 0.01 and best.combo_step == 1, "dmg=%.1f step=%d" % [d4, best.combo_step])
             best.global_position = Vector3(-20, 0, 10)
             best.yaw = 0.0
             foe.global_position = Vector3(-20, 0, -5.5)
@@ -83,14 +99,14 @@ func _physics_process(_dt: float) -> void:
             foe.health.reset()
             hp0 = foe.health.hp
             _rec("leap_activates", best.abilities["ability1"].activate(), "")
-        141:
+        171:
             _rec("leap_airborne", best.global_position.y > 0.05 or best.velocity.y > 0.0, "y=%.2f" % best.global_position.y)
-        220:
+        250:
             var moved := 10.0 - best.global_position.z
             _rec("leap_travels", moved > 6.0, "dz=%.2f" % moved)
             _rec("leap_landed", best.is_on_floor() and not best.abilities["ability1"].leaping(), "")
             _rec("leap_impact_damage", hp0 - foe.health.hp > 10.0, "dmg=%.1f" % (hp0 - foe.health.hp))
-        230:
+        260:
             best.global_position = Vector3(0, 0, 0)
             ally.global_position = Vector3(3, 0, 0)
             _rec("ult_locked", not best.abilities["ultimate"].activate(), "")
