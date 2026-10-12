@@ -1,7 +1,7 @@
 extends SceneTree
 ## Standalone runner for map suites: godot --headless --path . -s tests/maps_run.gd
 ## (run_tests.gd also auto-discovers tests/maps_*test*.gd.)
-const SUITES := ["res://tests/maps_test.gd", "res://tests/maps_zone_test.gd"]
+const SUITES := ["res://tests/maps_test.gd", "res://tests/maps_zone_test.gd", "res://tests/maps_visual_test.gd"]
 func _initialize() -> void:
     var p := 0
     var f := 0
