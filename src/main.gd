@@ -201,6 +201,13 @@ func _process(dt: float) -> void:
         return
     if args.has("use") and not _used and el >= float(args.get("delay", "6")) - float(args.get("use_lead", "0.3")):
         _used = true   # test hook: force an ability right before the screenshot
+        if args.has("stage_ally"):   # test hook: hurt ally placed in front of the player (heal-beam screenshot)
+            for h in get_tree().get_nodes_in_group("heroes"):
+                if h != player and h.team == player.team:
+                    var f: Vector3 = player.look_dir()
+                    h.global_position = player.global_position + Vector3(f.x, 0, f.z).normalized() * 5.0 + Vector3(0, 0.3, 0)
+                    h.health.hp = h.health.max_hp * 0.4
+                    break
         if player.abilities.has(args.use):
             player.abilities[args.use].cooldown.remaining = 0.0
         player._use(args.use)
