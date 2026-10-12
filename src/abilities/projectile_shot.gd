@@ -84,7 +84,7 @@ func _impact(pos: Vector3, target) -> void:
     var src = owner_hero if is_instance_valid(owner_hero) else null
     var kind := String(def.get("kind", "projectile"))
     var dmg := float(def.get("damage", 0.0))
-    var scale := float(src.damage_scale) if src else 1.0
+    var scale := float(src.damage_mult()) if src else 1.0
     var splash := float(def.get("splash_radius", 0.0))
     var victims: Array = []
     if target != null and src and target.team != src.team and not target.dead:

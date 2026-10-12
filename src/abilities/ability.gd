@@ -12,7 +12,10 @@ func _init(h, d: Dictionary) -> void:
     id = String(d.get("id", d.get("type", "")))
     cooldown = Cooldown.new(float(d.get("cooldown", 0.0)))
 
+## Any ability can be made an ultimate with "needs_ult": true (requires and consumes a full meter).
 func can_activate() -> bool:
+    if def.get("needs_ult", false) and not hero.ult.is_full():
+        return false
     return cooldown.is_ready()
 
 func activate() -> bool:
@@ -20,6 +23,8 @@ func activate() -> bool:
         return false
     if not _do():
         return false
+    if def.get("needs_ult", false):
+        hero.ult.consume()
     cooldown.trigger()
     return true
 
