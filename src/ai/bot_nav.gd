@@ -43,8 +43,76 @@ static func ensure_region(map_root: Node3D) -> NavigationRegion3D:
     r = NavigationRegion3D.new()
     r.name = REGION_NAME
     r.navigation_mesh = nm
+    r.set_meta("static_src", src)      # parsed map geometry, reused for dynamic rebakes
+    r.set_meta("dyn_sig", "")
+    r.set_meta("version", 0)
+    r.set_meta("checked_frame", -1)
     map_root.add_child(r)
     return r
+
+## Dynamic obstacles: StaticBody3D boxes that are siblings of the map root (e.g. shield walls,
+## which abilities add to the world node). Returns [{xform: Transform3D, size: Vector3}].
+static func dynamic_boxes(map_root: Node3D) -> Array:
+    var out: Array = []
+    var world := map_root.get_parent() if map_root else null
+    if world == null:
+        return out
+    for c in world.get_children():
+        if c == map_root or not (c is StaticBody3D) or c.is_queued_for_deletion() or not c.is_inside_tree():
+            continue
+        if c.collision_layer & 1 == 0:
+            continue
+        for s in c.get_children():
+            if s is CollisionShape3D and s.shape is BoxShape3D and not s.disabled:
+                out.append({"xform": s.global_transform, "size": s.shape.size})
+    return out
+
+static func _sig(boxes: Array) -> String:
+    var parts: PackedStringArray = []
+    for b in boxes:
+        var t: Transform3D = b.xform
+        parts.append("%.1f,%.1f,%.1f,%.2f" % [t.origin.x, t.origin.y, t.origin.z, t.basis.get_euler().y])
+    return ";".join(parts)
+
+## Footprint corners (XZ) of a box obstacle, in `to_local` space (pure; unit-tested).
+static func box_footprint(xform: Transform3D, size: Vector3) -> PackedVector3Array:
+    var hx := size.x * 0.5
+    var hz := size.z * 0.5
+    var out := PackedVector3Array()
+    for c in [Vector3(-hx, 0, -hz), Vector3(hx, 0, -hz), Vector3(hx, 0, hz), Vector3(-hx, 0, hz)]:
+        out.append(xform * c)
+    return out
+
+## Rebakes the region when the set of dynamic obstacles changed (checked once per physics
+## frame per region). Obstacles are projected obstructions, so the navmesh routes around them
+## with agent-radius clearance. Returns the region's navmesh version (bumps on every rebake).
+static func sync_dynamic(map_root: Node3D) -> int:
+    var r := ensure_region(map_root)
+    if r == null:
+        return 0
+    var fr := Engine.get_physics_frames()
+    if int(r.get_meta("checked_frame")) == fr:
+        return int(r.get_meta("version"))
+    r.set_meta("checked_frame", fr)
+    var boxes := dynamic_boxes(map_root)
+    var sig := _sig(boxes)
+    if sig == String(r.get_meta("dyn_sig")):
+        return int(r.get_meta("version"))
+    r.set_meta("dyn_sig", sig)
+    var nm := make_navmesh()
+    var src := NavigationMeshSourceGeometryData3D.new()
+    src.merge(r.get_meta("static_src"))
+    var inv := map_root.global_transform.affine_inverse()
+    for b in boxes:
+        var t: Transform3D = inv * b.xform
+        var size: Vector3 = b.size
+        var corners := box_footprint(t, size)
+        var bottom := t.origin.y - size.y * 0.5
+        src.add_projected_obstruction(corners, bottom, size.y, false)
+    NavigationServer3D.bake_from_source_geometry_data(nm, src)
+    r.navigation_mesh = nm
+    r.set_meta("version", int(r.get_meta("version")) + 1)
+    return int(r.get_meta("version"))
 
 static func ready_for(h: Node3D) -> bool:
     var m := h.get_world_3d().navigation_map
@@ -64,13 +132,19 @@ static func cover_blocks(map_root: Node3D) -> Array:
     if map_root == null:
         return out
     for c in map_root.get_children():
-        if not (c is StaticBody3D) or not String(c.name).to_lower().contains("cover"):
+        if not (c is StaticBody3D) or not is_cover(c):
             continue
         for s in c.get_children():
             if s is CollisionShape3D and s.shape is BoxShape3D:
                 var size: Vector3 = s.shape.size
                 out.append({"pos": c.global_position, "half": size * 0.5, "height": size.y})
     return out
+
+## Cover = map block of kind "cover": meta `kind` (MapLoader), else name prefix `cover` / `cover_NN`.
+static func is_cover(n: Node) -> bool:
+    if n.has_meta("kind"):
+        return String(n.get_meta("kind")) == "cover"
+    return String(n.name).to_lower().begins_with("cover")
 
 ## Point behind a cover block, on the far side from `threat` (pure; unit-tested).
 static func cover_point(block: Dictionary, threat: Vector3, clearance: float = 0.9) -> Vector3:
