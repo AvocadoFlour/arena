@@ -41,6 +41,9 @@ var _rng := RandomNumberGenerator.new()
 var net_id := -1                   ## network id (Net registry), -1 = unregistered
 var net_role := "auth"             ## "auth" simulates fully; "predicted" (client's own hero) moves only; "puppet" is driven by snapshots
 var _muzzle: Node3D
+var _vis: Node3D                     ## visual root (animated); never affects collision/gameplay
+var _anim_parts: Array = []          ## [node, kind, base_rotation, phase]
+var _anim_t := 0.0
 var _team_mats: Array = []
 
 static func from_def(path: String) -> Hero:
@@ -69,37 +72,128 @@ func _build() -> void:
     add_child(cs)
     floor_snap_length = 0.25
     floor_max_angle = deg_to_rad(50)
-    for p in def.get("model", []):
+    _build_model(def.get("model", []))
+    add_to_group("heroes")
+    set_team(team)
+
+## Model parts (INTERFACES §2 "model"), plus optional visual-only keys:
+## "rot":[x,y,z] degrees, "scale":[x,y,z], "pivot":[x,y,z] (part rotates about this point),
+## "anim": "tail" | "weapon" | "leg_l" | "leg_r" | "arm_l" | "arm_r" | "head".
+func _build_model(parts: Array) -> void:
+    _vis = Node3D.new()
+    _vis.name = "Visual"
+    add_child(_vis)
+    for p in parts:
         var mi := MeshInstance3D.new()
         match String(p.shape):
             "capsule":
                 var m := CapsuleMesh.new()
                 m.radius = p.radius
-                m.height = p.height
+                m.height = maxf(p.height, p.radius * 2.0)
+                m.radial_segments = 12
+                m.rings = 4
                 mi.mesh = m
             "sphere":
                 var m2 := SphereMesh.new()
                 m2.radius = p.radius
                 m2.height = p.radius * 2.0
+                m2.radial_segments = 12
+                m2.rings = 6
                 mi.mesh = m2
             _:
                 var m3 := BoxMesh.new()
                 m3.size = Vector3(p.size[0], p.size[1], p.size[2])
                 mi.mesh = m3
         var mat := StandardMaterial3D.new()
+        mat.roughness = float(p.get("roughness", 0.75))
+        mat.metallic = float(p.get("metallic", 0.0))
         if p.color == "team":
             _team_mats.append(mat)
         else:
             mat.albedo_color = Color(p.color)
+        if p.has("emission"):
+            mat.emission_enabled = true
+            mat.emission = Color(p.emission)
         mi.material_override = mat
-        mi.position = Vector3(p.pos[0], p.pos[1], p.pos[2])
-        add_child(mi)
+        var pos := Vector3(p.pos[0], p.pos[1], p.pos[2])
+        if p.has("rot"):
+            mi.rotation_degrees = Vector3(p.rot[0], p.rot[1], p.rot[2])
+        if p.has("scale"):
+            mi.scale = Vector3(p.scale[0], p.scale[1], p.scale[2])
+        if p.has("pivot"):
+            var pv := Node3D.new()
+            pv.position = Vector3(p.pivot[0], p.pivot[1], p.pivot[2])
+            _vis.add_child(pv)
+            pv.add_child(mi)
+            mi.position = pos - pv.position
+            if p.has("anim"):
+                _anim_parts.append([pv, String(p.anim), pv.rotation, pos.x * 3.1])
+        else:
+            mi.position = pos
+            _vis.add_child(mi)
+            if p.has("anim"):
+                _anim_parts.append([mi, String(p.anim), mi.rotation, pos.x * 3.1])
         if p.get("muzzle", false):
             _muzzle = Node3D.new()
-            _muzzle.position = mi.position + Vector3(0, 0, -0.4)
-            add_child(_muzzle)
-    add_to_group("heroes")
-    set_team(team)
+            _muzzle.position = pos + Vector3(0, 0, -0.4)
+            add_child(_muzzle)   # not under _vis: shot origin is never animated
+
+## Procedural animation, render-rate, read-only on existing state (velocity, on-floor, weapon
+## cooldown, dash/leap timers). Changes only _vis transforms, so it is safe for networking.
+func _process(dt: float) -> void:
+    if _vis == null or dead:
+        return
+    _anim_t += dt
+    var local_v := Basis(Vector3.UP, rotation.y).inverse() * velocity   # yaw-only, works outside the tree too
+    var spd := float(move_cfg.get("speed", 7.0))
+    var run := clampf(Vector2(local_v.x, local_v.z).length() / maxf(spd, 0.1), 0.0, 1.5)
+    var grounded := is_on_floor()
+    var fwd := clampf(-local_v.z / maxf(spd, 0.1), -1.5, 1.5)
+    var side := clampf(local_v.x / maxf(spd, 0.1), -1.5, 1.5)
+    var air := 0.0 if grounded else clampf(velocity.y / 10.0, -1.0, 1.0)
+    var stride := _anim_t * (6.0 + 6.0 * run)
+    # body: idle breathing bob, run bounce, lean into motion, tilt when dashing
+    var bob := sin(_anim_t * 2.2) * 0.025 + (absf(sin(stride)) * 0.06 * run if grounded else 0.0)
+    _vis.position.y = lerpf(_vis.position.y, bob, minf(1.0, dt * 20.0))
+    var lean_x := -fwd * 0.16 - (0.25 if dash_time > 0.0 else 0.0)
+    var lean_z := side * 0.12
+    _vis.rotation.x = lerpf(_vis.rotation.x, lean_x, minf(1.0, dt * 10.0))
+    _vis.rotation.z = lerpf(_vis.rotation.z, lean_z, minf(1.0, dt * 10.0))
+    # attack: 1 right after a shot/swing -> 0 when the next is allowed
+    var atk := 0.0
+    if weapon and weapon.fire_interval > 0.0:
+        atk = clampf(weapon._shot_cd / weapon.fire_interval, 0.0, 1.0)
+    var melee := String(def.get("primary", {}).get("type", "hitscan")) == "melee"
+    var combo_side := 1.0 if combo_step % 2 == 0 else -1.0
+    for a in _anim_parts:
+        var n: Node3D = a[0]
+        var base: Vector3 = a[2]
+        var ph: float = a[3]
+        var r := base
+        match String(a[1]):
+            "tail":
+                # trail behind with speed, lift when airborne, gentle sway always
+                r.x = base.x - fwd * 0.55 - air * 0.4 + sin(_anim_t * 2.4 + ph) * 0.08 + sin(stride) * 0.06 * run
+                r.z = base.z + side * 0.35 + sin(_anim_t * 1.7 + ph) * 0.1
+            "weapon":
+                if melee:
+                    var sw := sin(atk * PI)   # 0 -> 1 -> 0 over the swing
+                    r.x = base.x - sw * 1.4 + (atk - 0.5) * 0.4
+                    r.y = base.y + sw * 0.9 * combo_side
+                else:
+                    r.x = base.x + atk * 0.18   # recoil kick
+            "leg_l":
+                r.x = base.x + sin(stride) * 0.6 * minf(run, 1.0) + air * 0.4
+            "leg_r":
+                r.x = base.x - sin(stride) * 0.6 * minf(run, 1.0) + air * 0.4
+            "arm_l":
+                r.x = base.x - sin(stride) * 0.4 * minf(run, 1.0) + sin(_anim_t * 2.2) * 0.04
+            "arm_r":
+                r.x = base.x + sin(stride) * 0.4 * minf(run, 1.0) + sin(_anim_t * 2.2 + 1.0) * 0.04
+            "head":
+                r.x = base.x + sin(_anim_t * 2.2 + 0.5) * 0.04 + fwd * 0.08
+                r.y = base.y + sin(_anim_t * 0.7) * 0.06
+        n.rotation = r
 
 func set_team(t: int) -> void:
     team = t

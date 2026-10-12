@@ -37,7 +37,10 @@ func test_display_names_exact() -> void:
 func test_archive_complete_and_not_scanned() -> void:
     for id in ARCHIVED:
         check(FileAccess.file_exists(_arch(id)), "archived " + id)
-        check(Hero.from_def(_arch(id)) != null, "archived loads " + id)
+        var h := Hero.from_def(_arch(id))
+        check(h != null, "archived loads " + id)
+        if h:
+            h.free()
     for f in DirAccess.get_files_at("res://src/heroes"):
         check(not f.begins_with("archive"), "archive is a subfolder only")
 
@@ -50,8 +53,12 @@ func test_twin_tails_support_kit() -> void:
     check(h.def.abilities.ultimate.type == "rally", "team heal ult")
     var cols: Array = h.def.model.map(func(p): return String(p.color))
     check(not cols.any(func(c): return c.begins_with("#00") or c in ["#39c5bb", "#00ced1"]), "no teal")
-    var tails: Array = h.def.model.filter(func(p): return p.shape == "capsule" and float(p.get("height", 0)) >= 1.4)
-    check(tails.size() == 2, "two very long tails")
+    var tails: Array = h.def.model.filter(func(p): return p.get("anim", "") == "tail")
+    var left := 0.0
+    for p in tails:
+        if float(p.pos[0]) < 0.0:
+            left += float(p.height)
+    check(tails.size() >= 2 and left >= 1.4, "two very long swaying tails (left %.2f m)" % left)
     h.free()
 
 func test_the_best_brawler_kit() -> void:
@@ -123,4 +130,40 @@ func test_heal_beam_self_fallback() -> void:
         ab.tick(1.0 / 60.0)
     check(not ab.channeling(), "channel ends")
     near(h.health.hp, 225.0, 0.01, "capped")
+    h.free()
+
+func test_models_animated_and_visual_only() -> void:
+    for id in HEROES:
+        var h := Hero.from_def("res://src/heroes/%s.json" % id)
+        check(h._vis != null and h._anim_parts.size() >= 3, id + ": visual root + animated parts")
+        var kinds: Array = h._anim_parts.map(func(a): return a[1])
+        check(kinds.has("weapon"), id + ": weapon animates")
+        check(h._muzzle != null and h._muzzle.get_parent() == h, id + ": muzzle not under animated root")
+        var cols := 0
+        for c in h.get_children():
+            if c is CollisionShape3D:
+                cols += 1
+        check(cols == 1, id + ": single gameplay collider")
+        # animation must not touch gameplay state
+        h.velocity = Vector3(0, 0, -6)
+        var v0 := h.velocity
+        var p0 := h.position
+        var hp0 := h.health.hp
+        for i in 30:
+            h._process(1.0 / 60.0)
+        check(h.velocity == v0 and h.position == p0 and h.health.hp == hp0, id + ": anim is read-only")
+        check(h._vis.rotation.x != 0.0, id + ": run lean applied")
+        h.free()
+
+func test_tails_sway_over_time() -> void:
+    var h := Hero.from_def("res://src/heroes/twin_tails.json")
+    var tail: Node3D = null
+    for a in h._anim_parts:
+        if a[1] == "tail":
+            tail = a[0]
+            break
+    h._process(0.1)
+    var r1 := tail.rotation
+    h._process(0.5)
+    check(tail.rotation != r1, "tail sways while idle")
     h.free()

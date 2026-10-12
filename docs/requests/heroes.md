@@ -1,5 +1,14 @@
 # Requests from heroes
 
+## Round 3 (open)
+1. **Smoke flake (core, main.gd / build.sh):** smoke requires `kills > 0` within 35 s. On arena02 this randomly
+   fails with 0 kills, for cob and twin_tails. It reproduces on unmodified master (1 of 3 runs of
+   `--smoke=35 --force_end=32 --hero=cob --map=arena02` failed with kills 0). Suggest a fixed RNG seed
+   in smoke mode, or a longer window / pass on damage + ability usage.
+2. **INTERFACES.md §2 model (visual-only, optional keys):** `rot` (deg), `scale`, `pivot`, `metallic`, `roughness`,
+   `emission`, `anim` ∈ tail|weapon|leg_l|leg_r|arm_l|arm_r|head. Parts live under a `Visual` child node animated in
+   `_process` from existing state (velocity, is_on_floor, weapon cooldown, combo_step, dash_time); no synced state.
+
 ## Round 2 (open)
 
 1. **Archive move blocked by core/ui/ai references (needs owners' changes).** Archive copies already exist at
