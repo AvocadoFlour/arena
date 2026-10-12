@@ -8,3 +8,9 @@ Round 1: `main_menu.gd` (Play / Hero select / Map select / Settings / Quit; emit
 `keybind_screen.gd` + `keybinds.gd` (rebinding on the Actions InputMap, user://keybinds.cfg,
 loaded by Settings at startup), `damage_number.gd` (outlined, distance-scaled Label3D),
 `menu_style.gd` (touch-sized widgets, 64 px min height). Tests: `tests/ui_run_tests.gd`.
+
+Round 2: HUD ability key labels read live bindings (`Hud.key_label`); `scoreboard.gd` (hold Tab,
+action `scoreboard`, rebindable) fed by `match_stats.gd` (K/D/damage from Events);
+`match_end_screen.gd` (VICTORY/DEFEAT/DRAW + final board, Play again/Main menu/Quit);
+`capture_widget.gd` (capture progress bars, binds to Events capture signals once they exist) and
+`mock_capture_source.gd`. Tests: `tests/ui_round2_test.gd`.

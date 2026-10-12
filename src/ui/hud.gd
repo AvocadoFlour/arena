@@ -99,8 +99,35 @@ func setup(p) -> void:
     _place(center_label, 0.5, 0.35, 0.5, 0.35, -300, -30, 300, 30)
     Events.damage_dealt.connect(_on_damage)
     Events.killed.connect(_on_kill)
+    _setup_round2()
 
-const KEYS := {"ability1": "SHIFT", "ability2": "E", "ultimate": "Q"}
+var match_stats: MatchStats
+var scoreboard: Scoreboard
+var match_end: MatchEndScreen
+var capture_widget: CaptureWidget
+
+## Scoreboard (hold Tab), match-end screen, capture-point widget. Capture/match-end events are
+## not in INTERFACES yet: the widget binds to Events only if the signals exist (docs/requests/ui.md).
+func _setup_round2() -> void:
+    Keybinds.ensure_ui_actions()
+    match_stats = MatchStats.new()
+    add_child(match_stats)
+    match_stats.bind(Events)
+    scoreboard = Scoreboard.new()
+    scoreboard.stats = match_stats
+    scoreboard.player = player
+    add_child(scoreboard)
+    capture_widget = CaptureWidget.new()
+    add_child(capture_widget)
+    capture_widget.bind(Events)
+    match_end = MatchEndScreen.new()
+    add_child(match_end)
+    if Events.has_signal("match_ended"):
+        Events.connect("match_ended", func(result: Dictionary): match_end.show_results(result, match_stats, player))
+
+## Live binding text for an action (reflects rebinds immediately; read from InputMap each frame).
+static func key_label(action: String) -> String:
+    return Keybinds.binding_text(action).to_upper()
 
 func _process(dt: float) -> void:
     if not player:
@@ -127,7 +154,7 @@ func _process(dt: float) -> void:
         else:
             ready = ab.cooldown.is_ready()
             status = "READY" if ready else "%.1fs" % ab.cooldown.remaining
-        l.text = "[%s] %s\n%s" % [KEYS[slot], ab.def.get("name", ab.id), status]
+        l.text = "[%s] %s\n%s" % [key_label(slot), ab.def.get("name", ab.id), status]
         sb.bg_color = Color(0.1, 0.45, 0.8, 0.8) if ready else Color(0.05, 0.07, 0.12, 0.7)
     center_label.text = ("RESPAWNING IN %.1f" % player.respawn_left) if player.dead else ""
     _update_bars()

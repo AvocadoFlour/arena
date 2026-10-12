@@ -8,6 +8,7 @@ var waiting := ""
 var status: Label
 
 func _ready() -> void:
+    Keybinds.ensure_ui_actions()
     set_anchors_preset(Control.PRESET_FULL_RECT)
     var m := MenuStyle.margin()
     add_child(m)
