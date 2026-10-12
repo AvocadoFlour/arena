@@ -8,17 +8,18 @@ VER=0.2
 LOG=build/build.log
 mkdir -p build dist/windows dist/linux
 : > "$LOG"
-fail_on_errors() { if grep -E "SCRIPT ERROR|Parse Error|ERROR:" "$1" >/dev/null; then grep -E "SCRIPT ERROR|Parse Error|ERROR:" "$1" | head -20; echo "!! errors in $1"; exit 1; fi; }
+# Any SCRIPT ERROR / ERROR / GDScript backtrace fails the gate unless listed in tests/expected_warnings.txt.
+fail_on_errors() { python3 tools/check_log.py "$@" || { echo "!! script/engine errors in $*"; exit 1; }; }
 
 echo "[1/5] import";   "$GODOT" --headless --path . --import >build/import.log 2>&1 || true; fail_on_errors build/import.log
-echo "[2/5] tests (auto-discovered unit suites + integration sims incl. abilities_sim)";    "$GODOT" --headless --path . -s tests/run_tests.gd 2>&1 | tee build/tests.log; grep -q "RESULT: .* 0 failed" build/tests.log
+echo "[2/5] tests (auto-discovered unit suites + integration sims incl. abilities_sim)";    "$GODOT" --headless --path . -s tests/run_tests.gd 2>&1 | tee build/tests.log; grep -q "RESULT: .* 0 failed" build/tests.log; fail_on_errors build/tests.log
 echo "[3/5] smoke (every map x every hero)"
 : > build/smoke.log
 SMOKE_S=${SMOKE_S:-35}
 for m in $(ls src/maps/*.json | xargs -n1 basename | sed 's/\.json$//'); do
 for h in $(ls src/heroes/*.json | xargs -n1 basename | sed 's/\.json$//'); do
   L=build/smoke_${m}_$h.log
-  timeout 180 "$GODOT" --headless --path . -- --smoke=$SMOKE_S --hero="$h" --map="$m" > $L 2>&1 || true
+  timeout 180 "$GODOT" --headless --path . -- --smoke=$SMOKE_S --force_end=$((SMOKE_S - 3)) --hero="$h" --map="$m" > $L 2>&1 || true
   cat $L >> build/smoke.log
   echo "  $m/$h: $(grep -E '^SMOKE' $L || echo 'SMOKE MISSING')  $(grep -E '^STATS' $L)"
   grep -q "SMOKE PASS" $L || { echo "!! smoke failed for $m/$h"; exit 1; }

@@ -10,14 +10,14 @@ signal respawned(hero)
 ## slot = "ability1" | "ability2" | "ultimate"
 signal ability_used(hero, slot: String, ability_id: String)
 
-## Capture zones (forwarded from CaptureZone, INTERFACES.md section 6). Teams int, neutral = -1.
-## ev = {zone, owner, capturing_team, progress, contested}
-signal zone_changed(ev: Dictionary)
-## ev = {zone, team, previous}
-signal zone_captured(ev: Dictionary)
-## ev = {zone, contested}
-signal zone_contested(ev: Dictionary)
-## Match flow (section 9). ev = {mode, scores: {team: percent}, target} — about once per second
+## Capture points (single contract, INTERFACES.md sections 4 and 6). Teams int, neutral = -1.
+## ev = {zone_id: String, team: int, progress: float 0..1, contested: bool, owner: int}
+##   team = team currently capturing (or the owner when nobody is capturing); throttled to <= 10 Hz,
+##   always emitted immediately when `contested` flips.
+signal capture_progress(ev: Dictionary)
+## ev = {zone_id: String, team: int, previous: int}
+signal capture_completed(ev: Dictionary)
+## Match flow (section 9). ev = {mode, scores: {team: percent}, target} about once per second.
 signal match_score(ev: Dictionary)
-## ev = {winner: int, mode, scores, time}. Emitted once; core then pauses the match.
+## ev = {winner_team: int (-1 = draw), reason: String ("score" | "forced"), mode, scores, time}. Emitted once.
 signal match_ended(ev: Dictionary)

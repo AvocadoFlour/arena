@@ -34,3 +34,20 @@ func test_first_to_100_wins_once() -> void:
     r.step(100.0, [0])
     near(r.scores[0], 30.0, 0.001, "no scoring after end")
     r.free()
+
+func test_simultaneous_is_draw() -> void:
+    var r := _rules(true)
+    r.step(100.0, [0, 1])
+    check(r.ended and r.winner == -1, "both reach 100 = draw (-1)")
+    r.free()
+
+func test_force_end_picks_leader_or_draw() -> void:
+    var r := _rules(false)
+    r.force_end()
+    check(r.ended and r.winner == -1, "ffa forced end = draw")
+    r.free()
+    r = _rules(true)
+    r.step(5.0, [1])
+    r.force_end()
+    check(r.winner == 1, "leader wins forced end")
+    r.free()

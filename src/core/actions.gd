@@ -7,6 +7,7 @@ const BINDINGS := {
     "move_forward": [KEY_W], "move_back": [KEY_S], "move_left": [KEY_A], "move_right": [KEY_D],
     "jump": [KEY_SPACE], "ability1": [KEY_SHIFT], "ability2": [KEY_E], "ultimate": [KEY_Q],
     "reload": [KEY_R], "pause": [KEY_ESCAPE],
+    "scoreboard": [KEY_TAB],   # UI-only, never part of InputFrame
 }
 const MOUSE_BINDINGS := {"fire": [MOUSE_BUTTON_LEFT]}
 

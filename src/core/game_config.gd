@@ -16,6 +16,7 @@ var hero_id := "kestrel"
 var map_id := "arena01"
 var bot_difficulty := "normal"
 var bot_count := 3
+var skip_menu_once := false   ## set by "Play again": next main.tscn load starts the match directly
 
 func _ready() -> void:
     for a in OS.get_cmdline_user_args():

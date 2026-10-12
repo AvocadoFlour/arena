@@ -24,7 +24,8 @@ func _ready() -> void:
         if a.begins_with("--"):
             var kv := a.substr(2).split("=", true, 1)
             args[kv[0]] = kv[1] if kv.size() > 1 else "1"
-    if _test_mode() or args.has("menu"):
+    if _test_mode() or args.has("menu") or GameConfig.skip_menu_once:
+        GameConfig.skip_menu_once = false
         _start_match()
     else:
         _show_main_menu()
@@ -59,15 +60,15 @@ func _start_match() -> void:
     var zones: Array = CaptureZone.from_map(map)
     for z in zones:
         add_child(z)
-        z.state_changed.connect(Events.zone_changed.emit)
-        z.captured.connect(Events.zone_captured.emit)
-        z.contested_changed.connect(Events.zone_contested.emit)
+        ZoneBridge.wire(z)
     rules = MatchRules.new()
     rules.name = "MatchRules"
     add_child(rules)
     rules.setup(zones)
     stats["mode"] = rules.mode
-    Events.zone_captured.connect(func(ev): stats["zone_captures"] = stats.get("zone_captures", 0) + 1)
+    Events.capture_completed.connect(func(_ev): stats["zone_captures"] = stats.get("zone_captures", 0) + 1)
+    if args.has("force_end"):
+        get_tree().create_timer(float(args.force_end), false, true).timeout.connect(func(): rules.force_end("forced"))
     Events.match_ended.connect(_on_match_ended)
     _spawns = spawns
     stats["map"] = GameConfig.map_id
@@ -109,6 +110,8 @@ func _start_match() -> void:
     hud = Hud.new()
     add_child(hud)
     hud.setup(player)
+    hud.match_end.play_again.connect(func(): _restart(true))
+    hud.match_end.main_menu.connect(func(): _restart(false))
     menu = PauseMenu.new()
     add_child(menu)
     Events.damage_dealt.connect(_on_dmg)
@@ -139,12 +142,19 @@ func _schedule_respawn_pick(ev: Dictionary) -> void:
             h.spawn_point = SpawnPicker.pick_for(h, _spawns.get(h.team, [h.spawn_point])))
 
 func _on_match_ended(ev: Dictionary) -> void:
-    stats["winner"] = ev.winner
+    stats["match_ended"] = stats.get("match_ended", 0) + 1
+    stats["winner_team"] = ev.winner_team
     print("MATCH ENDED ", JSON.stringify(ev))
     if not _test_mode():
         get_tree().paused = true   # UI bot's match-end screen listens to Events.match_ended
         Actions.gameplay_enabled = false
         Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+func _restart(skip_menu: bool) -> void:
+    GameConfig.skip_menu_once = skip_menu
+    get_tree().paused = false
+    Actions.gameplay_enabled = true
+    get_tree().reload_current_scene()
 
 func _on_kill(ev: Dictionary) -> void:
     if ev.killer == player:
@@ -199,7 +209,7 @@ func _finish() -> void:
     stats["fps_avg"] = snappedf(avg, 0.1)
     stats["fps_min"] = s.min() if s.size() > 0 else 0
     print("STATS ", JSON.stringify(stats))
-    var ok: bool = stats.player_dmg > 0 and stats.bot_dmg > 0 and stats.kills > 0 and stats.ability1 > 0 and stats.ability2 > 0 and stats.ultimate > 0
+    var ok: bool = stats.player_dmg > 0 and stats.bot_dmg > 0 and stats.kills > 0 and stats.get("match_ended", 0) == 1 and stats.ability1 > 0 and stats.ability2 > 0 and stats.ultimate > 0
     if args.has("smoke"):
         print("SMOKE ", "PASS" if ok else "FAIL")
     get_tree().quit(0 if ok or not args.has("smoke") else 1)
