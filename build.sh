@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 GODOT="${GODOT:-$HOME/godot/godot}"
-VER=0.3
+VER=0.4
 LOG=build/build.log
 mkdir -p build dist/windows dist/linux
 : > "$LOG"
@@ -25,6 +25,8 @@ for h in $(ls src/heroes/*.json | xargs -n1 basename | sed 's/\.json$//'); do
   grep -q "SMOKE PASS" $L || { echo "!! smoke failed for $m/$h"; exit 1; }
 done; done
 fail_on_errors build/smoke.log
+echo "[3b/5] network: 2 headless instances (host + client) on localhost"
+OUT=build/net ./tools/net_test.sh | tee build/net_test.log; grep -q "NET TEST PASS" build/net_test.log
 echo "[4/5] export";   rm -rf dist/windows/* dist/linux/*
 "$GODOT" --headless --path . --export-release "Linux" dist/linux/arena.x86_64 >build/export_linux.log 2>&1; fail_on_errors build/export_linux.log
 "$GODOT" --headless --path . --export-release "Windows Desktop" dist/windows/Arena.exe >build/export_win.log 2>&1; fail_on_errors build/export_win.log

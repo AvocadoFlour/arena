@@ -90,7 +90,14 @@ splash), `charge` (rush contact), `fall`.
 playable hero/map** — enforced by `tests/core_playable_sim.gd` (valid def, registered ability types, team 0/1 spawns,
 every hero lands at a spawn on every map). Put non-hero data elsewhere.
 Main menu: `MainMenu.play_requested(hero_path, map_path)` → main.gd sets `GameConfig.hero_id/map_id` and starts the
-match. Any test flag (`--demo --smoke --screenshot --hero --map`) bypasses the menu.
+match. Any test flag (`--demo --smoke --screenshot --hero --map --net_host --autopilot`) bypasses the menu.
+Menu hooks (approved v0.4, UI round 3): `main_menu.add_menu_entry(text, cb) -> Button` adds a button to
+`MainMenu.network_slot` (hidden VBox under Play, shown on first entry); `main_menu.add_screen(name, control)`
+registers a full-rect screen and `show_screen(name)` switches to it. Core uses them for "Host online" / "Join online"
+(screens `net_host` / `net_join` = `NetPanel`, src/core/net/net_panel.gd, emitting `closed` → `show_screen("main")`).
+View settings: `Settings.fov` is the base FOV; CameraRig starts from it and UI re-applies it on change; any future
+FOV animation (zoom/sprint) must be relative to `Settings.fov`. Audio buses `Master`, `Music`, `SFX`
+(res://default_bus_layout.tres, core-owned); `Settings` volumes apply to them by name.
 
 ## 3. Damage & health
 - `hero.take_damage(amount, source: Hero|null, pos: Vector3, kind: String) -> float applied`.
@@ -136,7 +143,10 @@ Convention: abilities adding transient world geometry add it as a direct child o
 Cover detection: meta `kind == "cover"` (fallback: name prefix `cover`). States: `wander`, `chase`, `cover`, `support`.
 Param `escort_allies` (true): idle bots escort teammates; support bots (Willow) heal hurt allies.
 Ability policy is type-based: `BotBrain.want_ability(type, ctx)` for dash, charge, ground_slam, nova, rally,
-shield_wall, projectile, heal_beam. Team-0 bots are the player's allies (never target team 0).
+shield_wall, projectile, heal_beam, leap, team_buff. Melee awareness (v0.4): for heroes with `primary.type ==
+"melee"` BotBrain closes to ~0.6 × `primary.range` and only swings in reach (the old core MeleeCloser shim is
+removed); ranged bots keep their ~10 m stand-off. `BotBrain.resolve_difficulty(name) -> Dictionary` is the pure
+preset lookup (unknown names → `normal` with a runtime warning). Team-0 bots are the player's allies (never target team 0).
 Core sets difficulty from `GameConfig.bot_difficulty` (`-- --difficulty=` or `--bots=`) and scales bot damage
 by `GameConfig.difficulty().damage_scale`. Heroes are found via group `"heroes"` (`team`, `dead`, `eye_position()`).
 
@@ -167,6 +177,17 @@ its signals through `ZoneBridge` (src/core/zone_bridge.gd) to `Events.capture_pr
 (payloads in §4). CaptureZone's own signals (`state_changed`, `captured`, `contested_changed`) are maps-internal;
 UI and AI must listen to the bus only. `zone_id` = `zones[].id` in the map JSON.
 Map selection: `GameConfig.map_id` / `-- --map=ID`; smoke runs on every map JSON.
+Visual keys (approved v0.4, maps round 3; no gameplay effect, collision unchanged):
+- `"theme"`: `sky_top, sky_horizon, ground_horizon, ground_bottom` (#hex), `sun_rot` [x,y,z], `sun_color`,
+  `sun_energy`, `ambient_energy`, `fog_density` (enables fog), `fog_color`, `fog_sky_affect`. Defaults = v0.1 look.
+- `"materials"`: name → `{color, roughness?, metallic?, pattern?: grid|tiles|planks|bricks|stripes, pattern_scale?,
+  tint?, emission?, emission_energy?, alpha?}`; patterns are fixed procedural 16×16 textures (no RNG).
+- block `"mat"`: palette name (falls back to `color`/`grid` when missing).
+- `"props"`: `[{shape: box|cylinder|cone|sphere, pos, size | radius+height, rot_deg?, mat|color, no_shadow?}]`
+  → MeshInstance3D children of a `Props` Node3D under the map root, **no collision**. Props are stored in the
+  JSON, so host and client build identical maps; nothing about maps is replicated.
+Perf note: arena02 under Xvfb software GL dropped from ~18 to ~15 fps with fog + ~170 props; a low-quality
+toggle (skip Props/fog) can come later via UI.
 
 ## 8. Match config (`GameConfig` autoload, src/core/game_config.gd)
 | member | meaning |
@@ -199,3 +220,36 @@ false` and frees the cursor; the end screen must use `process_mode = ALWAYS` and
 
 ## 7. Command line (testing)
 `-- --hero=ID --map=ID --bots=easy|normal|hard` (GameConfig); `--smoke=S` (autopilot S game-seconds, exit 1 on fail), `--demo=S`, `--screenshot=PATH --delay=S [--menu]`.
+
+## 10. Networking (v0.4, src/core/net/, autoload `Net`)
+Godot high-level multiplayer over ENet, **host-authoritative**. Default port `Net.DEFAULT_PORT` = 24565/UDP,
+up to `Net.MAX_HUMANS` = 6 humans; bots fill the other GameConfig slots (a joining human replaces one bot of the
+team with fewer humans). Modes: `OFFLINE` (single player, unchanged), `HOST`, `CLIENT`.
+- **Authority**: `Net.is_authority()` (= not CLIENT). The single gate is `Hero.take_damage` (returns 0 on a
+  client). Clients build no MatchRules, no zone wiring, no bot brains and never pick spawns.
+- **Hero roles** `hero.net_role`: `auth` (full sim, host/offline), `predicted` (client's own hero: look +
+  movement only, then reconciled), `puppet` (snapshot-driven, no physics). `hero.net_id` = registry id.
+- **Input** (client → host, every physics tick, unreliable_ordered): `[seq, view_tick, yaw, pitch, move: Vector2,
+  fire, counters[jump, reload, a1, a2, ult]]`. Yaw/pitch absolute; buttons as cumulative press counters (no lost or
+  doubled edges). Host side: `RemoteInput` (queue ≤ 8, pitch/move clamped); client side: `ClientInput(inner)`.
+- **Snapshots** (host → clients, 20 Hz = every `SNAP_EVERY` = 3 ticks, unreliable_ordered):
+  heroes `[id, pos, vel, yaw, pitch, hp, dead, visible, ammo, reloading, ult, cds×3, overheal, respawn_left,
+  acked_seq, team]`, props `[id, kind, pos, rot_y, size, color]` for every node in group `net_props`
+  (projectile shots `shot`, shield walls `wall`; walls are solid StaticBody3D on clients too).
+  Abilities adding networked transient geometry must add the node to `net_props` with metas `net_kind`,
+  `net_size`, `net_color`.
+- **Client rendering**: remote heroes are interpolated `INTERP_DELAY` = 0.1 s behind the estimated server
+  clock; own hero is predicted and, when the predicted position at `acked_seq` differs by > 0.15 m, snapped to
+  the server state and the pending inputs are replayed with `Motion.step_velocity` + `move_and_slide`.
+- **Events**: every `Events` signal fires on the host only and is replicated (`reliable`, except
+  `capture_progress` / `match_score` unreliable). Hero references are encoded as `{"__h": net_id}`.
+  UI/AI keep listening to the bus exactly as offline. `Fx.tracer` / `Fx.ring` called on the host replay on clients.
+- **Lag compensation**: the host keeps `HISTORY` = 60 ticks of hero positions; hitscan and melee from a remote
+  shooter run with other heroes rewound to the shooter's `view_tick` (`Net.rewind_for` / `restore`).
+- **Spread RNG**: online, `hero._rng` is seeded per shot with `hash([net_id, Net.tick, ammo])`.
+- **Spawn / despawn**: `_s_welcome({map_id, you, tick, heroes})`, `_s_spawn(hero_info)`, `_s_despawn(id)`.
+  Broadcasts go only to peers that completed hello/welcome.
+- Command line: `--net_host=PORT`, `--net_join=IP:PORT`, `--autopilot` (bot-driven player), `--net_test=S`
+  (prints `NETDUMP` JSON, quits). `tools/net_test.sh` (build.sh step) runs headless host + client on localhost.
+- Not yet: rejoin/host migration, bot re-fill when a human leaves, ability-movement prediction (dash/leap are
+  corrected by reconciliation), NAT traversal / relay.

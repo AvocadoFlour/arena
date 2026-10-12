@@ -20,7 +20,7 @@ func setup(h) -> void:
     add_child(arm)
     arm.add_excluded_object(h.get_rid())
     cam = Camera3D.new()
-    cam.fov = 75.0
+    cam.fov = Settings.fov   # base FOV comes from Settings (UI applies changes); any future zoom/sprint FOV must start from it
     cam.near = 0.05
     arm.add_child(cam)
     cam.current = true

@@ -1,3 +1,0 @@
-# One message substring per line. A WARNING with one of these messages (and its GDScript backtrace)
-# is allowed in the gate because a test triggers it on purpose. Everything else fails ./build.sh.
-BotBrain: unknown difficulty 'bogus'

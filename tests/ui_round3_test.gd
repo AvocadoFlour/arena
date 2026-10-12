@@ -36,7 +36,7 @@ func test_settings_persist_audio_fov() -> void:
     var path := "user://ui_test_settings.cfg"
     Settings.fov = 95.0
     check(Settings.set_volume("Master", 0.5), "Master bus exists and is applied")
-    check(not Settings.set_volume("Music", 0.3), "Music bus absent: stored only")
+    check(Settings.set_volume("Music", 0.3), "Music bus exists (default_bus_layout.tres): applied")
     near(db_to_linear(AudioServer.get_bus_volume_db(0)), 0.5, 0.01, "master volume applied")
     Settings.save(path)
     Settings.fov = 75.0

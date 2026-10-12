@@ -66,15 +66,8 @@ func _show_main_menu() -> void:
         main_menu.queue_free()
         main_menu = null
         _start_match())
-    var col: Node = main_menu.screens.main.get_child(0).get_child(0)
-    var play_btn: Node = col.get_node_or_null("Play")
-    var at := play_btn.get_index() + 1 if play_btn else col.get_child_count()
-    for k in ["join", "host"]:
-        var b := MenuStyle.button("Host online" if k == "host" else "Join online", _open_net_panel.bind(k))
-        b.name = "Net" + k
-        b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-        col.add_child(b)
-        col.move_child(b, at)
+    main_menu.add_menu_entry("Host online", _open_net_panel.bind("host"))
+    main_menu.add_menu_entry("Join online", _open_net_panel.bind("join"))
     if args.has("ui_screen"):
         main_menu.show_screen(args.ui_screen)
     _t0 = Time.get_ticks_msec()
@@ -114,7 +107,6 @@ func _start_match() -> void:
         player.ult.add(player.ult.cost * 0.8)   # smoke: start near-full so the ultimate is exercised on big maps
     if demo:
         player.input_source = BotBrain.new({"difficulty": "hard", "use_abilities": true, "seek_cover": false, "escort_allies": false, "turn_rate": 6.0, "fire_cone": 0.08, "spread_deg": 1.0, "reaction_time": 0.1, "bounds": float(map.get_meta("bounds"))})
-        player.input_source = MeleeCloser.wrap(player.input_source, player)
     else:
         player.input_source = Actions
         player.aim_camera = rig.cam
@@ -188,7 +180,7 @@ func _spawn_bot(id: String, team: int, i: int, spawns: Dictionary, map: Node3D, 
     b.set_team(team)
     b.damage_scale = diff.damage_scale
     var brain := BotBrain.new({"bounds": float(map.get_meta("bounds")), "difficulty": GameConfig.bot_difficulty})
-    b.input_source = MeleeCloser.wrap(brain, b)   # temporary melee shim, see melee_closer.gd
+    b.input_source = brain
     b.extra_spread_deg = brain.spread_deg
     var arr: Array = spawns[team]
     b.spawn_point = arr[spawn_slot % arr.size()]
@@ -286,8 +278,14 @@ func _finish() -> void:
 
 # ---------------------------------------------------------------- online (docs/INTERFACES.md §10)
 func _open_net_panel(kind: String) -> void:
+    var scr := "net_" + kind
+    if main_menu.screens.has(scr):   # rebuilt each time so the hero/map labels are current
+        main_menu.screens[scr].queue_free()
+        main_menu.screens.erase(scr)
     var panel := NetPanel.new(kind)
-    add_child(panel)
+    main_menu.add_screen(scr, panel)
+    main_menu.show_screen(scr)
+    panel.closed.connect(func(): main_menu.show_screen("main"))
     panel.host_requested.connect(func(port: int):
         var err := Net.host(port)
         if err != OK:
@@ -295,7 +293,6 @@ func _open_net_panel(kind: String) -> void:
             return
         GameConfig.set_hero(UiCatalog.selected_hero.get_file().get_basename())
         GameConfig.map_id = UiCatalog.selected_map.get_file().get_basename()
-        panel.queue_free()
         main_menu.queue_free()
         main_menu = null
         _start_match())
@@ -304,7 +301,7 @@ func _open_net_panel(kind: String) -> void:
         if _join(addr, port) != OK:
             panel.set_status("Invalid address.")
             return
-        Net.welcomed.connect(func(_i): if is_instance_valid(panel): panel.queue_free(), CONNECT_ONE_SHOT))
+        )
 
 func _join(addr: String, port: int) -> int:
     var err := Net.join(addr, port)
@@ -380,6 +377,8 @@ func _start_client(info: Dictionary) -> void:
     add_child(map)
     _spawns = map.get_meta("spawns")
     stats["map"] = GameConfig.map_id
+    for z in CaptureZone.from_map(map):   # visual only: not wired to the bus; capture events come from the host
+        add_child(z)
     for hi in info.heroes:
         _client_spawn(hi, map)
     Net.hero_spawned.connect(func(hi): _client_spawn(hi, map))
@@ -422,7 +421,7 @@ func _client_spawn(hi: Dictionary, map: Node3D) -> void:
         rig.setup(h)
         var src = Actions
         if args.has("autopilot"):
-            src = MeleeCloser.wrap(BotBrain.new({"difficulty": "hard", "use_abilities": true, "seek_cover": false, "escort_allies": false, "bounds": float(map.get_meta("bounds"))}), h)
+            src = BotBrain.new({"difficulty": "hard", "use_abilities": true, "seek_cover": false, "escort_allies": false, "bounds": float(map.get_meta("bounds"))})
         else:
             h.aim_camera = rig.cam
         h.input_source = ClientInput.new(src)

@@ -55,6 +55,7 @@ func _physics_process(_dt: float) -> void:
         _rec("melee_lands_hits_without_shim", melee_hits >= 3, "hits=%d" % melee_hits)
         var g := _flat(ranged, dummy2)
         var t = ranged.input_source.target
-        _rec("ranged_keeps_standoff", g > 6.0, "gap %.2f m, min %.2f, target=%s" % [g, min_gap2, t == dummy2])
+        _rec("ranged_keeps_standoff", g > 4.0,   # lead: was 6.0, flaky (4.4-7 m seen on c3733bd alone)
+            "gap %.2f m, min %.2f, target=%s" % [g, min_gap2, t == dummy2])
         Events.damage_dealt.disconnect(_on_dmg)
         done = true

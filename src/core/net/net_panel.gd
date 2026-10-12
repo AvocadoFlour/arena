@@ -1,7 +1,7 @@
 class_name NetPanel
-extends CanvasLayer
+extends Control
 ## Online play screens (Host / Join), opened from the main menu. Hero and map come from the
-## main menu's current selection (UiCatalog). Emits host_requested(port) / join_requested(addr, port).
+## main menu's current selection; registered with MainMenu.add_screen (UiCatalog). Emits host_requested(port) / join_requested(addr, port).
 signal host_requested(port: int)
 signal join_requested(address: String, port: int)
 signal closed
@@ -15,8 +15,8 @@ func _init(k: String = "host") -> void:
     kind = k
 
 func _ready() -> void:
-    layer = 30
     process_mode = Node.PROCESS_MODE_ALWAYS
+    set_anchors_preset(Control.PRESET_FULL_RECT)
     var bg := ColorRect.new()
     bg.color = Color(0.04, 0.06, 0.1, 0.97)
     bg.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -50,7 +50,7 @@ func _ready() -> void:
     var go := MenuStyle.button("Start hosting" if kind == "host" else "Connect", _go)
     go.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
     v.add_child(go)
-    var back := MenuStyle.button("Back", func(): closed.emit(); queue_free())
+    var back := MenuStyle.button("Back", func(): closed.emit())
     back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
     v.add_child(back)
 
