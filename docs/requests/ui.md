@@ -1,17 +1,19 @@
 # UI requests to lead (branch ui)
 
-1. **Run UI tests in the gate.** `tests/run_tests.gd` SUITES is hardcoded and runs suites in
-   `_initialize` (before autoloads are ready). UI tests need `Actions`/InputMap and a SceneTree, so
-   they live in `tests/ui_run_tests.gd` (first-frame runner). Please either add to build.sh step 2:
-   `"$GODOT" --headless --path . -s tests/ui_run_tests.gd | tee build/ui_tests.log; grep -q "UI RESULT: .* 0 failed" build/ui_tests.log`
-   or make run_tests.gd auto-discover `tests/*_test*.gd` and run after the first frame.
-2. **Wire the main menu in `src/main.gd`** (lead-owned). Proposed: when no test arg is given, add
-   `MainMenu.new()` first and build the match on `play_requested(hero_path, map_path)` instead of
-   the `HERO`/`MAP` consts; on Esc in-match, PauseMenu could get a "Main menu" button later.
-   Selection is also readable via `UiCatalog.selected_hero / selected_map`.
-3. **Hero/map listing interface.** INTERFACES.md defines the JSON shape but no listing API. UI
-   discovers `src/heroes/*.json` / `src/maps/*.json` via `UiCatalog.list_heroes()/list_maps()`.
-   Proposal: bless this as INTERFACES §2.3 / §6.1 (or move to src/core as `Registry`), and state
-   that every `.json` in those folders is a playable hero/map (no non-hero json there).
-4. **Ability key labels in HUD** still use a constant (SHIFT/E/Q); will switch to
-   `Keybinds.binding_text()` next round if OK.
+Round 1 requests 1–3 done on master (bbd8445). Round 1 #4 (live HUD key labels) is done in round 2.
+
+## Round 2
+1. **`scoreboard` action in `Actions.BINDINGS`** (src/core/actions.gd): `"scoreboard": [KEY_TAB]`.
+   UI-only (never read into InputFrame). Until then UI registers it in InputMap via
+   `Keybinds.UI_BINDINGS` / `ensure_ui_actions()`; that code skips itself once core defines it.
+2. **Capture-point events on `Events`** (INTERFACES §4, published by Maps):
+   - `signal capture_progress(ev)`, ev = `{zone_id: String, team: int (-1 = neutral), progress: float 0..1, contested: bool}`
+     (emit on change, or ≤10 Hz)
+   - `signal capture_completed(ev)`, ev = `{zone_id: String, team: int}`
+   `zone_id` = the `zones[].id` from map JSON §6. HUD `CaptureWidget` binds to Events automatically once
+   these exist (it checks `has_signal`); `MockCaptureSource` (src/ui) emits the same shapes for tests.
+3. **Match end event**: `signal match_ended(result)`, result = `{winner_team: int (-1 = draw), reason: String}`.
+   HUD shows `MatchEndScreen` on it automatically. No match rules (score/time limit) exist yet, so
+   nothing emits it. Screen emits `play_again` / `main_menu`: main.gd should connect them via
+   `hud.match_end` (reload main.tscn / show MainMenu) and pause gameplay.
+4. Optional: smoke test could emit a fake `match_ended` near the end to exercise the screen in the gate.

@@ -4,9 +4,26 @@ extends RefCounted
 ## Only touches the InputMap events; gameplay keeps reading InputFrame via Actions.
 const PATH := "user://keybinds.cfg"
 
+## UI-only actions (not gameplay, never in InputFrame). Registered here until core adds them to
+## Actions.BINDINGS (request in docs/requests/ui.md); skipped if core already defines them.
+const UI_BINDINGS := {"scoreboard": [KEY_TAB]}
+
 static func actions() -> Array:
     var a: Array = Actions.BINDINGS.keys() + Actions.MOUSE_BINDINGS.keys()
+    for u in UI_BINDINGS:
+        if not a.has(u):
+            a.append(u)
     return a
+
+static func ensure_ui_actions() -> void:
+    for u in UI_BINDINGS:
+        if Actions.BINDINGS.has(u) or InputMap.has_action(u):
+            continue
+        InputMap.add_action(u)
+        for k in UI_BINDINGS[u]:
+            var ev := InputEventKey.new()
+            ev.physical_keycode = k
+            InputMap.action_add_event(u, ev)
 
 static func pretty(action: String) -> String:
     return action.replace("_", " ").capitalize()
@@ -67,6 +84,14 @@ static func reset_defaults() -> void:
             var ev := InputEventKey.new()
             ev.physical_keycode = k
             InputMap.action_add_event(a, ev)
+    for a in UI_BINDINGS:
+        if Actions.BINDINGS.has(a):
+            continue
+        InputMap.action_erase_events(a)
+        for k in UI_BINDINGS[a]:
+            var ev := InputEventKey.new()
+            ev.physical_keycode = k
+            InputMap.action_add_event(a, ev)
     for a in Actions.MOUSE_BINDINGS:
         InputMap.action_erase_events(a)
         for b in Actions.MOUSE_BINDINGS[a]:
@@ -87,6 +112,7 @@ static func save(path := PATH) -> void:
     cfg.save(path)
 
 static func load_saved(path := PATH) -> bool:
+    ensure_ui_actions()
     var cfg := ConfigFile.new()
     if cfg.load(path) != OK:
         return false
