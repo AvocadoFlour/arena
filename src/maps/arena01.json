@@ -1,0 +1,26 @@
+{
+  "name": "Proving Grounds",
+  "bounds": 17,
+  "spawns": {
+    "0": [[0, 0.2, 15]],
+    "1": [[-13, 0.2, -15], [13, 0.2, -15], [0, 3.2, -10]]
+  },
+  "blocks": [
+    {"kind": "floor",    "pos": [0, -0.5, 0],   "size": [40, 1, 40], "color": "#5a6070", "grid": true},
+    {"kind": "wall",     "pos": [0, 2, -20.5],  "size": [42, 5, 1],  "color": "#3a3f4c"},
+    {"kind": "wall",     "pos": [0, 2, 20.5],   "size": [42, 5, 1],  "color": "#3a3f4c"},
+    {"kind": "wall",     "pos": [-20.5, 2, 0],  "size": [1, 5, 40],  "color": "#3a3f4c"},
+    {"kind": "wall",     "pos": [20.5, 2, 0],   "size": [1, 5, 40],  "color": "#3a3f4c"},
+    {"kind": "platform", "pos": [0, 1.5, -10],  "size": [10, 3, 6],  "color": "#7a6a58", "grid": true},
+    {"kind": "ramp",     "pos": [0, 1.35, -4.0], "size": [3, 0.4, 6.9], "rot_deg": [26.6, 0, 0], "color": "#8a7a64"},
+    {"kind": "ramp",     "pos": [-8.2, 0.75, -10], "size": [6, 0.4, 3], "rot_deg": [0, 0, -27], "color": "#8a7a64"},
+    {"kind": "cover",    "pos": [-7, 1, 5],     "size": [2, 2, 2],   "color": "#c08040"},
+    {"kind": "cover",    "pos": [7, 1, 5],      "size": [2, 2, 2],   "color": "#c08040"},
+    {"kind": "cover",    "pos": [-12, 0.75, 10], "size": [4, 1.5, 1], "color": "#c08040"},
+    {"kind": "cover",    "pos": [12, 0.75, 10], "size": [4, 1.5, 1],  "color": "#c08040"},
+    {"kind": "cover",    "pos": [0, 1.25, 8],   "size": [1, 2.5, 4], "color": "#a06838"},
+    {"kind": "cover",    "pos": [-14, 1.5, -4], "size": [2, 3, 2],   "color": "#c08040"},
+    {"kind": "cover",    "pos": [14, 1.5, -4],  "size": [2, 3, 2],   "color": "#c08040"},
+    {"kind": "cover",    "pos": [10, 0.6, -12], "size": [3, 1.2, 3], "color": "#c08040"}
+  ]
+}
