@@ -41,6 +41,16 @@ static func build(path: String) -> Node3D:
     root.set_meta("spawns", spawns)
     root.set_meta("bounds", float(d.get("bounds", 17)))
     root.set_meta("map_name", d.get("name", "Map"))
+    # Optional extensions (arena02+): capture zones and spawn rooms, data only.
+    var zones: Array = []
+    for z in d.get("zones", []):
+        zones.append({"id": z.get("id", ""), "kind": z.get("kind", "capture"), "pos": _v(z.pos), "size": _v(z.size)})
+    root.set_meta("zones", zones)
+    var rooms := {}
+    var sr: Dictionary = d.get("spawn_rooms", {})
+    for team in sr:
+        rooms[int(team)] = AABB(_v(sr[team].pos) - _v(sr[team].size) * 0.5, _v(sr[team].size))
+    root.set_meta("spawn_rooms", rooms)
     return root
 
 static func _v(a) -> Vector3:
