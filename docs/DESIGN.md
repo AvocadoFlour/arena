@@ -53,5 +53,5 @@ player-side mute/block and report (required by app stores).
 - **Input sources**: player, bots, future touch and network all produce the same `InputFrame`.
 - **Event bus** (`Events`) decouples gameplay from UI/FX.
 - **Gate**: `./build.sh` must pass (tests + 40 s gameplay smoke + exports) before any merge.
-- Window size via official templates is ~109 MB exe → ~38 MB zip; a custom-compiled
+- Windows build size with official templates is ~109 MB exe → ~38 MB zip; a custom-compiled
   template with unused modules disabled is the planned fix for the 24 MB target.
