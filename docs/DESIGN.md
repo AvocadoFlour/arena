@@ -38,6 +38,15 @@ implemented as an `Actions.sources` provider (see INTERFACES.md §1).
 |---|---|---|---|---|---|
 | Kestrel | Duelist | Hitscan rifle, 14 dmg, 9/s, 30 rounds, 1.6 s reload | Dash 7 m, 4 s CD | Ground Slam: instant AoE on ground, dive+AoE in air, 70 dmg r5, 8 s CD | Nova Burst: 220 dmg AoE r10, needs 500 damage dealt |
 
+## Heroes added in v0.2 (heroes branch)
+| Hero | Role | Primary | Ability 1 | Ability 2 | Ultimate |
+|---|---|---|---|---|---|
+| Rampart | Tank | Hitscan 9 dmg | Bull Rush (charge, 40 dmg + knockback) | Bulwark (5 s shield wall) | Fault Line (AoE 180) |
+| Willow | Support | Hitscan 11 dmg | Mending Beam (3 s heal channel) | Frost Bolt (projectile, 30 dmg, 50% slow) | Second Wind (team heal 150) |
+
+Deferred to v0.2: projectile *primary* fire (`"primary": {"type": "projectile"}`, heroes request 3) —
+needs a Weapon/schema change in core; declined for now.
+
 ## Roadmap
 1. v0.1 skeleton (this). 2. v0.2: 2–3 more heroes, projectile weapons, team 3v3 vs bots,
 better bot nav (NavigationRegion3D). 3. v0.3: touch controls + Android export. 4. v0.4:

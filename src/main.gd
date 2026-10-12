@@ -2,18 +2,18 @@ extends Node3D
 ## Composition root: builds map, heroes, HUD and menu. Handles command-line modes:
 ##   -- --demo            scripted autopilot (moves, looks, fires, dashes, slams, ults)
 ##   -- --smoke=SECONDS   run demo, print stats, exit 0 (pass) or 1 (fail)
-##   -- --screenshot=PATH --delay=S [--menu]   save a PNG after S seconds and quit
+##   -- --screenshot=PATH --delay=S [--menu] [--use=SLOT --use_lead=S]   save a PNG after S seconds and quit
+##   -- --hero=ID --map=ID --bots=easy|normal|hard   (GameConfig)
 
-const HERO := "res://src/heroes/kestrel.json"
-const MAP := "res://src/maps/arena01.json"
 var player: Hero
 var hud: Hud
 var menu: PauseMenu
 var args := {}
-var stats := {"player_dmg": 0.0, "bot_dmg": 0.0, "kills": 0, "deaths": 0, "dash": 0, "slam": 0, "nova": 0, "slam_hits": 0, "ult_hits": 0}
+var stats := {"player_dmg": 0.0, "bot_dmg": 0.0, "kills": 0, "deaths": 0, "ability1": 0, "ability2": 0, "ultimate": 0}
 var _t0 := 0
 var _game_t := 0.0   ## game time (fixed-step in movie mode)
 var _shot_done := false
+var _used := false
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS   # screenshot/smoke timers keep running while paused
@@ -22,11 +22,12 @@ func _ready() -> void:
             var kv := a.substr(2).split("=", true, 1)
             args[kv[0]] = kv[1] if kv.size() > 1 else "1"
     var demo := args.has("demo") or args.has("smoke") or args.has("screenshot")
-    var map := MapLoader.build(MAP)
+    var map := MapLoader.build(GameConfig.map_path())
     add_child(map)
     var spawns: Dictionary = map.get_meta("spawns")
-    player = Hero.from_def(HERO)
-    player.display_name = "You (Kestrel)"
+    player = Hero.from_def(GameConfig.hero_path(GameConfig.hero_id))
+    player.display_name = "You (%s)" % player.def.get("name", GameConfig.hero_id)
+    stats["hero"] = GameConfig.hero_id
     player.set_team(0)
     player.spawn_point = spawns[0][0]
     add_child(player)
@@ -39,12 +40,17 @@ func _ready() -> void:
     else:
         player.input_source = Actions
         player.aim_camera = rig.cam
-    for i in 3:
-        var b := Hero.from_def(HERO)
-        b.display_name = "Bot %d" % (i + 1)
+    var roster: Array = GameConfig.hero_ids()   # mixed bot roster: cycle through all heroes
+    var diff: Dictionary = GameConfig.difficulty()
+    stats["bots"] = []
+    for i in GameConfig.bot_count:
+        var bid: String = roster[i % roster.size()]
+        var b := Hero.from_def(GameConfig.hero_path(bid))
+        b.display_name = "Bot %d (%s)" % [i + 1, b.def.get("name", bid)]
+        stats.bots.append(bid)
         b.set_team(1)
-        b.damage_scale = 0.3
-        var brain := BotBrain.new({"bounds": float(map.get_meta("bounds"))})
+        b.damage_scale = diff.damage_scale
+        var brain := BotBrain.new({"bounds": float(map.get_meta("bounds")), "spread_deg": diff.spread_deg, "turn_rate": diff.turn_rate})
         b.input_source = brain
         b.extra_spread_deg = brain.spread_deg
         b.spawn_point = spawns[1][i % spawns[1].size()]
@@ -58,7 +64,7 @@ func _ready() -> void:
     add_child(menu)
     Events.damage_dealt.connect(_on_dmg)
     Events.killed.connect(_on_kill)
-    Events.ability_used.connect(func(h, _s, id): if h == player: stats[id] = stats.get(id, 0) + 1)
+    Events.ability_used.connect(func(h, slot, _id): if h == player: stats[slot] = stats.get(slot, 0) + 1)
     for c in get_children():
         if c != menu:
             c.process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -71,10 +77,7 @@ func _ready() -> void:
 func _on_dmg(ev: Dictionary) -> void:
     if ev.source == player:
         stats.player_dmg += ev.amount
-        if ev.kind == "slam":
-            stats.slam_hits += 1
-        if ev.kind == "ultimate":
-            stats.ult_hits += 1
+        stats["hits_" + ev.kind] = stats.get("hits_" + ev.kind, 0) + 1
     elif ev.target == player:
         stats.bot_dmg += ev.amount
 
@@ -98,6 +101,9 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(dt: float) -> void:
     _game_t += dt
     var el := _game_t
+    if args.has("use") and not _used and el >= float(args.get("delay", "6")) - float(args.get("use_lead", "0.3")):
+        _used = true   # test hook: force an ability right before the screenshot
+        player._use(args.use)
     if args.has("screenshot") and not _shot_done and el >= float(args.get("delay", "6")):
         _shot_done = true
         get_viewport().get_texture().get_image().save_png(args.screenshot)
@@ -117,7 +123,7 @@ func _finish() -> void:
     stats["fps_avg"] = snappedf(avg, 0.1)
     stats["fps_min"] = s.min() if s.size() > 0 else 0
     print("STATS ", JSON.stringify(stats))
-    var ok: bool = stats.player_dmg > 0 and stats.bot_dmg > 0 and stats.kills > 0 and stats.dash > 0 and stats.slam > 0 and stats.nova > 0
+    var ok: bool = stats.player_dmg > 0 and stats.bot_dmg > 0 and stats.kills > 0 and stats.ability1 > 0 and stats.ability2 > 0 and stats.ultimate > 0
     if args.has("smoke"):
         print("SMOKE ", "PASS" if ok else "FAIL")
     get_tree().quit(0 if ok or not args.has("smoke") else 1)

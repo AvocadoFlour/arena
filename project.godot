@@ -9,6 +9,7 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 [autoload]
 Events="*res://src/core/events.gd"
 Actions="*res://src/core/actions.gd"
+GameConfig="*res://src/core/game_config.gd"
 Settings="*res://src/ui/settings.gd"
 
 [display]

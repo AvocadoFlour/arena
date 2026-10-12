@@ -45,6 +45,22 @@ Ability def: `{"id","type","name","cooldown", ...type params}`. `type` → scrip
 Abilities may use the hero API: `velocity, last_wish, look_dir(), is_on_floor(), dash_time,
 dash_vel, slam_pending, ult, aoe(center, radius, dmg, kind)`.
 
+Hero API for abilities (v0.2, approved with the heroes merge):
+| member | contract |
+|---|---|
+| `apply_slow(mult, dur)` | movement speed × `mult` for `dur` s; stronger (lower) mult wins, longest duration kept; cleared on death |
+| `slow_mult`, `slow_left` | current slow (read-only for others; HUD may show) |
+| `heal(amount) -> float` | restores HP (no overheal), returns amount healed; 0 if dead |
+| `effective_move_cfg()` | `movement` dict with slows applied (what `Motion.step_velocity` gets) |
+| `eye_position()`, `look_dir()`, `aim_camera`, `yaw`, `pitch`, `team`, `damage_scale` | aim/teaming; read-only for abilities |
+| `get_parent()` | the world node: abilities may add transient nodes there (projectiles, shield walls, FX) |
+Ability types (registry): `dash, ground_slam, nova, projectile, shield_wall, charge, heal_beam, rally`.
+Optional ability query methods: `channeling()` (heal_beam), `active()` (shield_wall), `charging()` (charge).
+Shield walls are StaticBody3D on layer 1: they block movement, hitscan and projectiles of both teams.
+
+Damage kinds (`kind`): `primary` (hitscan), `slam`, `ultimate`, `projectile` (ability projectiles, incl.
+splash), `charge` (rush contact), `fall`.
+
 ## 3. Damage & health
 - `hero.take_damage(amount, source: Hero|null, pos: Vector3, kind: String) -> float applied`.
   `kind` ∈ `primary, slam, ultimate, fall, …`.
@@ -74,5 +90,18 @@ Heroes are found via group `"heroes"` (`team`, `dead`, `eye_position()`).
 `MapLoader.build(path) -> Node3D` with metas `spawns` (Dictionary int → Array[Vector3]),
 `bounds`, `map_name`. Every block is a StaticBody3D box (ramps are rotated boxes).
 
+## 8. Match config (`GameConfig` autoload, src/core/game_config.gd)
+| member | meaning |
+|---|---|
+| `hero_id: String` | player hero (default `kestrel`); set with `set_hero(id) -> bool` (rejects unknown ids) |
+| `map_id: String` | map file id in src/maps (default `arena01`) |
+| `bot_difficulty: String` | `easy` / `normal` / `hard` → `difficulty()` = {spread_deg, turn_rate, damage_scale} |
+| `bot_count: int` | default 3 |
+| `hero_ids() -> Array` | every `src/heroes/*.json` id, sorted (hero select lists this) |
+| `hero_path(id)`, `map_path()` | resource paths |
+| signal `changed` | emitted by `set_hero` |
+A future hero-select UI sets these, then (re)loads `res://src/main.tscn`. Bots use a mixed roster:
+bot *i* gets `hero_ids()[i % n]`.
+
 ## 7. Command line (testing)
-`-- --smoke=S` (autopilot S game-seconds, exit 1 on fail), `--demo=S`, `--screenshot=PATH --delay=S [--menu]`.
+`-- --hero=ID --map=ID --bots=easy|normal|hard` (GameConfig); `--smoke=S` (autopilot S game-seconds, exit 1 on fail), `--demo=S`, `--screenshot=PATH --delay=S [--menu]`.
