@@ -38,6 +38,13 @@ Gameplay code never reads `Input` directly.
   "abilities": {"ability1": {...}, "ability2": {...}, "ultimate": {...}},
   "model": [{"shape":"capsule|sphere|box","radius","height","size":[x,y,z],"pos":[x,y,z],"color":"#hex|team","muzzle":bool}] }
 ```
+Model parts (optional visual keys, approved v0.4, heroes round 3): `"rot"` [x,y,z] degrees, `"scale"` [x,y,z],
+`"pivot"` [x,y,z] (part rotates about this point), `"metallic"`, `"roughness"`, `"emission"` (#hex),
+`"anim"` ∈ `tail|weapon|leg_l|leg_r|arm_l|arm_r|head`. Parts live under a `Visual` child node animated in
+`_process` from existing state (velocity, is_on_floor, weapon cooldown, combo_step, dash_time). **Visual-only and
+client-side**: never replicated; on online clients puppets get a velocity derived from interpolation so run/lean
+animates, while weapon/combo/dash state is not synced (swing/recoil may not animate on remote heroes).
+
 ### 2.1 Primary types
 - `hitscan` (default): `damage, fire_rate, mag, reload_time, spread_deg, range` — core `Weapon`.
 - `melee` (v0.3): `{"type":"melee","damage","fire_rate","mag" (999 = no ammo),"reload_time","range","arc_deg",
@@ -249,6 +256,8 @@ team with fewer humans). Modes: `OFFLINE` (single player, unchanged), `HOST`, `C
 - **Spread RNG**: online, `hero._rng` is seeded per shot with `hash([net_id, Net.tick, ammo])`.
 - **Spawn / despawn**: `_s_welcome({map_id, you, tick, heroes})`, `_s_spawn(hero_info)`, `_s_despawn(id)`.
   Broadcasts go only to peers that completed hello/welcome.
+- Smoke (`--smoke`) seeds the global RNG, hero spread and BotBrain RNGs from `--seed=N` (default 4242); it
+  passes on damage dealt + taken, match_ended and every ability slot used (kills reported, not required).
 - Command line: `--net_host=PORT`, `--net_join=IP:PORT`, `--autopilot` (bot-driven player), `--net_test=S`
   (prints `NETDUMP` JSON, quits). `tools/net_test.sh` (build.sh step) runs headless host + client on localhost.
 - Not yet: rejoin/host migration, bot re-fill when a human leaves, ability-movement prediction (dash/leap are

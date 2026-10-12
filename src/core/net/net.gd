@@ -520,7 +520,10 @@ func _process(_dt: float) -> void:
         elif rt < float(buf[0][0]):
             w = 0.0
             b = a
-        h.global_position = (a[1] as Vector3).lerp(b[1], w)
+        var np: Vector3 = (a[1] as Vector3).lerp(b[1], w)
+        if _dt > 0.0:
+            h.velocity = (np - h.global_position) / _dt   # visual only: drives the Visual run/lean animation
+        h.global_position = np
         h.yaw = lerp_angle(float(a[2]), float(b[2]), w)
         h.rotation.y = h.yaw
         h.pitch = lerpf(float(a[3]), float(b[3]), w)
