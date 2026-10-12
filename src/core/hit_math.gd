@@ -17,17 +17,26 @@ static func ray_sphere(o: Vector3, d: Vector3, c: Vector3, r: float) -> float:
     return t if t >= 0.0 else -1.0
 
 ## Ray vs vertical capsule (feet at base, total height h, radius r). -1.0 on miss.
-static func ray_capsule(o: Vector3, d: Vector3, base: Vector3, h: float, r: float, max_t: float = 1000.0) -> float:
+static func ray_capsule(o: Vector3, d: Vector3, base: Vector3, h: float, r: float) -> float:
+    var y0 := base.y + r
+    var y1 := base.y + h - r
     var best := -1.0
-    var steps := 64
-    for i in steps + 1:
-        var t := max_t * float(i) / float(steps)
-        var p := o + d * t
-        var y := clampf(p.y, base.y + r, base.y + h - r)
-        var c := Vector3(base.x, y, base.z)
-        var hit := ray_sphere(o, d, c, r)
-        if hit >= 0.0 and (best < 0.0 or hit < best):
-            best = hit
+    var ox := o.x - base.x
+    var oz := o.z - base.z
+    var qa := d.x * d.x + d.z * d.z
+    if qa > 1e-8:
+        var qb := ox * d.x + oz * d.z
+        var qc := ox * ox + oz * oz - r * r
+        var disc := qb * qb - qa * qc
+        if disc >= 0.0:
+            var t := (-qb - sqrt(disc)) / qa
+            var y := o.y + d.y * t
+            if t >= 0.0 and y >= y0 and y <= y1:
+                best = t
+    for cy in [y0, y1]:
+        var t2 := ray_sphere(o, d, Vector3(base.x, cy, base.z), r)
+        if t2 >= 0.0 and (best < 0.0 or t2 < best):
+            best = t2
     return best
 
 ## Linear falloff: full damage at centre, 50% at the edge, 0 outside.
