@@ -177,14 +177,7 @@ func _on_damage(ev: Dictionary) -> void:
     if ev.source == player:
         crosshair.hit_t = 0.15
         crosshair.kill = ev.killed
-        var l := Label3D.new()
-        l.text = str(int(round(ev.amount)))
-        l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-        l.no_depth_test = true
-        l.font_size = 64
-        l.outline_size = 12
-        l.pixel_size = 0.006
-        l.modulate = Color(1, 0.3, 0.2) if ev.killed else (Color(1, 0.75, 0.2) if ev.kind != "primary" else Color(1, 1, 0.6))
+        var l := DamageNumber.new(ev.amount, ev.kind, ev.killed)
         player.get_parent().add_child(l)
         l.global_position = ev.pos + Vector3(randf_range(-0.3, 0.3), 0.3, randf_range(-0.3, 0.3))
         var tw := l.create_tween().set_parallel(true)
