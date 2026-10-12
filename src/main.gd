@@ -12,6 +12,7 @@ var menu: PauseMenu
 var args := {}
 var stats := {"player_dmg": 0.0, "bot_dmg": 0.0, "kills": 0, "deaths": 0, "dash": 0, "slam": 0, "nova": 0, "slam_hits": 0, "ult_hits": 0}
 var _t0 := 0
+var _game_t := 0.0   ## game time (fixed-step in movie mode)
 var _shot_done := false
 
 func _ready() -> void:
@@ -58,7 +59,7 @@ func _ready() -> void:
     Events.killed.connect(_on_kill)
     Events.ability_used.connect(func(h, _s, id): if h == player: stats[id] = stats.get(id, 0) + 1)
     if args.has("menu"):
-        menu.visible = true
+        menu.open()
     elif not demo:
         Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
     _t0 = Time.get_ticks_msec()
@@ -90,8 +91,9 @@ func _unhandled_input(event: InputEvent) -> void:
     elif event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not menu.visible:
         Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
-func _process(_dt: float) -> void:
-    var el := (Time.get_ticks_msec() - _t0) / 1000.0
+func _process(dt: float) -> void:
+    _game_t += dt
+    var el := _game_t
     if args.has("screenshot") and not _shot_done and el >= float(args.get("delay", "6")):
         _shot_done = true
         get_viewport().get_texture().get_image().save_png(args.screenshot)
@@ -111,7 +113,7 @@ func _finish() -> void:
     stats["fps_avg"] = snappedf(avg, 0.1)
     stats["fps_min"] = s.min() if s.size() > 0 else 0
     print("STATS ", JSON.stringify(stats))
-    var ok: bool = stats.player_dmg > 0 and stats.bot_dmg > 0 and stats.kills > 0
+    var ok: bool = stats.player_dmg > 0 and stats.bot_dmg > 0 and stats.kills > 0 and stats.dash > 0 and stats.slam > 0 and stats.nova > 0
     if args.has("smoke"):
         print("SMOKE ", "PASS" if ok else "FAIL")
     get_tree().quit(0 if ok or not args.has("smoke") else 1)
