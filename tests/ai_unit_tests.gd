@@ -77,3 +77,61 @@ func test_best_cover_choice() -> void:
     var cp = BotNav.best_cover(blocks, Vector3(0, 0, 3), Vector3(0, 0, -10))
     check(cp != null and absf(cp.x + 5.0) < 1.5, "nearest tall cover chosen (%s)" % [cp])
     check(BotNav.best_cover([], Vector3.ZERO, Vector3(0, 0, -10)) == null, "no cover -> null")
+
+func _typed(types: Dictionary, o: Dictionary) -> Dictionary:
+    var c := _ctx(o)
+    c.types = types
+    var r := {}
+    for k in types:
+        r[k] = true
+    c.ready = r
+    return c
+
+func test_rampart_charge_and_shield_policy() -> void:
+    var t := {"ability1": "charge", "ability2": "shield_wall", "ultimate": "nova"}
+    check(BotBrain.decide_abilities(_typed(t, {"dist": 6.0, "aim_ok": true})).ability1, "charge aimed enemy in reach")
+    check(not BotBrain.decide_abilities(_typed(t, {"dist": 6.0, "aim_ok": false})).ability1, "no charge when not aimed")
+    check(not BotBrain.decide_abilities(_typed(t, {"dist": 15.0, "aim_ok": true})).ability1, "no charge out of reach")
+    check(BotBrain.decide_abilities(_typed(t, {"dist": 12.0, "hurt": true})).ability2, "shield when hurt under fire")
+    check(not BotBrain.decide_abilities(_typed(t, {"dist": 12.0, "hurt": false})).ability2, "no shield at full health")
+    check(not BotBrain.decide_abilities(_typed(t, {"dist": 12.0, "hurt": true, "los": false})).ability2, "no shield without enemy in sight")
+
+func test_willow_projectile_and_rally_policy() -> void:
+    var t := {"ability1": "heal_beam", "ability2": "projectile", "ultimate": "rally"}
+    check(BotBrain.decide_abilities(_typed(t, {"dist": 20.0, "aim_ok": true})).ability2, "bolt at aimed enemy")
+    check(not BotBrain.decide_abilities(_typed(t, {"dist": 20.0, "aim_ok": true, "fleeing": true})).ability2, "no bolt while fleeing")
+    check(BotBrain.decide_abilities(_typed(t, {"allies_hurt": 1})).ultimate, "rally for hurt ally")
+    check(not BotBrain.decide_abilities(_typed(t, {"allies_hurt": 0})).ultimate, "no rally when team healthy")
+    check(BotBrain.decide_abilities(_typed(t, {"ult_targets": 1})).ultimate, "rally entering close fight")
+    check(BotBrain.decide_abilities(_typed(t, {"low_hp": true})).ability1, "self heal when low")
+    check(BotBrain.decide_abilities(_typed(t, {"hurt": true})).ability1, "self heal when hurt (no ally around)")
+    check(not BotBrain.decide_abilities(_typed(t, {})).ability1, "no beam on self at full hp")
+
+func test_cover_detection_by_kind_and_prefix() -> void:
+    var a := StaticBody3D.new()
+    a.name = "cover_03"
+    check(BotNav.is_cover(a), "cover_03 by prefix")
+    var b := StaticBody3D.new()
+    b.name = "wall_02"
+    b.set_meta("kind", "wall")
+    check(not BotNav.is_cover(b), "wall not cover")
+    var c := StaticBody3D.new()
+    c.name = "block_07"
+    c.set_meta("kind", "cover")
+    check(BotNav.is_cover(c), "kind meta wins")
+    var d := StaticBody3D.new()
+    d.name = "discover_01"
+    check(not BotNav.is_cover(d), "no substring false positive")
+    for n in [a, b, c, d]:
+        n.free()
+
+func test_box_footprint() -> void:
+    var t := Transform3D(Basis(Vector3.UP, PI / 2), Vector3(5, 1, 0))
+    var fp := BotNav.box_footprint(t, Vector3(4, 2, 0.5))
+    check(fp.size() == 4, "4 corners")
+    var minz := INF
+    var maxz := -INF
+    for p in fp:
+        minz = minf(minz, p.z)
+        maxz = maxf(maxz, p.z)
+    near(maxz - minz, 4.0, 0.01, "rotated width along z")

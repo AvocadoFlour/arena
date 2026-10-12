@@ -1,15 +1,27 @@
 # Requests from AI (branch ai)
 
-1. **tests/run_tests.gd (lead, tests infra)**: add `"res://tests/ai_unit_tests.gd"` to `SUITES` and
-   run `tests/ai_nav_driver.gd` (navmesh/cover integration, ~300 physics frames) alongside
-   `physics_driver.gd` — or invoke `godot --headless --path . -s tests/ai_run_tests.gd` as an extra
-   build.sh step. Until then AI tests run via `tests/ai_run_tests.gd` (15/15 pass) and are not in the gate.
-2. **INTERFACES.md §5 (lead)**: document new BotBrain params `difficulty` ("easy"|"normal"|"hard",
-   default "normal"; sets spread_deg, turn_rate, fire_cone, reaction_time, aim_jitter, ability_delay,
-   low_hp_frac, cover_time; explicit params override), `use_navmesh`, `seek_cover`; state `cover`;
-   `use_abilities` now defaults to true. Navmesh: BotNav lazily adds a `BotNavRegion`
-   NavigationRegion3D under the map root (node with `spawns` meta) and bakes it from static colliders.
-   **No MapLoader change needed.** Cover blocks are found by StaticBody3D name containing "cover"
-   (MapLoader names bodies after `kind`) — please keep that naming in the map contract.
-3. **src/main.gd (lead)**: optional — pass `"difficulty"` to enemy `BotBrain.new()` from a setting /
-   `--difficulty=` arg (UI could expose it in the menu).
+## Round 1 (done by lead in 0480509, thanks)
+Test discovery, INTERFACES §5 params, GameConfig difficulty -> BotBrain.
+
+## Round 2
+1. **GameConfig team sizes (src/core/game_config.gd, INTERFACES §8, lead)**: add
+   `ally_count: int` (bots on the player's team, default 0 for now; 2 for 3v3) and
+   `enemy_count: int` (replaces/aliases `bot_count`, default 3), plus `-- --allies=N --enemies=N`.
+2. **Spawner (src/main.gd, lead)**: spawn `GameConfig.ally_count` ally bots with `set_team(0)`,
+   `spawn_point = spawns[0][(i + 1) % spawns[0].size()]`, same roster cycling and
+   `BotBrain.new({"bounds": ..., "difficulty": GameConfig.bot_difficulty})`; ally damage_scale 1.0
+   (or the difficulty scale; your call). Nothing else is needed: BotBrain already treats team 0 bots
+   as allies (no friendly targeting, escorts teammates when idle, Willow bots heal hurt allies), and the
+   heal beam (`heal_beam.pick_target`) already targets any same-team hero, so the player's support
+   beam heals ally bots (tested in tests/ai_team_driver.gd). Smoke: `ok` should not require allies.
+3. **Maps (Arena Maps, via lead)**: arena01 has only 1 team-0 spawn; 3v3 needs >= 3 team-0 spawns.
+4. **INTERFACES §5 (lead)**: replace "Dynamic shield walls are not in the navmesh: bots are blocked by
+   them until they expire" with: "`BotNav.sync_dynamic(map_root)` (called from bot path following, at
+   most once per physics frame per map) rebakes the navmesh when the set of layer-1 StaticBody3D
+   boxes that are siblings of the map root changes (shield walls); they become projected
+   obstructions, so bots path around active walls; the navmesh is restored when they expire."
+   Cover detection is now meta `kind == "cover"` (fallback: name prefix `cover`). New state `support`;
+   new param `escort_allies` (true). Ability policy is type-based (`BotBrain.want_ability(type, ctx)`)
+   for dash, charge, ground_slam, nova, rally, shield_wall, projectile, heal_beam.
+   Convention for abilities adding transient world geometry: add it as a direct child of the world
+   node (hero.get_parent()), StaticBody3D with BoxShape3D, so bots see it.

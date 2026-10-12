@@ -1,7 +1,7 @@
 class_name BotBrain
 extends RefCounted
 ## Bot AI as an input source: poll(hero) -> InputFrame (INTERFACES.md section 5).
-## States: wander -> chase (enemy visible) -> cover (low health). Movement follows a navmesh
+## States: wander (escorts allies) -> chase (enemy visible) -> cover (low health); support (heal beam on allies). Movement follows a navmesh
 ## path (BotNav) with direct steering as fallback. Inaccuracy: hero.extra_spread_deg (set by the
 ## spawner from spread_deg) plus difficulty-dependent aim jitter and reaction delay.
 
@@ -28,7 +28,9 @@ var aim_jitter := 0.05        ## rad, random aim offset refreshed twice a second
 var ability_delay := 0.6      ## mean s before an ability whose conditions hold is used
 var low_hp_frac := 0.35
 var cover_time := 3.0
+var escort_allies := true    ## idle bots roam near the nearest teammate
 var state := "wander"
+var heal_target = null
 var target = null
 var nav_used := false         ## true once a navmesh path has been followed (tests/debug)
 
@@ -49,6 +51,8 @@ var _cover = null             ## Vector3 or null
 var _cover_left := 0.0
 var _cover_cd := 0.0
 var _map_root: Node3D = null
+var _nav_ver := 0
+var _repath_soon := 0.0
 
 func _init(p: Dictionary = {}) -> void:
     _rng.randomize()
@@ -93,7 +97,9 @@ func poll(h) -> InputFrame:
         if _cover != null:
             state = "cover"
             _cover_left = cover_time + 4.0   # travel budget + hiding time
-    if state == "cover":
+    if _do_support(h, f, dt):
+        pass
+    elif state == "cover":
         _do_cover(h, f, dt)
     elif target:
         _do_chase(h, f, dt, low)
@@ -114,7 +120,8 @@ func _do_chase(h, f: InputFrame, dt: float, low: bool) -> void:
     if _strafe_left <= 0.0:
         _strafe = -1.0 if _rng.randf() < 0.5 else 1.0
         _strafe_left = _rng.randf_range(0.8, 2.0)
-    var slam_ready: bool = use_abilities and _ab_ready(h, "ability2")
+    var t2 := slot_type(h, "ability2")
+    var slam_ready: bool = use_abilities and t2 == "ground_slam" and _ab_ready(h, "ability2")
     var keep := 3.0 if slam_ready and not low else 10.0   # close in to use the slam
     var los: bool = _visible(h, target)
     if dist > keep + 2.0 or not los:
@@ -124,14 +131,31 @@ func _do_chase(h, f: InputFrame, dt: float, low: bool) -> void:
         f.move = Vector2(_strafe * 0.7, fwd).limit_length(1.0)
     f.fire = los and err < fire_cone and _react_left <= 0.0
     if use_abilities:
-        var ctx := {
-            "dist": dist, "flat_dist": Vector2(to.x, to.z).length(), "on_floor": h.is_on_floor(),
-            "height_above": h.global_position.y - target.global_position.y, "los": los, "low_hp": low,
-            "dash_ready": _ab_ready(h, "ability1"), "slam_ready": slam_ready,
-            "ult_ready": _ult_ready(h), "ult_targets": _enemies_within(h, ULT_RANGE),
-            "moving": f.move.length() > 0.5, "fleeing": false,
-        }
+        var ctx := _ctx(h, low, false)
+        ctx.merge({"dist": dist, "flat_dist": Vector2(to.x, to.z).length(),
+            "height_above": h.global_position.y - target.global_position.y, "los": los,
+            "aim_ok": err < 0.25, "moving": f.move.length() > 0.5}, true)
         _apply_abilities(f, decide_abilities(ctx), dt)
+
+## Ability context shared by chase/cover. Slot types come from the hero def (type-aware policy).
+func _ctx(h, low: bool, fleeing: bool) -> Dictionary:
+    var types := {}
+    var ready := {}
+    var ult_r := ULT_RANGE
+    for slot in ["ability1", "ability2", "ultimate"]:
+        types[slot] = slot_type(h, slot)
+        ready[slot] = _ab_ready(h, slot)
+    if h.abilities.has("ultimate"):
+        ult_r = float(h.abilities["ultimate"].def.get("radius", 10.0)) * 0.8
+    return {"types": types, "ready": ready, "dist": 99.0, "flat_dist": 99.0, "on_floor": h.is_on_floor(),
+        "height_above": 0.0, "los": false, "low_hp": low, "hurt": h.health.hp < h.health.max_hp * 0.7,
+        "ult_range": ult_r, "ult_targets": _enemies_within(h, ult_r), "allies_hurt": _allies_hurt_within(h, ult_r),
+        "aim_ok": false, "moving": false, "fleeing": fleeing}
+
+static func slot_type(h, slot: String) -> String:
+    if not h.abilities.has(slot):
+        return ""
+    return String(h.abilities[slot].def.get("type", ""))
 
 func _do_cover(h, f: InputFrame, dt: float) -> void:
     _cover_left -= dt
@@ -146,10 +170,8 @@ func _do_cover(h, f: InputFrame, dt: float) -> void:
         if threat == null:
             _aim(h, f, _move_world(h, f.move), dt, false)
         if use_abilities and flat > 5.0:
-            var ctx := {"dist": 99.0, "flat_dist": 99.0, "on_floor": h.is_on_floor(), "height_above": 0.0,
-                "los": false, "low_hp": true, "dash_ready": _ab_ready(h, "ability1"), "slam_ready": false,
-                "ult_ready": _ult_ready(h), "ult_targets": _enemies_within(h, ULT_RANGE),
-                "moving": f.move.length() > 0.5, "fleeing": true}
+            var ctx := _ctx(h, true, true)
+            ctx.moving = f.move.length() > 0.5
             _apply_abilities(f, decide_abilities(ctx), dt)
     else:
         f.move = Vector2.ZERO
@@ -161,36 +183,118 @@ func _do_cover(h, f: InputFrame, dt: float) -> void:
         _cover = null
         _cover_cd = 8.0   # peek out and fight before hiding again
 
+## Support: a hero with a heal beam aims at the most hurt visible ally in range and channels.
+## Returns true when it took over this tick (movement keeps following the ally).
+func _do_support(h, f: InputFrame, dt: float) -> bool:
+    var slot := ""
+    for s in ["ability1", "ability2", "ultimate"]:
+        if slot_type(h, s) == "heal_beam":
+            slot = s
+    if slot == "" or not use_abilities:
+        return false
+    var ab = h.abilities[slot]
+    var rng := float(ab.def.get("range", 15.0))
+    var chan: bool = ab.channeling()
+    if not chan and not ab.can_activate():
+        heal_target = null
+        return false
+    if heal_target == null or not is_instance_valid(heal_target) or heal_target.dead or (not chan and _think > 0.19):
+        heal_target = pick_heal_target(h, rng * 0.9)
+    if heal_target == null:
+        return false
+    state = "support"
+    var to: Vector3 = (heal_target.global_position + Vector3(0, 1.0, 0)) - h.eye_position()
+    var err := _aim(h, f, to, dt, false)
+    f.move = _follow(h, heal_target.global_position) if to.length() > rng * 0.6 else Vector2.ZERO
+    if not chan and err < deg_to_rad(float(ab.def.get("cone_deg", 15.0))) * 0.7:
+        f.set(slot, true)
+    return true
+
+## Most hurt living ally (not self) under 80 % HP, within range and line of sight.
+func pick_heal_target(h, rng: float):
+    var best = null
+    var best_frac := 0.8
+    for o in h.get_tree().get_nodes_in_group("heroes"):
+        if o == h or o.dead or o.team != h.team:
+            continue
+        if h.global_position.distance_to(o.global_position) > rng:
+            continue
+        var frac: float = o.health.hp / o.health.max_hp
+        if frac < best_frac and _visible(h, o):
+            best_frac = frac
+            best = o
+    return best
+
+## Nearest living ally (not self), for escorting while idle.
+func nearest_ally(h):
+    var best = null
+    var best_d := INF
+    for o in h.get_tree().get_nodes_in_group("heroes"):
+        if o == h or o.dead or o.team != h.team:
+            continue
+        var d: float = h.global_position.distance_to(o.global_position)
+        if d < best_d:
+            best_d = d
+            best = o
+    return best
+
 func _do_wander(h, f: InputFrame, dt: float) -> void:
     state = "wander"
     _wander_left -= dt
     var flat := Vector3(_wander.x - h.global_position.x, 0, _wander.z - h.global_position.z)
     if _wander_left <= 0.0 or flat.length() < 1.5:
         _wander = Vector3(_rng.randf_range(-bounds, bounds), 0, _rng.randf_range(-bounds, bounds))
+        var ally = nearest_ally(h) if escort_allies else null
+        if ally:   # team play: roam near a teammate instead of alone
+            var off := Vector3(_rng.randf_range(-4, 4), 0, _rng.randf_range(-4, 4))
+            _wander = ally.global_position + off
         _wander_left = _rng.randf_range(3.0, 6.0)
     f.move = _follow(h, _wander)
     var dir := _move_world(h, f.move)
     dir.y = -h.pitch * 3.0
     _aim(h, f, dir, dt, false)
 
-## Pure ability policy (unit-tested). Returns {ability1, ability2, ultimate} wishes.
+## Pure, type-aware ability policy (unit-tested). Returns {ability1, ability2, ultimate} wishes.
+## ctx: types {slot: ability type}, ready {slot: bool} (legacy keys dash_ready/slam_ready/ult_ready
+## are accepted for the Kestrel kit), dist, flat_dist, on_floor, height_above, los, low_hp, hurt,
+## ult_range, ult_targets, allies_hurt, aim_ok, moving, fleeing.
 static func decide_abilities(c: Dictionary) -> Dictionary:
-    var out := {"ability1": false, "ability2": false, "ultimate": false}
-    # Ultimate: only when an enemy is well inside the burst radius.
-    out.ultimate = c.ult_ready and int(c.ult_targets) >= 1 and float(c.dist) < ULT_RANGE
-    # Slam: grounded shockwave in range, or dive onto an enemy below us.
-    if c.slam_ready and not c.get("fleeing", false):
-        if c.on_floor and float(c.dist) < SLAM_RANGE:
-            out.ability2 = true
-        elif not c.on_floor and float(c.height_above) > 1.0 and float(c.flat_dist) < 5.0:
-            out.ability2 = true
-    # Dash: escape to cover, or close a long gap on a visible enemy (never while hurt).
-    if c.dash_ready and c.moving:
-        if c.get("fleeing", false):
-            out.ability1 = true
-        elif c.los and not c.low_hp and float(c.dist) > DASH_MIN_DIST:
-            out.ability1 = true
+    var types: Dictionary = c.get("types", {"ability1": "dash", "ability2": "ground_slam", "ultimate": "nova"})
+    var ready: Dictionary = c.get("ready", {"ability1": c.get("dash_ready", false), "ability2": c.get("slam_ready", false), "ultimate": c.get("ult_ready", false)})
+    var out := {}
+    for slot in ["ability1", "ability2", "ultimate"]:
+        out[slot] = bool(ready.get(slot, false)) and want_ability(String(types.get(slot, "")), c)
     return out
+
+static func want_ability(t: String, c: Dictionary) -> bool:
+    var dist := float(c.get("dist", 99.0))
+    var los: bool = c.get("los", false)
+    var fleeing: bool = c.get("fleeing", false)
+    match t:
+        "nova":      # only with an enemy well inside the burst radius
+            return int(c.get("ult_targets", 0)) >= 1 and dist < float(c.get("ult_range", ULT_RANGE))
+        "rally":     # team heal: self hurt, a hurt ally in radius, or a close-range fight starting
+            return c.get("low_hp", false) or c.get("hurt", false) or int(c.get("allies_hurt", 0)) >= 1 \
+                or (los and int(c.get("ult_targets", 0)) >= 1)
+        "ground_slam":
+            if fleeing:
+                return false
+            if c.get("on_floor", true):
+                return dist < SLAM_RANGE
+            return float(c.get("height_above", 0.0)) > 1.0 and float(c.get("flat_dist", 99.0)) < 5.0
+        "dash":      # escape to cover, or close a long gap on a visible enemy (never while hurt)
+            if not c.get("moving", false):
+                return false
+            return fleeing or (los and not c.get("low_hp", false) and dist > DASH_MIN_DIST)
+        "charge":    # rush goes along the aim: only when aimed at a visible enemy in reach
+            return not fleeing and los and c.get("aim_ok", false) and dist > 2.5 and dist < 9.0
+        "shield_wall":   # block incoming fire when hurt and engaged
+            return not fleeing and los and dist < 25.0 and c.get("hurt", false)
+        "projectile":
+            return not fleeing and los and c.get("aim_ok", false) and dist < 30.0
+        "heal_beam":     # ally healing is handled by the support behaviour; self-heal when hurt
+            return (c.get("low_hp", false) or c.get("hurt", false)) and not fleeing
+    return false
 
 func _apply_abilities(f: InputFrame, want: Dictionary, dt: float) -> void:
     # Each wish fires with a per-tick chance -> mean delay `ability_delay` (difficulty).
@@ -205,6 +309,13 @@ func _ab_ready(h, slot: String) -> bool:
 func _ult_ready(h) -> bool:
     return h.abilities.has("ultimate") and h.abilities["ultimate"].can_activate()
 
+func _allies_hurt_within(h, r: float) -> int:
+    var n := 0
+    for o in h.get_tree().get_nodes_in_group("heroes"):
+        if o != h and not o.dead and o.team == h.team and o.health.hp < o.health.max_hp * 0.6 and h.global_position.distance_to(o.global_position) < r:
+            n += 1
+    return n
+
 func _enemies_within(h, r: float) -> int:
     var n := 0
     for o in h.get_tree().get_nodes_in_group("heroes"):
@@ -216,6 +327,19 @@ func _enemies_within(h, r: float) -> int:
 func _follow(h, goal: Vector3) -> Vector2:
     var pos: Vector3 = h.global_position
     _repath -= 1.0 / float(Engine.physics_ticks_per_second)
+    if use_navmesh:
+        if _map_root == null:
+            _map_root = BotNav.find_map_root(h)
+        if _map_root:
+            var ver := BotNav.sync_dynamic(_map_root)   # shield walls etc. -> rebake
+            if ver != _nav_ver:
+                _nav_ver = ver
+                _repath = 0.0
+                _repath_soon = 0.1   # nav map syncs a frame or two after a rebake: query again
+            if _repath_soon > 0.0:
+                _repath_soon -= 1.0 / float(Engine.physics_ticks_per_second)
+                if _repath_soon <= 0.0:
+                    _repath = 0.0
     if use_navmesh and (_repath <= 0.0 or goal.distance_to(_path_goal) > 1.5):
         _repath = 0.4
         _path_goal = goal
