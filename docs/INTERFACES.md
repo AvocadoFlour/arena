@@ -177,6 +177,14 @@ Cover + peek (v0.7, AI round 6): the `cover` state cycles travel → hide → pe
 Cover is re-picked when the hiding bot has been seen for > 0.4 s (flank / shield wall) or its block node is freed;
 with no cover available the bot fights. Helpers: `BotNav.peek_point()`, `BotNav.best_cover_block()`; cover block
 dictionaries carry `node`. Input/ability interface unchanged.
+Team play (v0.7, AI round 7): `src/ai/bot_team.gd` (`BotTeam`) keeps a per world+team board of enemies seen by
+teammates (0.5 s), a shared focus = lowest HP fraction (`BotTeam.focus`) and zone owners from the bus (host only).
+BotBrain param `team_play` (true): bots switch to the team focus when they see it and it is at most 8 m (melee 3 m)
+farther than their own nearest target; idle bots regroup at a rally point (tank → zone centre; others → the tank,
+else zone, else team centre); ranged bots drift back toward the rally point beyond 8 m while fighting; a hero with
+`role: "tank"` holds the first zone its team doesn't own (fights from inside it, skips opportunistic cover there;
+low-HP cover still applies). FFA (no zones): focus + grouping only. No core hooks. **Cob keeps `role: "tank"`**
+(the tank behaviour keys off it; heroes must keep that role on tank heroes).
 Smoke STATS: `bot_dmg` = damage to the player; `team_dmg_taken` = damage dealt by team 1 to any team-0 hero. On
 maps with allies the smoke gate uses `team_dmg_taken` (allies soak fire) instead of `bot_dmg`. Team-0 bots are the player's allies (never target team 0).
 Core sets difficulty from `GameConfig.bot_difficulty` (`-- --difficulty=` or `--bots=`) and scales bot damage
@@ -269,10 +277,16 @@ false` and frees the cursor; the end screen must use `process_mode = ALWAYS` and
 ## 7. Command line (testing)
 `-- --hero=ID --map=ID --bots=easy|normal|hard` (GameConfig); `--smoke=S` (autopilot S game-seconds, exit 1 on fail), `--demo=S`, `--screenshot=PATH --delay=S [--menu]`.
 
+Pause overlay (v0.7, UI queue 3): `PauseMenu` (Esc) emits `leave_requested`; main.gd connects it to
+`_restart(false)` in both the offline/host and the online-client setup, which returns to the main menu (closing Net
+when online). `resumed` is emitted on close. Online the overlay never pauses the tree.
+
 ## 10. Networking (v0.4, src/core/net/, autoload `Net`)
 Godot high-level multiplayer over ENet, **host-authoritative**. Default port `Net.DEFAULT_PORT` = 24565/UDP,
 up to `Net.MAX_HUMANS` = 6 humans; bots fill the other GameConfig slots (a joining human replaces one bot of the
 team with fewer humans). Modes: `OFFLINE` (single player, unchanged), `HOST`, `CLIENT`.
+- **Mode queries**: `Net.is_online()` (HOST or CLIENT), `Net.is_host()`, `Net.is_client()`, `Net.is_authority()`
+  (= not CLIENT; OFFLINE or HOST). UI uses `is_online()` (e.g. the pause overlay never pauses the tree online).
 - **Authority**: `Net.is_authority()` (= not CLIENT). The single gate is `Hero.take_damage` (returns 0 on a
   client). Clients build no MatchRules, no zone wiring, no bot brains and never pick spawns.
 - **Hero roles** `hero.net_role`: `auth` (full sim, host/offline), `predicted` (client's own hero: look +

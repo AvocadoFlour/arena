@@ -136,6 +136,7 @@ func _start_match() -> void:
     hud.match_end.main_menu.connect(func(): _restart(false))
     menu = PauseMenu.new()
     add_child(menu)
+    menu.leave_requested.connect(func(): _restart(false))   # Esc overlay "Leave match" -> main menu (closes Net online)
     Events.damage_dealt.connect(_on_dmg)
     Events.killed.connect(_on_kill)
     Events.killed.connect(_schedule_respawn_pick)
@@ -233,9 +234,7 @@ func _unhandled_input(event: InputEvent) -> void:
         if menu.visible:
             menu.close()
         else:
-            menu.open()
-            if Net.is_online():
-                get_tree().paused = false   # the world never pauses online
+            menu.open()   # PauseMenu never pauses the tree when Net.is_online()
     elif event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not menu.visible:
         Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -413,6 +412,7 @@ func _start_client(info: Dictionary) -> void:
     hud.match_end.main_menu.connect(func(): _restart(false))
     menu = PauseMenu.new()
     add_child(menu)
+    menu.leave_requested.connect(func(): _restart(false))   # Esc overlay "Leave match" -> main menu (closes Net online)
     Events.match_ended.connect(_on_match_ended)
     Events.damage_dealt.connect(_on_dmg)
     Events.killed.connect(_on_kill)

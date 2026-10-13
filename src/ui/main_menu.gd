@@ -36,9 +36,29 @@ func _ready() -> void:
     screens.keybinds = kb
     for k in screens:
         bg.add_child(screens[k])
-    show_screen("main")
+    if options_only:
+        layer = 30   # above the pause overlay
+        visible = false
+        for k in screens:
+            screens[k].visible = false
+    else:
+        show_screen("main")
+
+## Options-only mode (in-match pause overlay reuses Settings / Audio / Controls): starts on
+## "settings"; navigating back to "main" hides the menu and emits options_closed instead.
+signal options_closed
+var options_only := false
 
 func show_screen(n: String) -> void:
+    if options_only and n == "main":
+        current = ""
+        for k in screens:
+            screens[k].visible = false
+        visible = false
+        options_closed.emit()
+        return
+    if options_only:
+        visible = true
     current = n
     for k in screens:
         screens[k].visible = k == n
