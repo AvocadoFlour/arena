@@ -17,6 +17,8 @@ func test_difficulty_presets_ordered() -> void:
     check(e.aim_jitter > n.aim_jitter and n.aim_jitter > h.aim_jitter, "aim jitter easy>normal>hard")
     check(e.turn_rate < n.turn_rate and n.turn_rate < h.turn_rate, "turn rate easy<normal<hard")
     check(e.ability_delay > n.ability_delay and n.ability_delay > h.ability_delay, "ability delay easy>normal>hard")
+    check(e.fire_duty < n.fire_duty and n.fire_duty == h.fire_duty and e.fire_duty >= 0.5, "easy shoots in bursts (still >= 50 % trigger time)")
+    check(e.fire_cone > n.fire_cone, "easy fires while less on target (more misses)")
     check(e.focus_slack < n.focus_slack and n.focus_slack < h.focus_slack, "focus discipline easy<normal<hard")
     check(e.peek_time > n.peek_time and n.peek_time > h.peek_time, "peek exposure easy>normal>hard")
     check(e.hide_max > n.hide_max and n.hide_max > h.hide_max, "hide time easy>normal>hard")

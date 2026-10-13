@@ -10,7 +10,12 @@ var run_seed := -1
 const GROUP_MARGIN := 1.15
 var frames := 2400               ## 40 s in the gate; the bench uses more
 var tp_team := 0                 ## which team gets team_play (bench alternates); -1 = both
-var diff := {0: "normal", 1: "normal"}   ## difficulty per team (difficulty bench)
+var diff := {0: "normal", 1: "normal"}
+var extra := {0: {}, 1: {}}           ## per-team BotBrain param overrides (easy bench: frozen reference / old preset)
+var moved := {0: 0.0, 1: 0.0}         ## metres walked (alive heroes)
+var abil := {0: 0, 1: 0}              ## ability uses
+var presence := {0: 0.0, 1: 0.0}      ## s with >= 1 alive member inside the zone
+var _last := {}   ## difficulty per team (difficulty bench)
 var map: Node3D
 var zone
 var teams := {0: [], 1: []}
@@ -44,7 +49,9 @@ func _ready() -> void:
             add_child(h)
             h.global_position = pos
             h.yaw = 0.0 if t == 0 else PI
-            var b := BotBrain.new({"bounds": float(map.get_meta("bounds")), "team_play": tp_team < 0 or t == tp_team, "difficulty": diff[t]})
+            var bp := {"bounds": float(map.get_meta("bounds")), "team_play": tp_team < 0 or t == tp_team, "difficulty": diff[t]}
+            bp.merge(extra[t], true)
+            var b := BotBrain.new(bp)
             h.input_source = b
             h.extra_spread_deg = b.spread_deg
             h._rng.seed = hash([s, t, i])
@@ -52,6 +59,11 @@ func _ready() -> void:
             teams[t].append(h)
     Events.damage_dealt.connect(_on_dmg)
     Events.killed.connect(_on_kill)
+    Events.ability_used.connect(_on_abil)
+
+func _on_abil(hero, _slot: String, _id: String) -> void:
+    if is_instance_valid(hero) and hero.get_parent() == self:
+        abil[hero.team] += 1
 
 func _on_dmg(ev: Dictionary) -> void:
     if ev.source is Node and is_instance_valid(ev.source) and ev.source.get_parent() == self:
@@ -68,6 +80,19 @@ func _physics_process(dt: float) -> void:
     if zone.owner_team >= 0:
         score[zone.owner_team] += dt
     for t in [0, 1]:
+        var inz := false
+        for h in teams[t]:
+            if h.dead:
+                _last.erase(h)
+                continue
+            var p := Vector2(h.global_position.x, h.global_position.z)
+            if _last.has(h):
+                moved[t] += minf(p.distance_to(_last[h]), 1.0)   # clamp: respawn teleports
+            _last[h] = p
+            if zone.aabb.has_point(h.global_position + Vector3(0, 0.1, 0)):
+                inz = true
+        if inz:
+            presence[t] += dt
         var tank: Hero = teams[t][0]
         if not tank.dead:
             tank_on[t][1] += 1
@@ -97,6 +122,9 @@ func _physics_process(dt: float) -> void:
                     group[t][0] += Vector2(h.global_position.x - c.x, h.global_position.z - c.z).length()
                     group[t][1] += 1
     if frame == frames and tp_team < 0:
+        Events.damage_dealt.disconnect(_on_dmg)
+        Events.killed.disconnect(_on_kill)
+        Events.ability_used.disconnect(_on_abil)
         done = true
         return
     if frame == frames:
@@ -112,6 +140,7 @@ func _physics_process(dt: float) -> void:
         _rec("fights_happen", kills[0] + kills[1] > 0 or dmg[0] + dmg[1] > 300.0, "kills %d/%d dmg %.0f/%.0f" % [kills[a], kills[b], dmg[a], dmg[b]])
         Events.damage_dealt.disconnect(_on_dmg)
         Events.killed.disconnect(_on_kill)
+        Events.ability_used.disconnect(_on_abil)
         done = true
 
 func m(d: Dictionary, t: int) -> float:
