@@ -91,7 +91,7 @@ func test_match_end_screen() -> void:
     me.play_again.connect(func(): got.append("again"))
     me.show_results({"winner_team": 1, "reason": "Score limit"}, r[0], r[1])
     check(me.visible and me.banner.text == "DEFEAT", "shows defeat")
-    check(me.board.get_child_count() == 3, "final scoreboard rows")
+    check(me.table.row_total == 3, "final scoreboard rows")
     var btns: Array = me.find_children("*", "Button", true, false)
     check(btns.size() == 3, "3 buttons")
     for b in btns:
