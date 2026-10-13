@@ -66,3 +66,12 @@ Settings → overlay → closed); the rebind screen's Esc-cancel is consumed fir
 `leave_requested` (for main.gd) and falls back to the documented `hud.match_end.main_menu` route.
 HUD ability-ready cue uses `Events.ability_ready(hero, slot)` when present, else polls cooldowns.
 Tests: `tests/ui_round9_test.gd`.
+
+Miku queue 1: kill feed (top-right, `KillFeed`) entries are rows of killer name, ability badge
+(`KillFeed.ability_badge`: initials of the ability/weapon label in a HeroBadge-style circle, filled with the
+ability's def colour or the killer's hero colour, ringed in the killer's team colour), victim name. Names use
+team colours (`HeroBadge.TEAM_COLORS`); the local player's kills/deaths get a neutral white/grey bordered panel
+so the highlight never competes with team colours. 5 s lifetime, max 5, newest on top.
+Setting **Damage numbers** (`Settings.damage_numbers`, default on, `[hud] damage_numbers` in
+user://settings.cfg, toggle on the Settings page): off = HUD spawns no floating numbers (hit marker and sounds stay).
+Tests: `tests/ui_round10_test.gd`.
