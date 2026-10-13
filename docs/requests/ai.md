@@ -54,3 +54,17 @@ Test discovery, INTERFACES §5 params, GameConfig difficulty -> BotBrain.
    hero) and `ally_heal` to STATS so team-mode runs show enemy pressure and support activity.
 2. **Smoke `forced` ability1 for twin_tails/arena02 (lead, FYI)**: the heal beam is situational (an ally < 80 %
    or self < 70 %); in seeds where nobody is hurt by 0.6 × smoke time, the force is expected.
+
+## Round 5
+1. **Smoke stats (src/main.gd, lead)**: `bot_dmg` counts only damage dealt *to the player*. On team maps
+   (arena02 Control: player + 2 ally bots vs 3) enemies shoot the nearest visible hero, which is usually a
+   front-line ally (Cob/The Best) while a Twin Tails autopilot stays ~10 m back, so player damage is low
+   (seeds 4242,1-7: 14-170) and varies a lot by seed. With `--allies=0` the same runs give 165-316. This is
+   intended team behaviour, not a bot bug. Please add `team_dmg_taken` (damage dealt by team 1 to any
+   team-0 hero) and, if a damage gate is wanted on team maps, use that instead of `bot_dmg`.
+2. **Smoke forcing (FYI)**: `forced:["ability1"]` for arena02/twin_tails means nobody needed healing in the
+   first 21 s, so the heal beam was not used. That is correct for the support bot (it heals allies below
+   80 % HP and itself when hurt).
+3. **INTERFACES §5 (doc)**: support bots look for hurt allies within `support_radius` (35 m, no line of
+   sight needed), walk over on the navmesh and channel the beam once in range with line of sight
+   (`heal_below` 0.8). Bots ignore heroes in other World3Ds, because test SubViewports share the "heroes" group.

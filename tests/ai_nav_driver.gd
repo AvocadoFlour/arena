@@ -4,6 +4,7 @@ extends Node3D
 const HERO := "res://src/heroes/archive/kestrel.json"
 const MAP := "res://src/maps/arena01.json"
 var results: Array = []
+var run_seed := -1             ## >= 0: seed every hero/brain RNG by spawn order (set by tests/run_tests.gd)
 var done := false
 var frame := 0
 var map: Node3D
@@ -45,6 +46,8 @@ func _ready() -> void:
     hider_brain = BotBrain.new({"use_abilities": false, "difficulty": "hard"})
     hider.input_source = hider_brain
 
+    _seed_all()
+
 func _hero(team: int, pos: Vector3) -> Hero:
     var h := Hero.from_def(HERO)
     h.set_team(team)
@@ -80,3 +83,16 @@ func _physics_process(_dt: float) -> void:
         _rec("hider_alive", not hider.dead, "")
     if frame >= 300:
         done = true
+
+func _seed_all() -> void:
+    if run_seed < 0:
+        return
+    var k := 0
+    for c in get_children():
+        if c is Hero:
+            c._rng.seed = hash([run_seed, k, "h"])
+            var src = c.input_source
+            var b = src.brain if src != null and "brain" in src else src
+            if b is BotBrain:
+                b._rng.seed = hash([run_seed, k, "b"])
+            k += 1
