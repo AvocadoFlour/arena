@@ -215,6 +215,9 @@ func _restart(skip_menu: bool) -> void:
     get_tree().reload_current_scene()
 
 func _on_kill(ev: Dictionary) -> void:
+    if args.has("shot_after_kill") and is_instance_valid(ev.killer) and not args.has("_kill_seen"):
+        args["_kill_seen"] = "1"   # test hook: take the screenshot shortly after the first kill (kill feed capture)
+        args["delay"] = str(_game_t + float(args.shot_after_kill))
     stats["any_kills"] = stats.get("any_kills", 0) + 1
     if ev.killer == player:
         stats.kills += 1
