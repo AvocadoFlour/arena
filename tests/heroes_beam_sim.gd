@@ -54,7 +54,7 @@ func _process(dt: float) -> void:
                 var a: Vector3 = ab.beam_start()
                 var b: Vector3 = ab.beam_end()
                 var mid: Vector3 = ab.ribbon.global_position
-                _rec("starts_at_mic_wand", a.distance_to(tt._muzzle.global_position) < 0.01 and a.z < -0.5, "start=%s" % a)
+                _rec("starts_at_mic_wand", a.distance_to(tt.beam_origin()) < 0.01 and (tt.model == null or a.distance_to(tt.model.wand_tip.global_position) < 0.01) and a.z < -0.5, "start=%s" % a)
                 _rec("ends_at_target_chest", b.distance_to(ally.global_position + Vector3(0, 1, 0)) < 0.01)
                 var kids: Array = ab.ribbon.get_children()
                 var first: MeshInstance3D = kids[0]

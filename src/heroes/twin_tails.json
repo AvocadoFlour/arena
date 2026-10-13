@@ -12,6 +12,7 @@
     "ability2": {"id": "staccato_note", "type": "projectile", "name": "Staccato Note", "cooldown": 5.0, "speed": 28.0, "damage": 30, "gravity": 0.0, "lifetime": 2.5, "hit_radius": 0.35, "splash_radius": 2.0, "slow": {"mult": 0.5, "duration": 2.0}, "kind": "projectile", "color": "#d8ecff", "size": 0.18},
     "ultimate": {"id": "grand_finale", "type": "rally", "name": "Grand Finale", "cooldown": 1.0, "radius": 12.0, "heal": 175}
   },
+  "model_scene": {"path": "res://src/heroes/models/twin_tails/twin_tails.glb", "yaw_deg": 180, "outline": 0.007, "no_outline": ["eye", "iris", "lip"], "tails": ["tail_"], "wand_tip": "WandTip"},
   "model": [
     {"shape": "capsule", "radius": 0.08, "height": 0.75, "pos": [-0.12, 0.38, 0], "color": "#e8eef6", "pivot": [-0.12, 0.75, 0], "anim": "leg_l"},
     {"shape": "capsule", "radius": 0.08, "height": 0.75, "pos": [0.12, 0.38, 0], "color": "#e8eef6", "pivot": [0.12, 0.75, 0], "anim": "leg_r"},
