@@ -21,7 +21,7 @@ var main_menu = null
 var rules: MatchRules
 var _bots := {0: [], 1: []}   ## team -> bot heroes (host replaces one per joining human)
 var _net_status: Label
-var _dump := {"kills": [], "remote_dmg": 0.0, "match_ended": null}
+var _dump := {"ready": [], "kills": [], "remote_dmg": 0.0, "match_ended": null}
 var _dump_open := true        ## kills are recorded until match_ended
 var _dumped := false
 
@@ -458,6 +458,9 @@ func _hook_net_dump() -> void:
     Events.killed.connect(func(ev):
         if _dump_open and (Net.is_client() or not Net.peers.is_empty()):
             _dump.kills.append([idof.call(ev.killer), idof.call(ev.victim), String(ev.kind), String(ev.get("ability_id", "?"))]))
+    Events.ability_ready.connect(func(h, slot):
+        if _dump_open and (Net.is_client() or not Net.peers.is_empty()):
+            _dump.ready.append([idof.call(h), slot]))
     Events.damage_dealt.connect(func(ev):
         if is_instance_valid(ev.source) and ev.source is Hero and ev.source.has_meta("peer"):
             _dump.remote_dmg += float(ev.amount))

@@ -7,6 +7,8 @@ signal damage_dealt(ev: Dictionary)
 ## ev = {killer: Hero|null, victim: Hero, kind: String}
 signal killed(ev: Dictionary)
 signal respawned(hero)
+## Host/offline: an ability's cooldown just ran out (not fired by direct resets such as respawn or test hooks).
+signal ability_ready(hero, slot: String)
 ## slot = "ability1" | "ability2" | "ultimate"
 signal ability_used(hero, slot: String, ability_id: String)
 

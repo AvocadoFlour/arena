@@ -11,7 +11,7 @@ const SNAP_EVERY := 3            ## physics ticks between snapshots (60 / 3 = 20
 const INTERP_DELAY := 0.1        ## s, remote heroes are rendered this far in the past
 const HISTORY := 60              ## ticks of position history for lag compensation (1 s)
 const RECONCILE_EPS := 0.15      ## m, prediction error tolerated before replaying inputs
-const EVENT_SIGNALS := {"damage_dealt": 1, "killed": 1, "respawned": 1, "ability_used": 3,
+const EVENT_SIGNALS := {"damage_dealt": 1, "killed": 1, "respawned": 1, "ability_used": 3, "ability_ready": 2,
     "capture_progress": 1, "capture_completed": 1, "match_score": 1, "match_ended": 1}
 const UNRELIABLE_EVENTS := ["capture_progress", "match_score"]
 const SLOTS := ["ability1", "ability2", "ultimate"]
@@ -54,6 +54,8 @@ func _ready() -> void:
     for s in EVENT_SIGNALS:
         if EVENT_SIGNALS[s] == 3:
             Events.connect(s, func(a, b, c): _on_event(s, [a, b, c]))
+        elif EVENT_SIGNALS[s] == 2:
+            Events.connect(s, func(a, b): _on_event(s, [a, b]))
         else:
             Events.connect(s, func(a): _on_event(s, [a]))
     Events.respawned.connect(func(h): if mode == HOST and h.input_source is RemoteInput: h.input_source.queue.clear())

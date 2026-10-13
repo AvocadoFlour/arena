@@ -30,12 +30,15 @@ if h["peers"] != 1: fails.append("host peers=%s" % h["peers"])
 if h["inputs_received"] < 300: fails.append("host got only %d inputs" % h["inputs_received"])
 if h["remote_dmg"] <= 0: fails.append("client hero dealt no damage on the host")
 if not h["kills"]: fails.append("no kills after join")
+if not h["ready"]: fails.append("no ability_ready events")
+if h["ready"] != c["ready"]: fails.append("ability_ready differs: host %d vs client %d" % (len(h["ready"]), len(c["ready"])))
 if h["kills"] != c["kills"]: fails.append("kills differ: host %d vs client %d" % (len(h["kills"]), len(c["kills"])))
 if not h["match_ended"] or h["match_ended"] != c["match_ended"]: fails.append("match_ended differs: %s vs %s" % (h["match_ended"], c["match_ended"]))
 snap = h["snap_hp"].get(str(c["server_tick"]))
 if snap is None: fails.append("host has no snapshot for client tick %s" % c["server_tick"])
 elif any(abs(float(snap[k]) - float(v)) > 1e-3 for k, v in c["hp"].items()) or set(snap) != set(c["hp"]):
     fails.append("hp differs at tick %s: %s vs %s" % (c["server_tick"], snap, c["hp"]))
+print("NET ability_ready: host %d / client %d" % (len(h["ready"]), len(c["ready"])))
 print("NET host: kills=%d remote_dmg=%.0f inputs=%d | client: kills=%d tick=%d reconciles=%d max_corr=%.3f m (respawn snaps excluded: %d, max %.1f m; >2 m: %s; deaths %d) | match_ended=%s"
       % (len(h["kills"]), h["remote_dmg"], h["inputs_received"], len(c["kills"]), c["server_tick"], c["reconciles"], c["max_correction"], c.get("teleports", 0), c.get("max_teleport", 0), c.get("big_corrections", []), c.get("deaths", 0), h["match_ended"]))
 if fails:

@@ -346,8 +346,12 @@ func _physics_process(dt: float) -> void:
     pitch = clampf(pitch + f.look.y, -1.3, 1.3)
     rotation.y = yaw
     weapon.tick(dt)
-    for ab in abilities.values():
+    for slot in abilities:
+        var ab = abilities[slot]
+        var was_cooling: bool = ab.cooldown.remaining > 0.0
         ab.tick(dt)
+        if was_cooling and ab.cooldown.remaining <= 0.0:
+            Events.ability_ready.emit(self, slot)   # only a cooldown running out; direct resets don't fire
     var wish := global_transform.basis * Vector3(f.move.x, 0, -f.move.y)
     wish.y = 0.0
     last_wish = wish

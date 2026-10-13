@@ -122,7 +122,8 @@ FOV animation (zoom/sprint) must be relative to `Settings.fov`. Audio buses `Mas
 
 ## 4. Event bus (`Events` autoload)
 `damage_dealt({source, target, amount, pos, kind, killed, ability_id, crit})`, `killed({killer, victim, kind, ability_id})`
-(`ability_id` "" = primary/fall; `crit` always false for now; see §3), `respawned(hero)`, `ability_used(hero, slot, ability_id)`,
+(`ability_id` "" = primary/fall; `crit` always false for now; see §3), `respawned(hero)`, `ability_ready(hero, slot)` (host/offline: fired when a cooldown runs out while the hero
+ticks; NOT on direct resets such as respawn or test hooks; replicated reliably to clients), `ability_used(hero, slot, ability_id)`,
 `capture_progress({zone_id, team, progress 0..1, contested, owner})` (≤ 10 Hz, immediate when `contested` flips;
 `team` = capturing team, or the owner when nobody is capturing), `capture_completed({zone_id, team, previous})`,
 `match_score({mode, scores, target})`, `match_ended({winner_team (-1 = draw), reason ("score"|"forced"), mode, scores, time})`.
