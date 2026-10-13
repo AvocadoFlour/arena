@@ -108,8 +108,13 @@ static func create_display(hero_id: String, team_color := Color("#3a8bff")) -> N
     var def = JSON.parse_string(FileAccess.get_file_as_string(path))
     if not def is Dictionary:
         return null
-    if def.has("model_scene"):
-        var m := HeroModel.create(def.model_scene)
+    return create_display_def(def, team_color)
+
+## Same as create_display, from an already-loaded hero def dictionary.
+static func create_display_def(def: Dictionary, team_color := Color("#3a8bff")) -> Node3D:
+    var ms = def.get("model_scene")
+    if ms is Dictionary and ResourceLoader.exists(String(ms.get("path", ""))):
+        var m := HeroModel.create(ms)
         if m:
             return m
     var root := Node3D.new()

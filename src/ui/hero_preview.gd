@@ -2,9 +2,8 @@ class_name HeroPreview
 extends SubViewportContainer
 ## Slowly rotating 3D preview of a hero in its own SubViewport/World3D (no gameplay nodes: nothing joins
 ## the "heroes" group, no physics). Model source, in order:
-##   1. def.model_scene.path (GLB) via the heroes module's HeroModel.create (same toon look as in game),
-##   2. the raw GLB PackedScene if HeroModel is unavailable,
-##   3. the def's primitive "model" parts (INTERFACES §2), built read-only here like hero.gd does.
+##   HeroModel.create_display_def (INTERFACES §2 "Display-only model"): the GLB HeroModel (same toon look as in
+##   game) when def.model_scene loads, else the def's primitive "model" parts built by the same code as hero.gd.
 ## Cheap: renders only while visible (UPDATE_WHEN_VISIBLE + stops rotating when hidden); low_quality
 ## halves the render resolution, disables MSAA and shadows. Drag (mouse or touch) to rotate.
 const SPIN := 0.5          ## rad/s
@@ -15,7 +14,7 @@ var pivot: Node3D
 var cam: Camera3D
 var light: DirectionalLight3D
 var model: Node3D
-var source := ""           ## "scene" | "glb" | "primitive" | "none" (tests/debug)
+var source := ""           ## "scene" | "primitive" | "none" (tests/debug)
 var def_id := ""
 var _dragging := false
 var _low := false
@@ -75,68 +74,21 @@ func show_def(def: Dictionary) -> void:
     def_id = str(def.get("id", ""))
     source = "none"
     var ms = def.get("model_scene")
-    if ms is Dictionary and ResourceLoader.exists(str(ms.get("path", ""))):
-        model = _from_scene(ms)
-    if model == null and def.get("model", []).size() > 0:
-        model = build_primitives(def.model)
-        source = "primitive"
+    var has_parts: bool = def.get("model", []).size() > 0
+    if (ms is Dictionary and ResourceLoader.exists(str(ms.get("path", "")))) or has_parts:
+        model = HeroModel.create_display_def(def, TEAM_PREVIEW)
+        if model is HeroModel:
+            source = "scene"
+        elif model:
+            model.rotation_degrees.y = 180.0   # primitives face -Z; turn them to the camera
+            source = "primitive"
     if model:
         pivot.add_child(model)
     pivot.rotation.y = 0.0
 
-func _from_scene(ms: Dictionary) -> Node3D:
-    if ClassDB.class_exists("HeroModel") or ResourceLoader.exists("res://src/heroes/hero_model.gd"):
-        var hm = load("res://src/heroes/hero_model.gd").create(ms)
-        if hm != null:
-            source = "scene"
-            return hm
-    var ps = load(str(ms.path))
-    if ps is PackedScene:
-        var n: Node3D = Node3D.new()
-        n.add_child(ps.instantiate())
-        n.rotation_degrees.y = float(ms.get("yaw_deg", 180.0))
-        n.scale = Vector3.ONE * float(ms.get("scale", 1.0))
-        source = "glb"
-        return n
-    return null
-
-## Primitive parts (§2 "model" + optional rot/scale/pivot/colour keys); "team" colour = team-0 blue.
+## Primitive parts (§2 "model") as a display node; "team" colour = team-0 blue. Thin wrapper over HeroModel.
 static func build_primitives(parts: Array) -> Node3D:
-    var root := Node3D.new()
-    for p in parts:
-        var mi := MeshInstance3D.new()
-        match str(p.get("shape", "box")):
-            "capsule":
-                var m := CapsuleMesh.new()
-                m.radius = float(p.radius)
-                m.height = maxf(float(p.height), float(p.radius) * 2.0)
-                mi.mesh = m
-            "sphere":
-                var s := SphereMesh.new()
-                s.radius = float(p.radius)
-                s.height = float(p.radius) * 2.0
-                mi.mesh = s
-            _:
-                var b := BoxMesh.new()
-                var sz: Array = p.get("size", [0.3, 0.3, 0.3])
-                b.size = Vector3(sz[0], sz[1], sz[2])
-                mi.mesh = b
-        var mat := StandardMaterial3D.new()
-        var c := str(p.get("color", "#cccccc"))
-        mat.albedo_color = TEAM_PREVIEW if c == "team" else Color(c)
-        mat.roughness = float(p.get("roughness", 0.75))
-        mat.metallic = float(p.get("metallic", 0.0))
-        if p.has("emission"):
-            mat.emission_enabled = true
-            mat.emission = Color(str(p.emission))
-        mi.material_override = mat
-        var pos: Array = p.get("pos", [0, 0, 0])
-        mi.position = Vector3(pos[0], pos[1], pos[2])
-        if p.has("rot"):
-            mi.rotation_degrees = Vector3(p.rot[0], p.rot[1], p.rot[2])
-        if p.has("scale"):
-            mi.scale = Vector3(p.scale[0], p.scale[1], p.scale[2])
-        root.add_child(mi)
+    var root := HeroModel.create_display_def({"model": parts}, TEAM_PREVIEW)
     root.rotation_degrees.y = 180.0   # face the camera
     return root
 

@@ -113,7 +113,7 @@ FOV animation (zoom/sprint) must be relative to `Settings.fov`. Audio buses `Mas
 - **Display-only model (UI)**: `HeroModel.create_display(hero_id, team_color = blue) -> Node3D` is the supported way
   to show a hero outside gameplay (hero select preview etc.): the GLB `HeroModel` from "model_scene" when it loads,
   otherwise the primitive "model" parts (built by `HeroModel.build_parts`, the same builder Hero uses). No collision,
-  abilities, input, events or Net ids; null for an unknown id. Do not instantiate `Hero` for previews.
+  abilities, input, events or Net ids; null for an unknown id. `HeroModel.create_display_def(def, team_color)` does the same from a loaded def (used by the hero-select `HeroPreview`). Do not instantiate `Hero` for previews.
 
 ## 3. Damage & health
 - Death visibility hook: `hero.keep_body_when_dead` (default false). If true, `_die()` leaves the hero visible
