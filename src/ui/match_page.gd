@@ -17,6 +17,8 @@ var bot_note: Label
 var hero_note: Label
 var team_note: Label
 var swap_left := -1.0
+var diff: DifficultyControl
+var diff_picker: DifficultyPicker
 var swap_hero := ""
 var swap_team_only := false
 
@@ -94,6 +96,10 @@ func _ready() -> void:
     v.add_child(trow)
     team_note = _note("TeamNote")
     v.add_child(team_note)
+    v.add_child(MenuStyle.label("Bot difficulty", 24))
+    diff_picker = DifficultyPicker.new()
+    v.add_child(diff_picker)
+    diff_picker.picked.connect(_pick_difficulty)
     var bk := MenuStyle.button("Back", func(): back.emit())
     bk.name = "Back"
     bk.custom_minimum_size = Vector2(360, 72)
@@ -118,7 +124,27 @@ func _note(n: String) -> Label:
     l.custom_minimum_size = Vector2(400, 0)
     return l
 
+func set_difficulty_control(d: DifficultyControl) -> void:
+    diff = d
+    diff.changed.connect(refresh)
+    refresh()
+
+func _pick_difficulty(team: int, level: String) -> void:
+    if diff != null:
+        diff.set_live(team, level)
+    refresh()
+
+func refresh_difficulty() -> void:
+    if diff_picker == null:
+        return
+    var ok := diff != null and diff.live_available()
+    var lv: Dictionary = diff.live_levels() if ok else {}
+    for t in [0, 1]:
+        diff_picker.set_row(t, String(lv.get(t, lv.get(str(t), ""))), ok and diff.can_set_live())
+    diff_picker.note.text = NA if not ok else ("Only the host can change difficulty" if not diff.can_set_live() else "")
+
 func refresh() -> void:
+    refresh_difficulty()
     if ctl == null:
         return
     var counts := ctl.bot_counts()

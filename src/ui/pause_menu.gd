@@ -58,6 +58,7 @@ func _ready() -> void:
     swap_layer.add_child(match_page.countdown)
     add_child(swap_layer)   # CanvasLayer visibility doesn't propagate to child layers: stays up when we hide
     set_control(MatchControl.new(get_parent()))
+    match_page.set_difficulty_control(DifficultyControl.new(null, get_parent()))
     options = MainMenu.new()
     options.options_only = true
     options.options_closed.connect(_on_options_closed)
