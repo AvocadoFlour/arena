@@ -7,8 +7,31 @@ signal play_again
 signal main_menu
 var banner: Label
 var reason_l: Label
-var board: VBoxContainer
+var board: VBoxContainer       ## summary: highlights row + team table
+var highlights_row: HBoxContainer
+var table: ScoreTable
 var outcome := ""
+var totals_l: Label
+
+## Highlight card: plain label ("Top damage"), hero badge, player name and value. >= 96 px tall.
+func _highlight_card(hl: Dictionary) -> PanelContainer:
+    var pc := PanelContainer.new()
+    pc.custom_minimum_size = Vector2(240, 96)
+    var sb := StyleBoxFlat.new()
+    sb.bg_color = Color(0.08, 0.11, 0.18, 0.95)
+    sb.set_corner_radius_all(10)
+    sb.set_content_margin_all(12)
+    pc.add_theme_stylebox_override("panel", sb)
+    var h := HBoxContainer.new()
+    h.add_theme_constant_override("separation", 12)
+    pc.add_child(h)
+    h.add_child(HeroBadge.for_hero(hl.hero, 56))
+    var v := VBoxContainer.new()
+    v.add_child(MenuStyle.label(hl.label, 18))
+    v.add_child(MenuStyle.label(hl.name, 22))
+    v.add_child(MenuStyle.label(str(hl.value), 26))
+    h.add_child(v)
+    return pc
 
 func _ready() -> void:
     layer = 15
@@ -30,7 +53,18 @@ func _ready() -> void:
     reason_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     v.add_child(reason_l)
     board = VBoxContainer.new()
+    board.add_theme_constant_override("separation", 12)
     v.add_child(board)
+    highlights_row = HBoxContainer.new()
+    highlights_row.name = "Highlights"
+    highlights_row.alignment = BoxContainer.ALIGNMENT_CENTER
+    highlights_row.add_theme_constant_override("separation", 16)
+    board.add_child(highlights_row)
+    table = ScoreTable.new()
+    board.add_child(table)
+    totals_l = MenuStyle.label("", 20)
+    totals_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    board.add_child(totals_l)
     var row := HBoxContainer.new()
     row.alignment = BoxContainer.ALIGNMENT_CENTER
     row.add_theme_constant_override("separation", 16)
@@ -51,13 +85,21 @@ func show_results(result: Dictionary, stats: MatchStats = null, player = null) -
     banner.text = outcome
     banner.add_theme_color_override("font_color", {"VICTORY": Color(1, 0.85, 0.3), "DEFEAT": Color(1, 0.35, 0.35)}.get(outcome, Color.WHITE))
     reason_l.text = str(result.get("reason", ""))
-    for c in board.get_children():
+    for c in highlights_row.get_children():
+        highlights_row.remove_child(c)
         c.queue_free()
     if stats:
-        for r in stats.sorted_rows(get_tree().get_nodes_in_group("heroes")):
-            var l := MenuStyle.label("%s    %d / %d    %d dmg" % [r.name, r.kills, r.deaths, int(round(r.damage))], 22)
-            l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-            board.add_child(l)
+        var heroes := get_tree().get_nodes_in_group("heroes")
+        for hl in stats.highlights(heroes):
+            highlights_row.add_child(_highlight_card(hl))
+        table.build(stats, heroes, player)
+        var tt := stats.team_totals(heroes)
+        var parts := []
+        var ts := tt.keys()
+        ts.sort()
+        for t in ts:
+            parts.append("%s: %d kills, %d damage" % [ScoreTable.team_title(t), tt[t].kills, int(round(tt[t].damage))])
+        totals_l.text = "     ".join(parts)
     visible = true
     if DisplayServer.get_name() != "headless":
         Input.mouse_mode = Input.MOUSE_MODE_VISIBLE

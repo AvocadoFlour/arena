@@ -49,3 +49,11 @@ and buttons passed through `MenuStyle.polish` → click; HUD ability panels → 
 `cooldown.is_ready()` / `ult.is_full()`, plus a scale pulse). Crosshair `flash(kill)`: hit = short white X;
 kill = longer, larger, thicker red X with crosshair tint, never downgraded by a following hit.
 Tests: `tests/ui_round7_test.gd`.
+
+Queue 2: `score_table.gd` (`ScoreTable`, shared): one panel per team ("Team 1", "Team 2"), rows with a
+`HeroBadge` (hero-name initials in a circle filled with the hero's first model colour, ringed in team
+colour; no art), player name, K / D / Damage / Healing; player row highlighted; rows >= 52 px.
+`Scoreboard` (hold Tab) uses it, refreshing at 4 Hz. `MatchEndScreen` summary: highlight cards
+("Most kills", "Top damage", "Top healing"), the same table, and per-team totals.
+Healing: no event yet → column shows "-"; `MatchStats` auto-binds `Events.healed({source, target, amount})`
+if core adds it. Tests: `tests/ui_round8_test.gd`.
