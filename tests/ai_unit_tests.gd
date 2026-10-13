@@ -196,3 +196,41 @@ func test_standoff_dir_restores_range() -> void:
         lo = minf(lo, p.length())
         hi = maxf(hi, p.length())
     check(lo > 9.0 and hi < 11.0, "orbit stays in band (%.2f..%.2f)" % [lo, hi])
+
+func test_peek_point_beside_cover() -> void:
+    var blk := {"pos": Vector3(0, 1, 0), "half": Vector3(1, 1, 1), "height": 2.0}
+    var threat := Vector3(0, 0, -10)
+    var cp := BotNav.cover_point(blk, threat)
+    var r := BotNav.peek_point(blk, threat, 1.0)
+    var l := BotNav.peek_point(blk, threat, -1.0)
+    check(absf(r.x) > 1.5 and absf(l.x) > 1.5 and r.x * l.x < 0.0, "sides step past the block edge in opposite directions (%s, %s)" % [r, l])
+    near(r.z, cp.z, 0.001, "peek stays level with the cover point")
+    # from the peek point the straight line to the threat clears the block (|x| > half.x at block depth)
+    var t := (0.0 - r.z) / (threat.z - r.z)
+    check(absf(lerpf(r.x, threat.x, t)) > 1.0, "line of sight past the edge")
+
+func test_peek_side_styles() -> void:
+    check(BotBrain.next_peek_side("same", 1.0, 0.1) == 1.0 and BotBrain.next_peek_side("same", -1.0, 0.9) == -1.0, "easy: same side")
+    check(BotBrain.next_peek_side("mixed", 1.0, 0.1) == -1.0, "hard: mostly alternates")
+    check(BotBrain.next_peek_side("mixed", 1.0, 0.9) == 1.0, "hard: sometimes repeats")
+    check(BotBrain.next_peek_side("random", 1.0, 0.2) == 1.0 and BotBrain.next_peek_side("random", 1.0, 0.8) == -1.0, "normal: random")
+
+func test_peek_timing_by_difficulty() -> void:
+    var e := BotBrain.new({"difficulty": "easy"})
+    var n := BotBrain.new({"difficulty": "normal"})
+    var h := BotBrain.new({"difficulty": "hard"})
+    check(e.peek_time > n.peek_time and n.peek_time > h.peek_time, "harder bots expose themselves shorter")
+    check(e.hide_max > n.hide_max and n.hide_max > h.hide_max, "harder bots peek again sooner")
+    check(e.peek_side_mode == "same" and h.peek_side_mode == "mixed", "side styles")
+    near(n.cover_session, 8.0, 0.001, "8 s anti-stuck rule kept")
+
+func test_best_cover_block_skips_destroyed() -> void:
+    var node := Node3D.new()
+    var blocks := [{"pos": Vector3(-5, 1, 0), "half": Vector3(1, 1, 1), "height": 2.0, "node": node},
+        {"pos": Vector3(6, 1, 0), "half": Vector3(1, 1, 1), "height": 2.0}]
+    var b = BotNav.best_cover_block(blocks, Vector3(-3, 0, 3), Vector3(0, 0, -10))
+    check(b != null and b.pos.x < 0.0, "nearest block chosen")
+    node.free()
+    b = BotNav.best_cover_block(blocks, Vector3(-3, 0, 3), Vector3(0, 0, -10))
+    check(b != null and b.pos.x > 0.0, "destroyed block skipped")
+    check(BotNav.best_cover_block(blocks, Vector3(-3, 0, 3), Vector3(0, 0, -10), 1.4, 3.0) == null, "max_dist respected")

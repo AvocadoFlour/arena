@@ -137,7 +137,7 @@ static func cover_blocks(map_root: Node3D) -> Array:
         for s in c.get_children():
             if s is CollisionShape3D and s.shape is BoxShape3D:
                 var size: Vector3 = s.shape.size
-                out.append({"pos": c.global_position, "half": size * 0.5, "height": size.y})
+                out.append({"pos": c.global_position, "half": size * 0.5, "height": size.y, "node": c})
     return out
 
 ## Cover = map block of kind "cover": meta `kind` (MapLoader), else name prefix `cover` / `cover_NN`.
@@ -159,6 +159,39 @@ static func cover_point(block: Dictionary, threat: Vector3, clearance: float = 0
     var tz := half.z / maxf(absf(away.z), 0.001)
     var d := minf(tx, tz) + clearance
     return Vector3(p.x + away.x * d, p.y - half.y, p.z + away.z * d)
+
+## Peek position for a block: beside the cover point, stepped out past the block's side edge
+## (`side` = +1/-1 along the tangent to the threat direction) so the threat is in view (pure; unit-tested).
+static func peek_point(block: Dictionary, threat: Vector3, side: float, clearance: float = 0.9) -> Vector3:
+    var cp := cover_point(block, threat, clearance)
+    var p: Vector3 = block.pos
+    var half: Vector3 = block.half
+    var away := Vector3(p.x - threat.x, 0, p.z - threat.z)
+    if away.length() < 0.01:
+        away = Vector3(0, 0, 1)
+    away = away.normalized()
+    var tan := Vector3(-away.z, 0, away.x) * signf(side if side != 0.0 else 1.0)
+    var lateral := absf(half.x * tan.x) + absf(half.z * tan.z)
+    return cp + tan * (lateral + clearance)
+
+## Like best_cover, but returns the block dictionary (with "node" when built from a map) or null.
+static func best_cover_block(blocks: Array, from: Vector3, threat: Vector3, min_height: float = 1.4, max_dist: float = INF):
+    var best = null
+    var best_s := INF
+    for b in blocks:
+        if float(b.height) < min_height:
+            continue
+        if b.has("node") and not is_instance_valid(b.node):
+            continue
+        var cp := cover_point(b, threat)
+        var d_me := Vector2(cp.x - from.x, cp.z - from.z).length()
+        var d_th := Vector2(cp.x - threat.x, cp.z - threat.z).length()
+        if d_th < d_me or d_th < 3.0 or d_me > max_dist:
+            continue
+        if d_me < best_s:
+            best_s = d_me
+            best = b
+    return best
 
 ## Best cover for a hero at `from` hiding from `threat`: blocks at least `min_height` tall,
 ## whose cover point is closer to us than to the threat, scored by travel distance.

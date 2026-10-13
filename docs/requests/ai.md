@@ -82,3 +82,15 @@ Test discovery, INTERFACES §5 params, GameConfig difficulty -> BotBrain.
    needed), walk over on the navmesh, and beam only with line of sight inside 0.9 × range; params
    `support_radius`, `heal_below` (0.8). They don't start a heal while themselves low with an enemy around.
    All "heroes"-group scans skip heroes in other worlds (test SubViewports).
+
+## Round 6 (cover + peek)
+1. **INTERFACES §5 (lead, doc only)**: `cover` state now has phases travel → hide → peek → hide …
+   New params (difficulty presets): `peek_time` (easy 1.4 / normal 1.0 / hard 0.7 s), `hide_min`/`hide_max`
+   (1.6–2.4 / 1.0–1.8 / 0.5–1.3 s), `peek_side_mode` (`same` / `random` / `mixed`), `cover_session` (8 s:
+   leave after 8 s without a successful peek or 16 s in total, then 8 s cooldown), `opportunistic_cover`
+   (true: ranged bots under 70 % HP use cover within 6 m). Cover is re-picked when the hiding bot is seen
+   for > 0.4 s (flank / shield wall) or its block node is freed; with none available the bot fights.
+   `BotNav.peek_point()`, `BotNav.best_cover_block()`; cover block dictionaries now carry `node`.
+   Input/ability interface unchanged.
+2. **Maps (FYI, Arena Maps)**: if destructible cover is ever added, keep it a StaticBody3D with meta
+   `kind = "cover"` and free the node when destroyed; bots then re-pick automatically.
