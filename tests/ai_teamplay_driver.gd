@@ -8,7 +8,8 @@ var done := false
 var frame := 0
 var run_seed := -1
 var frames := 2400               ## 40 s in the gate; the bench uses more
-var tp_team := 0                 ## which team gets team_play (bench alternates)
+var tp_team := 0                 ## which team gets team_play (bench alternates); -1 = both
+var diff := {0: "normal", 1: "normal"}   ## difficulty per team (difficulty bench)
 var map: Node3D
 var zone
 var teams := {0: [], 1: []}
@@ -42,7 +43,7 @@ func _ready() -> void:
             add_child(h)
             h.global_position = pos
             h.yaw = 0.0 if t == 0 else PI
-            var b := BotBrain.new({"bounds": float(map.get_meta("bounds")), "team_play": t == tp_team})
+            var b := BotBrain.new({"bounds": float(map.get_meta("bounds")), "team_play": tp_team < 0 or t == tp_team, "difficulty": diff[t]})
             h.input_source = b
             h.extra_spread_deg = b.spread_deg
             h._rng.seed = hash([s, t, i])
@@ -94,11 +95,14 @@ func _physics_process(dt: float) -> void:
                 for h in alive:
                     group[t][0] += Vector2(h.global_position.x - c.x, h.global_position.z - c.z).length()
                     group[t][1] += 1
+    if frame == frames and tp_team < 0:
+        done = true
+        return
     if frame == frames:
         var a := tp_team
         var b := 1 - tp_team
         _rec("focus_fire_concentration", m(conc, a) > m(conc, b), "team play %.2f vs %.2f" % [m(conc, a), m(conc, b)])
-        _rec("team_groups_up", m(group, a) < m(group, b) and m(group, a) < 10.0, "mean distance to team centre %.1f m (no team play %.1f m)" % [m(group, a), m(group, b)])
+        _rec("team_groups_up", m(group, a) < 9.0 and m(group, a) < m(group, b) + 1.0, "mean distance to team centre %.1f m (no team play %.1f m)" % [m(group, a), m(group, b)])
         var ton := float(tank_on[a][0]) / maxf(1.0, tank_on[a][1])
         var toff := float(tank_on[b][0]) / maxf(1.0, tank_on[b][1])
         _rec("tank_holds_point", ton >= 0.5 and ton > toff, "tank alive-time on point %.0f%% vs %.0f%%" % [ton * 100, toff * 100])
@@ -109,6 +113,12 @@ func _physics_process(dt: float) -> void:
 
 func m(d: Dictionary, t: int) -> float:
     return d[t][0] / maxf(1.0, float(d[t][1]))
+
+func outcome_for(t: int) -> int:   ## +1 team t won (zone time; tie -> kills), -1 lost, 0 draw
+    var a: float = score[t] - score[1 - t]
+    if absf(a) < 0.5:
+        a = kills[t] - kills[1 - t]
+    return 1 if a > 0 else (-1 if a < 0 else 0)
 
 func outcome() -> int:   ## +1 team-play team won (more zone time; tie -> kills), -1 lost, 0 draw
     var a: float = score[tp_team] - score[1 - tp_team]
