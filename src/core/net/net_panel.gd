@@ -38,7 +38,7 @@ func _ready() -> void:
         v.add_child(_labeled("Port (UDP)", port_edit))
         status = MenuStyle.label("Finding your public IP...", 20)
         Net.public_ip_ready.connect(_on_ip)
-        Net.fetch_public_ip()
+        Net.fetch_public_ip()   # no HTTP when Net.offline (tests): reports "" immediately
     else:
         addr_edit = _edit("")
         addr_edit.placeholder_text = "host IP:port, e.g. 203.0.113.7:%d" % Net.DEFAULT_PORT
@@ -57,8 +57,8 @@ func _ready() -> void:
 func _edit(t: String) -> LineEdit:
     var e := LineEdit.new()
     e.text = t
-    e.custom_minimum_size = Vector2(360, 48)
-    e.add_theme_font_size_override("font_size", 22)
+    e.custom_minimum_size = Vector2(360, 0)
+    MenuStyle.style_line_edit(e)
     return e
 
 func _labeled(t: String, c: Control) -> HBoxContainer:

@@ -26,7 +26,7 @@ static func build(path: String, opts: Dictionary = {}) -> Node3D:
         if props.get_child_count() > 0:
             root.add_child(props)
     root.add_child(_environment(theme, lq))
-    root.add_child(_sun(theme))
+    root.add_child(_sun(theme, lq))
     var spawns := {}
     var sp: Dictionary = d.get("spawns", {})
     for team in sp:
@@ -115,11 +115,11 @@ static func _environment(t: Dictionary, low_quality := false) -> WorldEnvironmen
     env.environment = e
     return env
 
-static func _sun(t: Dictionary) -> DirectionalLight3D:
+static func _sun(t: Dictionary, low_quality := false) -> DirectionalLight3D:
     var sun := DirectionalLight3D.new()
     var r: Array = t.get("sun_rot", [-55, -35, 0])
     sun.rotation_degrees = _v(r)
-    sun.shadow_enabled = true
+    sun.shadow_enabled = not low_quality   # shadows ~40 % of frame time under software GL
     # Cheaper shadows (biggest cost in software/mobile GL): 2 PSSM splits, distance capped to the play area.
     sun.directional_shadow_mode = int(t.get("shadow_mode", DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS))
     sun.directional_shadow_max_distance = float(t.get("shadow_distance", 60.0))
@@ -185,15 +185,15 @@ static func _pattern_tex(pat: String, tint: float) -> Texture2D:
     img.generate_mipmaps()
     return ImageTexture.create_from_image(img)
 
-## Low-quality flag, read defensively: Settings.low_quality, then GameConfig.low_quality, default false.
+## Low-quality flag, read defensively: Settings.low_quality (player setting) OR GameConfig.low_quality (-- --low_quality).
 static func low_quality_flag() -> bool:
     var ml := Engine.get_main_loop()
     if not (ml is SceneTree):
         return false
     for n in ["Settings", "GameConfig"]:
         var o: Node = (ml as SceneTree).root.get_node_or_null(n)
-        if o != null and "low_quality" in o:
-            return bool(o.get("low_quality"))
+        if o != null and "low_quality" in o and bool(o.get("low_quality")):
+            return true
     return false
 
 ## Decorative props (optional "props" key): visual meshes only, no collision bodies.

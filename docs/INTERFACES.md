@@ -193,6 +193,12 @@ Visual keys (approved v0.4, maps round 3; no gameplay effect, collision unchange
 - `"props"`: `[{shape: box|cylinder|cone|sphere, pos, size | radius+height, rot_deg?, mat|color, no_shadow?}]`
   → MeshInstance3D children of a `Props` Node3D under the map root, **no collision**. Props are stored in the
   JSON, so host and client build identical maps; nothing about maps is replicated.
+Build options (approved v0.4, maps round 4): `MapLoader.build(path, opts := {})`; `opts.low_quality` overrides
+`MapLoader.low_quality_flag()` (= `Settings.low_quality` OR `GameConfig.low_quality`). Low quality skips `Props`
+and fog and disables sun shadows; collision is identical. Props are batched: `Props` children are one merged
+MeshInstance3D per (material, shadow) group, with meta `prop_count` (source prop count) on `Props`.
+Extra theme keys: `shadow_mode` (DirectionalLight3D shadow mode, default PSSM 2 splits) and `shadow_distance`
+(m, default 60). Floor/ground blocks don't cast shadows. After the merge pass fps went ~20 → ~25 (software GL).
 Perf note: arena02 under Xvfb software GL dropped from ~18 to ~15 fps with fog + ~170 props; a low-quality
 toggle (skip Props/fog) can come later via UI.
 
@@ -258,7 +264,17 @@ team with fewer humans). Modes: `OFFLINE` (single player, unchanged), `HOST`, `C
   Broadcasts go only to peers that completed hello/welcome.
 - Smoke (`--smoke`) seeds the global RNG, hero spread and BotBrain RNGs from `--seed=N` (default 4242); it
   passes on damage dealt + taken, match_ended and every ability slot used (kills reported, not required).
+- `Net.offline` (true under `--headless` or with `-- --net_offline`): skips the api.ipify.org public-IP lookup;
+  `fetch_public_ip()` then reports `""` on the next frame, so the Host screen is testable.
 - Command line: `--net_host=PORT`, `--net_join=IP:PORT`, `--autopilot` (bot-driven player), `--net_test=S`
   (prints `NETDUMP` JSON, quits). `tools/net_test.sh` (build.sh step) runs headless host + client on localhost.
 - Not yet: rejoin/host migration, bot re-fill when a human leaves, ability-movement prediction (dash/leap are
   corrected by reconciliation), NAT traversal / relay.
+
+## 11. Player settings (`Settings` autoload, src/ui/settings.gd, owner UI)
+Persisted by UI (user://settings.cfg). Read-only for everything outside UI; only UI writes them.
+- `Settings.fov` — base camera FOV (see §2.3).
+- `Settings.volumes` / `volume(bus)` — Master/Music/SFX.
+- `Settings.low_quality: bool` + signal `Settings.low_quality_changed(on: bool)` (emitted only on change);
+  only UI sets it, via `Settings.set_low_quality(on)`. Maps/FX read it (maps apply it on the next map build).
+  Perf/capture runs use `-- --low_quality` → `GameConfig.low_quality` (CLI only, not persisted); MapLoader ORs both.

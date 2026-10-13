@@ -39,6 +39,8 @@ var last_snap_hp := {}           ## CLIENT: {net_id: hp} of newest snapshot
 var reconciles := 0              ## CLIENT: corrections applied
 var max_correction := 0.0
 var public_ip := ""
+## Skip all internet lookups (api.ipify.org). Set by tests, or `-- --net_offline`; headless runs default to it.
+var offline := DisplayServer.get_name() == "headless" or OS.get_cmdline_user_args().has("--net_offline")
 var _clock_offset := 0.0
 var _clock_init := false
 var _interp := {}                ## CLIENT: net_id -> [[t, pos, yaw, pitch]]
@@ -110,6 +112,10 @@ func _fail(reason: String) -> void:
 
 ## Looks up the public IP for the host screen (HTTPS GET to api.ipify.org).
 func fetch_public_ip() -> void:
+    if offline:
+        public_ip = ""
+        public_ip_ready.emit.call_deferred("")
+        return
     var req := HTTPRequest.new()
     req.timeout = 6.0
     add_child(req)

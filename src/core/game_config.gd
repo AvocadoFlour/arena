@@ -21,11 +21,14 @@ var ally_count := -1        ## bots on the player's team 0; -1 = map default (se
 var bot_count: int:         ## alias of enemy_count (v0.2 name)
     get: return enemy_count
     set(v): enemy_count = v
+var low_quality := false     ## -- --low_quality (CLI/perf runs); the player setting is Settings.low_quality
 var skip_menu_once := false   ## set by "Play again": next main.tscn load starts the match directly
 
 func _ready() -> void:
     for a in OS.get_cmdline_user_args():
         var kv := a.trim_prefix("--").split("=", true, 1)
+        if kv[0] == "low_quality":
+            low_quality = kv.size() < 2 or kv[1] != "0"
         if kv.size() < 2:
             continue
         match kv[0]:
