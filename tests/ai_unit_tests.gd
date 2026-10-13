@@ -234,3 +234,21 @@ func test_best_cover_block_skips_destroyed() -> void:
     b = BotNav.best_cover_block(blocks, Vector3(-3, 0, 3), Vector3(0, 0, -10))
     check(b != null and b.pos.x > 0.0, "destroyed block skipped")
     check(BotNav.best_cover_block(blocks, Vector3(-3, 0, 3), Vector3(0, 0, -10), 1.4, 3.0) == null, "max_dist respected")
+
+func test_focus_pick_lowest_hp() -> void:
+    check(BotTeam.pick_focus([{"frac": 0.9, "dist": 5.0}, {"frac": 0.3, "dist": 20.0}, {"frac": 0.6, "dist": 2.0}]) == 1, "lowest HP fraction wins")
+    check(BotTeam.pick_focus([{"frac": 0.5, "dist": 30.0}, {"frac": 0.5, "dist": 10.0}]) == 1, "tie -> nearer")
+    check(BotTeam.pick_focus([]) == -1, "nobody seen")
+
+func test_cohesion_pull() -> void:
+    var d := Vector3(1, 0, 0)
+    check(BotBrain.cohesion(d, Vector3.ZERO, null) == d, "no rally -> unchanged")
+    check(BotBrain.cohesion(d, Vector3.ZERO, Vector3(0, 0, 5)) == d, "inside 8 m -> unchanged")
+    var c := BotBrain.cohesion(d, Vector3.ZERO, Vector3(0, 0, 20))
+    check(c.z > 0.5 and c.length() <= 1.0001, "far -> pulled toward the group (%s)" % c)
+
+func test_in_zone() -> void:
+    var z := {"pos": Vector3(0, 2.5, 0), "size": Vector3(10, 3, 10)}
+    check(BotBrain.in_zone(z, Vector3(4, 1, -4)), "inside")
+    check(not BotBrain.in_zone(z, Vector3(4, 1, -4), 1.5), "outside the shrunk box")
+    check(not BotBrain.in_zone(z, Vector3(6, 1, 0)), "outside")

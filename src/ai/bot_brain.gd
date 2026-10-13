@@ -37,6 +37,8 @@ var hide_max := 1.8
 var peek_side_mode := "random"   ## "same" (predictable), "random", "mixed" (alternate, sometimes repeat)
 var opportunistic_cover := true  ## ranged bots under 70 % HP use cover within 6 m too
 var escort_allies := true
+var team_play := true         ## shared focus target, grouping, tank holds the control point
+var _seen_now: Array = []
 var support_radius := 35.0    ## heal-beam bots look this far for hurt allies (then walk into beam range)
 var heal_below := 0.8         ## ally HP fraction under which a support bot heals it    ## idle bots roam near the nearest teammate
 var state := "wander"
@@ -123,7 +125,8 @@ func poll(h) -> InputFrame:
         target = t
     var low: bool = h.health.hp < h.health.max_hp * low_hp_frac
     if target and seek_cover and _cover_cd <= 0.0 and state != "cover":
-        var hurt_ranged: bool = opportunistic_cover and melee_range(h) == 0.0 and h.health.hp < h.health.max_hp * 0.7
+        var holding: bool = team_play and BotTeam.is_tank(h) and objective_zone(h) != null
+        var hurt_ranged: bool = opportunistic_cover and not holding and melee_range(h) == 0.0 and h.health.hp < h.health.max_hp * 0.7
         if low or hurt_ranged:
             _enter_cover(h, target, INF if low else 6.0)
     if _do_support(h, f, dt):
@@ -170,10 +173,21 @@ func _do_chase(h, f: InputFrame, dt: float, low: bool) -> void:
                 _strafe = -_strafe   # LOS just broke (strafed behind cover): orbit back the way we came
                 _strafe_left = 1.5
             _lost += dt
-        if flat > keep + 2.0 or _lost > LOS_GRACE:
+        var hold = objective_zone(h) if team_play and BotTeam.is_tank(h) else null
+        if hold != null and not in_zone(hold, h.global_position, 1.5):
+            f.move = _follow(h, hold.pos)   # tank: fight from the point, never chase off it
+        elif hold != null:
+            var dir := standoff_dir(h.global_position, target.global_position, keep, _strafe)
+            if not in_zone(hold, h.global_position + dir * 1.5, 1.5):
+                dir = Vector3(-dir.x, 0, -dir.z) * 0.3 if in_zone(hold, h.global_position - dir * 1.5, 1.5) else Vector3.ZERO
+            f.move = world_to_move(h.global_transform.basis, dir)
+        elif flat > keep + 2.0 or _lost > LOS_GRACE:
             f.move = _follow(h, target.global_position)
         else:
-            f.move = world_to_move(h.global_transform.basis, standoff_dir(h.global_position, target.global_position, keep, _strafe))
+            var sd := standoff_dir(h.global_position, target.global_position, keep, _strafe)
+            if team_play:   # cohesion: drift back toward the group while trading shots
+                sd = cohesion(sd, h.global_position, rally_point(h))
+            f.move = world_to_move(h.global_transform.basis, sd)
         f.fire = los and err < fire_cone and _react_left <= 0.0
     if use_abilities:
         var ctx := _ctx(h, low, false)
@@ -417,14 +431,74 @@ func nearest_ally(h):
             best = o
     return best
 
+## Control zone the team should hold (first zone not owned by us, else the first), or null.
+func objective_zone(h):
+    if _map_root == null:
+        _map_root = BotNav.find_map_root(h)
+    if _map_root == null:
+        return null
+    var zones: Array = _map_root.get_meta("zones", [])
+    if zones.is_empty():
+        return null
+    for z in zones:
+        if BotTeam.zone_owner(String(z.get("id", ""))) != h.team:
+            return z
+    return zones[0]
+
+## Where an idle bot regroups: tank -> zone centre; others -> the tank (or zone, or team centre).
+func rally_point(h):
+    var z = objective_zone(h)
+    var mates := BotTeam.mates(h)
+    if BotTeam.is_tank(h) and z != null:
+        return z.pos
+    for m in mates:
+        if BotTeam.is_tank(m) and (z != null or escort_allies):
+            return m.global_position
+    if z != null:
+        return z.pos
+    if mates.is_empty() or not escort_allies:
+        return null
+    var c := Vector3.ZERO
+    for m in mates:
+        c += m.global_position
+    return c / mates.size()
+
+## Adds a pull toward `rally` when farther than 8 m (pure; unit-tested). Keeps |dir| <= 1.
+static func cohesion(dir: Vector3, pos: Vector3, rally) -> Vector3:
+    if rally == null:
+        return dir
+    var to := Vector3(rally.x - pos.x, 0, rally.z - pos.z)
+    var d := to.length()
+    if d <= 8.0:
+        return dir
+    var w := clampf((d - 8.0) / 6.0, 0.0, 0.8)
+    return (dir * (1.0 - w * 0.5) + to / d * w).limit_length(1.0)
+
+## True when `p` is inside zone `z`'s footprint shrunk by `margin` (XZ only).
+static func in_zone(z, p: Vector3, margin: float = 0.0) -> bool:
+    var half: Vector3 = z.size * 0.5 - Vector3(margin, 0, margin)
+    return absf(p.x - z.pos.x) <= half.x and absf(p.z - z.pos.z) <= half.z
+
 func _do_wander(h, f: InputFrame, dt: float) -> void:
+    if team_play and BotTeam.is_tank(h):
+        var z = objective_zone(h)
+        if z != null:   # tank: go to / hold the point even with no enemy around
+            state = "wander"
+            f.move = _follow(h, z.pos) if not in_zone(z, h.global_position, 2.0) else Vector2.ZERO
+            var d := _move_world(h, f.move)
+            d.y = -h.pitch * 3.0
+            _aim(h, f, d, dt, false)
+            return
     state = "wander"
     _wander_left -= dt
     var flat := Vector3(_wander.x - h.global_position.x, 0, _wander.z - h.global_position.z)
     if _wander_left <= 0.0 or flat.length() < 1.5:
         _wander = Vector3(_rng.randf_range(-bounds, bounds), 0, _rng.randf_range(-bounds, bounds))
         var ally = nearest_ally(h) if escort_allies else null
-        if ally:   # team play: roam near a teammate instead of alone
+        var rally = rally_point(h) if team_play else null
+        if rally != null:   # team play: group at the rally point (zone / tank / team centre)
+            _wander = rally + Vector3(_rng.randf_range(-3, 3), 0, _rng.randf_range(-3, 3))
+        elif ally:   # roam near a teammate instead of alone
             var off := Vector3(_rng.randf_range(-4, 4), 0, _rng.randf_range(-4, 4))
             _wander = ally.global_position + off
         _wander_left = _rng.randf_range(3.0, 6.0)
@@ -585,13 +659,24 @@ func _visible(h, o) -> bool:
 func _find_target(h):
     var best = null
     var best_d := sight
+    _seen_now = []
     for o in h.get_tree().get_nodes_in_group("heroes"):
         if o.get_world_3d() != h.get_world_3d():
             continue   # other worlds (test SubViewports) share the 'heroes' group
         if o == h or o.dead or o.team == h.team:
             continue
         var d: float = h.global_position.distance_to(o.global_position)
-        if d < best_d and _visible(h, o):
-            best = o
-            best_d = d
+        if d < sight and _visible(h, o):
+            _seen_now.append(o)
+            if d < best_d:
+                best = o
+                best_d = d
+    if team_play:
+        BotTeam.report(h, _seen_now)
+        var fo = BotTeam.focus(h)
+        # focus fire: the team's lowest-HP enemy, if we see it too and it is not much farther than
+        # our own nearest target (melee: must be nearly as close; never leave an enemy in reach)
+        var slack := 3.0 if melee_range(h) > 0.0 else 8.0
+        if fo != null and fo in _seen_now and h.global_position.distance_to(fo.global_position) <= best_d + slack:
+            best = fo
     return best
