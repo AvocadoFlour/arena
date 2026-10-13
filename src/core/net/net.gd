@@ -357,7 +357,8 @@ func _hero_state(h) -> Array:
         cds.append(h.abilities[s].cooldown.remaining if h.abilities.has(s) else 0.0)
     var acked: int = h.input_source.acked if h.input_source is RemoteInput else -1
     return [h.net_id, h.global_position, h.velocity, h.yaw, h.pitch, h.health.hp, h.dead, h.visible,
-        h.weapon.ammo, h.weapon.reloading(), h.ult.charge, cds, h.overheal, h.respawn_left, acked, h.team]
+        h.weapon.ammo, h.weapon.reloading(), h.ult.charge, cds, h.overheal, h.respawn_left, acked, h.team,
+        h.combo_step, h.dash_time]
 
 func _send_snapshot() -> void:
     var hs: Array = []
@@ -420,6 +421,9 @@ func _apply_state(h, s: Array) -> void:
             h.abilities[SLOTS[i]].cooldown.remaining = float(s[11][i])
     h.overheal = float(s[12])
     h.respawn_left = float(s[13])
+    if s.size() > 17:   # visual-only (remote attack/dash animation)
+        h.combo_step = int(s[16])
+        h.dash_time = float(s[17])
     if h.team != int(s[15]):
         h.set_team(int(s[15]))
     if was_dead and not h.dead:
