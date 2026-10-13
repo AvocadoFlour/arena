@@ -5,27 +5,38 @@ extends RefCounted
 const TOON := preload("res://src/heroes/toon/toon.gdshader")
 const OUTLINE := preload("res://src/heroes/toon/outline.gdshader")
 
+## Toon-converted meshes, shared by every instance of the same source mesh + settings.
+static var _cache: Dictionary = {}
+
 ## Applies to every MeshInstance3D under `root`. Surfaces whose material name contains any of
 ## `no_outline` (e.g. flat face decals) get no outline. Returns number of surfaces converted.
-static func apply(root: Node, outline_width: float = 0.008, no_outline: Array = []) -> int:
+## The toon materials are baked into a shared copy of the mesh (cached per source mesh + settings) instead
+## of per-instance surface overrides: cheaper with many heroes, and it avoids an engine error when an
+## instance with surface overrides is freed while another instance of the same mesh is alive.
+static func apply(root: Node, outline_width: float = 0.011, no_outline: Array = []) -> int:
     var n := 0
     for mi in root.find_children("*", "MeshInstance3D", true, false):
         var mesh: Mesh = mi.mesh
         if mesh == null:
             continue
-        for i in mesh.get_surface_count():
-            var src: Material = mi.get_active_material(i)
-            var col := Color.WHITE
-            var mname := ""
-            if src:
-                mname = src.resource_name
-                if src is BaseMaterial3D:
-                    col = src.albedo_color
-            mi.set_surface_override_material(i, make(col, outline_width, not no_outline.any(func(k): return mname.contains(k)), mname))
-            n += 1
+        var key := "%d|%s|%s" % [mesh.get_instance_id(), outline_width, ",".join(no_outline)]
+        if not _cache.has(key):
+            var copy: Mesh = mesh.duplicate()
+            for i in mesh.get_surface_count():
+                var src: Material = mesh.surface_get_material(i)
+                var col := Color.WHITE
+                var mname := ""
+                if src:
+                    mname = src.resource_name
+                    if src is BaseMaterial3D:
+                        col = src.albedo_color
+                copy.surface_set_material(i, make(col, outline_width, not no_outline.any(func(k): return mname.contains(k)), mname))
+            _cache[key] = copy
+        mi.mesh = _cache[key]
+        n += mi.mesh.get_surface_count()
     return n
 
-static func make(col: Color, outline_width: float = 0.008, outline: bool = true, name: String = "") -> ShaderMaterial:
+static func make(col: Color, outline_width: float = 0.011, outline: bool = true, name: String = "") -> ShaderMaterial:
     var m := ShaderMaterial.new()
     m.shader = TOON
     m.resource_name = "toon_" + name

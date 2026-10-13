@@ -291,7 +291,7 @@ def tail_path(s):
     return pts
 for s, nm in ((1, "L"), (-1, "R")):
     P = tail_path(s)
-    rr = [0.03, 0.042, 0.052, 0.055, 0.05, 0.038, 0.008]
+    rr = [0.03, 0.046, 0.056, 0.05, 0.038, 0.022, 0.003]
     rings = []
     for i in range(len(P) - 1):
         for t in (0.0, 0.5):
@@ -317,10 +317,11 @@ for s in (1, -1):
     loft("cupring_%d" % s, [(cup_c + Vector((s * 0.0125, 0, 0)), 0.022, 0.022), (cup_c + Vector((s * 0.016, 0, 0)), 0.02, 0.02)], "ice", ["head"], n=16)
     # wing fins: three swept blades going back/up
     for k in range(3):
-        L = 0.07 - k * 0.013
-        z0 = 0.02 - k * 0.016
-        loft("wing_%d_%d" % (s, k), [(cup_c + Vector((s * 0.012, 0.01, z0)), 0.004, 0.012),
-                                     (cup_c + Vector((s * 0.016, 0.01 + L, z0 + 0.03 - k * 0.005)), 0.002, 0.005)], "silver", ["head"], n=6)
+        L = 0.12 - k * 0.022
+        z0 = 0.03 - k * 0.022
+        loft("wing_%d_%d" % (s, k), [(cup_c + Vector((s * 0.018, 0.0, z0)), 0.007, 0.02),
+                                     (cup_c + Vector((s * 0.03, 0.01 + L * 0.5, z0 + 0.03 - k * 0.006)), 0.006, 0.014),
+                                     (cup_c + Vector((s * 0.04, 0.01 + L, z0 + 0.06 - k * 0.01)), 0.002, 0.003)], "silver" if k != 1 else "ice_dk", ["head"], n=6)
 loft("boom", [((0.095, -0.01, HEAD_C.z - 0.03), 0.004, 0.004), ((0.08, -0.06, HEAD_C.z - 0.07), 0.004, 0.004), ((0.045, -0.085, HEAD_C.z - 0.08), 0.004, 0.004)],
      "silver", ["head"], n=6)
 ellipsoid("boom_tip", (0.043, -0.087, HEAD_C.z - 0.08), (0.008, 0.008, 0.008), "black", ["head"], seg=8, rings=6)

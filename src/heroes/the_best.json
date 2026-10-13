@@ -12,6 +12,7 @@
     "ability2": {"id": "swagger_step", "type": "dash", "name": "Swagger Step", "cooldown": 5.0, "distance": 5.0, "duration": 0.16},
     "ultimate": {"id": "no_limits", "type": "team_buff", "name": "No Limits", "cooldown": 1.0, "needs_ult": true, "radius": 9.0, "duration": 7.0, "damage_mult": 1.35, "knockback_immune": true, "overheal": 120}
   },
+  "model_scene": {"path": "res://src/heroes/models/the_best/the_best.glb", "yaw_deg": 180, "outline": 0.012, "no_outline": ["mouth", "teeth", "line"], "tails": ["cape_"], "aim_bones": [], "melee": {"swings": ["swing_a", "swing_b"], "finisher": "finisher", "full": ["finisher"]}, "casts": {"ability1": {"anim": "leap", "full": true}, "ability2": {"anim": "dash", "full": true}, "ultimate": {"anim": "ult", "full": false}}, "cast_bones": ["spine", "chest", "neck", "head", "shoulder.", "upper_arm.", "forearm.", "hand."]},
   "model": [
     {"shape": "capsule", "radius": 0.11, "height": 0.85, "pos": [-0.15, 0.42, 0], "color": "#2a2a34", "pivot": [-0.15, 0.85, 0], "anim": "leg_l"},
     {"shape": "capsule", "radius": 0.11, "height": 0.85, "pos": [0.15, 0.42, 0], "color": "#2a2a34", "pivot": [0.15, 0.85, 0], "anim": "leg_r"},
