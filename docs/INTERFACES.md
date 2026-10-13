@@ -122,15 +122,16 @@ FOV animation (zoom/sprint) must be relative to `Settings.fov`. Audio buses `Mas
 - `hero.take_damage(amount, source: Hero|null, pos: Vector3, kind: String, ability_id := "") -> float applied`.
   `kind` ∈ `primary, slam, ultimate, fall, …`; `ability_id` = the source ability's `id` (hero JSON ability id,
   else its type), `""` for the primary weapon and falls. `hero.aoe(center, radius, dmg, kind, ability_id := "")`.
-- Emits `Events.damage_dealt({source, target, amount, pos, kind, killed, ability_id, crit})`, then
-  `source.on_damage_dealt(amount)` (charges ult 1:1), then on death
+- Emits `Events.damage_dealt({source, target, amount, pos, src_pos, kind, killed, ability_id, crit})`, then
+  `source.on_damage_dealt(amount)` (charges ult 1:1). `src_pos` (Vector3 or null) = the attacker's host-side
+  position at hit time; replicated to clients with the event (Net EVENT_SIGNALS), use it for hit direction, then on death
   `Events.killed({killer, victim, kind, ability_id})`. `crit: bool` is always false for now (no crits/headshots
   planned); UI may style it. Online both payloads replicate unchanged to clients (§10). Respawn after 3 s → `Events.respawned(hero)`.
 - AoE falloff: `HitMath.aoe_damage` — 100 % at centre to 50 % at the edge.
 - `hero.damage_scale` multiplies outgoing damage (bots use 0.3).
 
 ## 4. Event bus (`Events` autoload)
-`damage_dealt({source, target, amount, pos, kind, killed, ability_id, crit})`, `killed({killer, victim, kind, ability_id})`
+`damage_dealt({source, target, amount, pos, src_pos, kind, killed, ability_id, crit})`, `killed({killer, victim, kind, ability_id})`
 (`ability_id` "" = primary/fall; `crit` always false for now; see §3), `respawned(hero)`, `healed({source, target, amount, ability_id})` (host/offline, from `hero.heal(amount, source, ability_id)`;
 `amount` = HP actually restored; aggregated per target × (source, ability_id) and emitted about every 0.25 s
 (`Hero.HEAL_EVENT_INTERVAL`), flushed early on the target's death; replicated reliably), `cover_broken({block_id, pos, map})`

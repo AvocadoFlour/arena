@@ -40,3 +40,8 @@ func test_prop_info() -> void:
     var i := Net.prop_info(n, 7)
     check(i.id == 7 and i.kind == "shot" and i.visual == "res://x.tscn", "prop_info carries visual id")
     n.free()
+
+func test_damage_event_src_pos_survives_encode() -> void:
+    var ev := {"source": null, "target": null, "amount": 5.0, "pos": Vector3(1, 1, 1), "src_pos": Vector3(4, 0, -2)}
+    var dec: Array = Net.decode(Net.encode([ev]))
+    check(dec[0].src_pos == Vector3(4, 0, -2), "damage_dealt src_pos replicates (R10)")

@@ -70,7 +70,9 @@ func _on_damage(e: Dictionary) -> void:
         return
     var from := Vector3.INF
     var src = e.get("source")
-    if src is Node3D and is_instance_valid(src) and src != hero:
+    if e.get("src_pos") is Vector3 and src != hero:
+        from = e.src_pos   # host-truth attacker position (core R10), also on clients
+    elif src is Node3D and is_instance_valid(src) and src != hero:
         from = src.global_position
     elif e.get("pos") is Vector3:
         from = e.pos   # hit point: push away from it

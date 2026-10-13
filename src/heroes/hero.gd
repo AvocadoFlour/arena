@@ -604,7 +604,10 @@ func take_damage(amount: float, source, pos: Vector3, kind: String, ability_id :
     if d <= 0.0:
         return 0.0
     var killed := health.is_dead()
-    Events.damage_dealt.emit({"source": source, "target": self, "amount": d, "pos": pos, "kind": kind, "killed": killed, "ability_id": ability_id, "crit": false})
+    # src_pos: host-truth attacker position at hit time (R10), so clients get hit direction without the
+    # interpolation delay of the replicated source (and even when the source has no net id).
+    var src_pos = source.global_position if source is Node3D and is_instance_valid(source) and source.is_inside_tree() else null
+    Events.damage_dealt.emit({"source": source, "target": self, "amount": d, "pos": pos, "src_pos": src_pos, "kind": kind, "killed": killed, "ability_id": ability_id, "crit": false})
     if source and source.has_method("on_damage_dealt"):
         source.on_damage_dealt(d)
     if killed:
