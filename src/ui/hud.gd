@@ -215,7 +215,7 @@ func _on_damage(ev: Dictionary) -> void:
     if ev.source == player:
         crosshair.hit_t = 0.15
         crosshair.kill = ev.killed
-        var l := DamageNumber.new(ev.amount, ev.kind, ev.killed)
+        var l := DamageNumber.from_event(ev)
         player.get_parent().add_child(l)
         l.global_position = ev.pos + Vector3(randf_range(-0.3, 0.3), 0.3, randf_range(-0.3, 0.3))
         l.pop()

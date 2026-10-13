@@ -32,3 +32,11 @@ Round 5: `kill_feed.gd` (`KillFeed`: newest on top, max 5, 5 s life with fade, p
 highlight, weapon/ability name from the killer's def by damage kind); `DamageNumber.pop()` replaces the
 HUD's inline tween (scale punch, eased rise, fade; big hits >= 50 and killing blows larger, thicker
 outline, "!" on kills). Tests: `tests/ui_round5_test.gd` (incl. real NetPanel host/join with Net.offline).
+
+Round 6: kill feed and damage numbers use `ability_id` / `crit` (INTERFACES §3/§4).
+`KillFeed.weapon_name(killer, kind, ability_id)`: id (or type) → ability `name` from the killer's def;
+`""` → primary weapon name (`primary.name` if present, else "Melee"/"Primary"), "Fall" for falls,
+"Environment" with no killer (killer column shows "World"); field missing (older events) → legacy
+kind-based inference. `DamageNumber.from_event(ev)`: colour = kill > crit > ultimate (ability_id is the
+source's ultimate slot) > ability > primary; size = big hit (>= 50) / kill; crit adds "CRIT", punch, shake.
+Tests: `tests/ui_round6_test.gd`.

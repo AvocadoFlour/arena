@@ -47,3 +47,8 @@ Round 1 requests 1–3 done on master (bbd8445). Round 1 #4 (live HUD key labels
    two `slam`-producing abilities). Adding `ability_id` (or `slot`) to both payloads would make it exact.
 2. **Crits**: no crit/headshot flag exists. DamageNumber emphasises big hits (>= 50) and killing blows; if a
    `crit: bool` is added to `damage_dealt`, UI will style it.
+
+## Round 6
+Round 5 requests 1–2 done by core (ability_id, crit). UI now uses them.
+1. Optional: a `"name"` on hero `primary` defs (e.g. "Pebble Gun"); the kill feed shows it when present,
+   otherwise "Primary" / "Melee". Creative names need user approval (TEAM rule 8), so this is a heroes/user call.

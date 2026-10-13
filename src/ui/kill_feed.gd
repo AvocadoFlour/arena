@@ -7,7 +7,7 @@ const LIFETIME := 5.0
 const FADE := 0.6
 const COL_KILL := Color(1, 0.85, 0.3)
 const COL_DEATH := Color(1, 0.4, 0.4)
-## Damage kind -> ability types that produce it (INTERFACES §2.2/§3), used to name the ability.
+## Legacy only (events without ability_id): damage kind -> ability types that produce it (INTERFACES §2.2/§3), used to name the ability.
 const KIND_TYPES := {"slam": ["ground_slam", "leap"], "charge": ["charge"], "projectile": ["projectile"], "ultimate": ["nova"]}
 var player
 
@@ -15,14 +15,58 @@ func _ready() -> void:
     mouse_filter = Control.MOUSE_FILTER_IGNORE
     add_theme_constant_override("separation", 4)
 
-## Best-effort weapon/ability name from the killer's def; falls back to the damage kind.
-static func weapon_name(killer, kind: String) -> String:
+static func def_of(h):
+    if h == null or not is_instance_valid(h):
+        return null
+    var d = h.get("def")
+    return d if d is Dictionary else null
+
+## Slot ("ability1"/"ability2"/"ultimate") whose ability has this id (or, per INTERFACES §3, this type).
+static func slot_of(def, ability_id: String) -> String:
+    if not def is Dictionary or ability_id == "":
+        return ""
+    var abs: Dictionary = def.get("abilities", {})
+    for slot in ["ability1", "ability2", "ultimate"]:
+        if abs.has(slot) and str(abs[slot].get("id", "")) == ability_id:
+            return slot
+    for slot in ["ability1", "ability2", "ultimate"]:
+        if abs.has(slot) and str(abs[slot].get("type", "")) == ability_id:
+            return slot
+    return ""
+
+## Primary weapon display name: def primary.name if present, else "Melee" / "Primary" by type.
+static func primary_name(def) -> String:
+    var p: Dictionary = def.get("primary", {}) if def is Dictionary else {}
+    if p.has("name"):
+        return str(p.name)
+    return "Melee" if str(p.get("type", "")) == "melee" else "Primary"
+
+## Weapon/ability label for a kill or hit.
+##   ability_id set  -> that ability's display name from the killer's def (or the id, prettified)
+##   ability_id ""   -> "Fall" for falls, "Environment" when there is no killer, else the primary weapon name
+##   ability_id null -> older event without the field: legacy inference from the damage kind
+static func weapon_name(killer, kind: String, ability_id = null) -> String:
+    var d = def_of(killer)
+    if ability_id == null:
+        return _legacy_name(d, kind)
+    var aid := str(ability_id)
+    if aid != "":
+        var slot := slot_of(d, aid)
+        if slot != "":
+            return str(d.abilities[slot].get("name", aid.capitalize()))
+        return aid.capitalize()
     if kind == "fall":
         return "Fall"
-    var d = killer.get("def") if killer != null and is_instance_valid(killer) else null
-    if d is Dictionary:
+    if d == null:
+        return "Environment"
+    return primary_name(d)
+
+static func _legacy_name(d, kind: String) -> String:
+    if kind == "fall":
+        return "Fall"
+    if d != null:
         if kind == "primary":
-            return "Melee" if str(d.get("primary", {}).get("type", "")) == "melee" else "Primary"
+            return primary_name(d)
         var abs: Dictionary = d.get("abilities", {})
         if kind == "ultimate" and abs.has("ultimate"):
             return str(abs.ultimate.get("name", "Ultimate"))
@@ -37,7 +81,7 @@ static func weapon_name(killer, kind: String) -> String:
 static func entry_text(ev: Dictionary) -> String:
     var k = ev.get("killer")
     var killer: String = k.display_name if k != null and is_instance_valid(k) else "World"
-    return "%s  [%s]  %s" % [killer, weapon_name(k, str(ev.get("kind", ""))), ev.victim.display_name]
+    return "%s  [%s]  %s" % [killer, weapon_name(k, str(ev.get("kind", "")), ev.get("ability_id")), ev.victim.display_name]
 
 func on_kill(ev: Dictionary) -> Label:
     var l := Label.new()
