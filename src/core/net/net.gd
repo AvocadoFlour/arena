@@ -11,7 +11,7 @@ const SNAP_EVERY := 3            ## physics ticks between snapshots (60 / 3 = 20
 const INTERP_DELAY := 0.1        ## s, remote heroes are rendered this far in the past
 const HISTORY := 60              ## ticks of position history for lag compensation (1 s)
 const RECONCILE_EPS := 0.15      ## m, prediction error tolerated before replaying inputs
-const EVENT_SIGNALS := {"damage_dealt": 1, "killed": 1, "respawned": 1, "cover_broken": 1, "healed": 1, "ability_used": 3, "ability_ready": 2,
+const EVENT_SIGNALS := {"damage_dealt": 1, "pickup_changed": 1, "pad_launched": 1, "killed": 1, "respawned": 1, "cover_broken": 1, "healed": 1, "ability_used": 3, "ability_ready": 2,
     "capture_progress": 1, "capture_completed": 1, "match_score": 1, "match_ended": 1}
 const UNRELIABLE_EVENTS := ["capture_progress", "match_score"]
 const SLOTS := ["ability1", "ability2", "ultimate"]
@@ -246,7 +246,8 @@ func _c_hello(hero_id: String, pname: String) -> void:
         list.append(hero_info(x))
     var broken: Array = world.net_broken_cover() if world.has_method("net_broken_cover") else []
     rpc_id(pid, "_s_welcome", {"map_id": GameConfig.map_id, "you": h.net_id, "tick": tick, "heroes": list, "broken_cover": broken, "props": _prop_sent.values(),
-        "bot_counts": world.match_bot_counts() if world.has_method("match_bot_counts") else {}})
+        "bot_counts": world.match_bot_counts() if world.has_method("match_bot_counts") else {},
+        "objects": map_objects().state() if map_objects() else {}})
     for other in peers:
         if other != pid:
             rpc_id(other, "_s_spawn", hero_info(h))
@@ -299,6 +300,18 @@ func _s_despawn(id: int) -> void:
     if is_instance_valid(n):
         n.queue_free()
     hero_despawned.emit(id)
+
+## The current map's MapObjects node (pickups / jump pads), or null.
+func map_objects():
+    if world == null or not is_instance_valid(world):
+        return null
+    var m = world.get("_map")
+    return m.get_node_or_null("Objects") if m is Node and is_instance_valid(m) else null
+
+## CLIENT prediction hook: jump pad launch for our predicted hero (pure function of map data).
+func predict_pad(pos: Vector3, vel: Vector3) -> Vector3:
+    var o = map_objects()
+    return o.predict_pad(pos, vel) if o and o.has_method("predict_pad") else vel
 
 # ---------------------------------------------------------------- in-match controls (§10; main.gd §8 owns the logic)
 ## HOST: removes a net id on clients without freeing a node here (hero swap reuses the id).
@@ -628,6 +641,7 @@ func _reconcile(h, s: Array) -> void:
     var dt := 1.0 / Engine.physics_ticks_per_second
     for e in ci.pending:
         var wish := Basis(Vector3.UP, float(e.yaw)) * Vector3(e.move.x, 0, -e.move.y)
+        h.velocity = predict_pad(h.global_position, h.velocity)   # jump pads: same rule as the host (maps §6)
         h.velocity = Motion.step_velocity(h.velocity, wish, h.is_on_floor(), bool(e.jump), h.effective_move_cfg(), dt)
         h.move_and_slide()
         e.pos = h.global_position

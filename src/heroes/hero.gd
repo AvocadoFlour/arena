@@ -383,6 +383,7 @@ func _predict_step(dt: float) -> void:
     var wish := global_transform.basis * Vector3(f.move.x, 0, -f.move.y)
     wish.y = 0.0
     last_wish = wish
+    velocity = Net.predict_pad(global_position, velocity)   # jump pads, same rule as the host (maps §6)
     velocity = Motion.step_velocity(velocity, wish, is_on_floor(), f.jump, effective_move_cfg(), dt)
     move_and_slide()
     if input_source.has_method("record_pos"):

@@ -45,3 +45,9 @@ func test_damage_event_src_pos_survives_encode() -> void:
     var ev := {"source": null, "target": null, "amount": 5.0, "pos": Vector3(1, 1, 1), "src_pos": Vector3(4, 0, -2)}
     var dec: Array = Net.decode(Net.encode([ev]))
     check(dec[0].src_pos == Vector3(4, 0, -2), "damage_dealt src_pos replicates (R10)")
+
+func test_map_object_events_replicated() -> void:
+    check(Events.has_signal("pickup_changed") and Events.has_signal("pad_launched"), "Events has pickup_changed / pad_launched")
+    check(Net.EVENT_SIGNALS.get("pickup_changed") == 1 and Net.EVENT_SIGNALS.get("pad_launched") == 1, "both in EVENT_SIGNALS")
+    check(not ("pickup_changed" in Net.UNRELIABLE_EVENTS) and not ("pad_launched" in Net.UNRELIABLE_EVENTS), "both reliable")
+    check(Net.predict_pad(Vector3.ZERO, Vector3(1, 0, 0)) == Vector3(1, 0, 0), "predict_pad without a map is identity")

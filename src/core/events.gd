@@ -27,3 +27,5 @@ signal capture_completed(ev: Dictionary)
 signal match_score(ev: Dictionary)
 ## ev = {winner_team: int (-1 = draw), reason: String ("score" | "forced"), mode, scores, time}. Emitted once.
 signal match_ended(ev: Dictionary)
+signal pickup_changed(ev: Dictionary)   ## {id, active, left} map health pack (maps §6), host -> clients
+signal pad_launched(ev: Dictionary)     ## {id, hero, velocity} jump pad launch (FX/sound only)

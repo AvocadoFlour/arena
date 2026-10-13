@@ -408,6 +408,9 @@ func _start_client(info: Dictionary) -> void:
     var dest := map.get_node_or_null("Destruction")
     if dest:   # late join: cover the host already broke
         dest.apply_broken(info.get("broken_cover", []))
+    var objs := map.get_node_or_null("Objects")
+    if objs and objs.has_method("apply_state"):   # late join: pack availability / respawn timers
+        objs.apply_state(info.get("objects", {}))
     _spawns = map.get_meta("spawns")
     stats["map"] = GameConfig.map_id
     for z in CaptureZone.from_map(map):   # visual only: not wired to the bus; capture events come from the host

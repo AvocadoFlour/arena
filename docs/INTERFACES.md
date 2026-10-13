@@ -265,6 +265,19 @@ Extra theme keys: `shadow_mode` (DirectionalLight3D shadow mode, default PSSM 2 
 Perf note: arena02 under Xvfb software GL dropped from ~18 to ~15 fps with fog + ~170 props; a low-quality
 toggle (skip Props/fog) can come later via UI.
 
+### 6.x Pickups and jump pads (maps f5d6ab2; src/maps/map_objects.gd, map root child `Objects` = `MapObjects`)
+Map JSON: `"pickups": [{"kind": "health", "pos", "amount": 50, "respawn": 15, "radius"?: 1}]`,
+`"jump_pads": [{"pos", "size": [x,y,z], "launch": [vx,vy,vz]}]`; ids = array index (same on every peer).
+Visual only (no physics bodies); triggers are fixed-tick position checks. Host/offline `step(heroes)` each physics
+tick: a pack heals via `hero.heal(amount)` (consumed only if it healed > 0) and respawns after `respawn` s; a pad
+sets `hero.velocity = launch` inside its box when `velocity.y <= 0.5` (re-arm 0.5 s per hero/pad). Clients: `step` no-ops.
+- Events (§4, reliable in `Net.EVENT_SIGNALS`): `pickup_changed({id, active, left})` (clients call
+  `apply_pickup`), `pad_launched({id, hero, velocity})` (FX/sound only; HP goes through `healed`).
+- Late join: welcome info `objects` = `Objects.state()` (`{"pickups": [[id, active, left], ...]}`), applied with
+  `apply_state` after the client builds the map.
+- Prediction: `Net.predict_pad(pos, vel)` (-> `Objects.predict_pad`) runs before `Motion.step_velocity` in the
+  client's predicted step and in reconcile replay, so pad launches never need a correction.
+
 ## 8. Match config (`GameConfig` autoload, src/core/game_config.gd)
 | member | meaning |
 |---|---|
