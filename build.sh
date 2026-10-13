@@ -11,7 +11,23 @@ mkdir -p build dist/windows dist/linux
 # Any SCRIPT ERROR / ERROR / GDScript backtrace fails the gate unless listed in tests/expected_warnings.txt.
 fail_on_errors() { python3 tools/check_log.py "$@" || { echo "!! script/engine errors in $*"; exit 1; }; }
 
-echo "[1/5] import";   "$GODOT" --headless --path . --import >build/import.log 2>&1 || true; fail_on_errors build/import.log
+echo "[1/5] import (always re-imports changed assets, so fresh checkouts never use stale models)"
+"$GODOT" --headless --path . --import >build/import.log 2>&1 || true; fail_on_errors build/import.log
+# every 3D model must have an up-to-date import (.import + imported resource in .godot/imported)
+python3 - <<'PY' || { echo "!! asset import missing/stale"; exit 1; }
+import os, re, subprocess, sys
+bad = []
+for f in subprocess.check_output(["git", "ls-files", "*.glb", "*.gltf", "*.fbx", "*.blend"], text=True).split():
+    imp = f + ".import"
+    if not os.path.exists(imp):
+        bad.append(f + " (no .import)"); continue
+    txt = open(imp).read()
+    for dest in re.findall(r'^path(?:\.\w+)?="res://(.+?)"', txt, re.M):
+        if not os.path.exists(dest) or os.path.getmtime(dest) < os.path.getmtime(f):
+            bad.append(f + " -> " + dest)
+if bad:
+    print("stale imports:", bad); sys.exit(1)
+PY
 echo "[2/5] tests (auto-discovered unit suites + integration sims incl. abilities_sim)";    "$GODOT" --headless --path . -s tests/run_tests.gd 2>&1 | tee build/tests.log; grep -q "RESULT: .* 0 failed" build/tests.log; fail_on_errors build/tests.log
 echo "[3/5] smoke (every map x every hero)"
 : > build/smoke.log

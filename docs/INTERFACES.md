@@ -107,6 +107,9 @@ FOV animation (zoom/sprint) must be relative to `Settings.fov`. Audio buses `Mas
 (res://default_bus_layout.tres, core-owned); `Settings` volumes apply to them by name.
 
 ## 3. Damage & health
+- Death visibility hook: `hero.keep_body_when_dead` (default false). If true, `_die()` leaves the hero visible
+  (collision off, `dead = true`) so heroes can play a death animation on the live model, then sets `visible = false`
+  itself. Online, `visible` is in the snapshot, so clients follow the host.
 - `hero.take_damage(amount, source: Hero|null, pos: Vector3, kind: String, ability_id := "") -> float applied`.
   `kind` ∈ `primary, slam, ultimate, fall, …`; `ability_id` = the source ability's `id` (hero JSON ability id,
   else its type), `""` for the primary weapon and falls. `hero.aoe(center, radius, dmg, kind, ability_id := "")`.

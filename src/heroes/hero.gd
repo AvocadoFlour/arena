@@ -39,6 +39,9 @@ var combo_step := 0                  ## melee primary: index in the combo
 var combo_left := 0.0                ## melee primary: time left to continue the combo
 var _rng := RandomNumberGenerator.new()
 var net_id := -1                   ## network id (Net registry), -1 = unregistered
+## Core hook (heroes request): when true, _die() keeps the body visible (collision still off) so the
+## Visual node can play a death animation on the live model; hero code hides it when done (visible = false).
+var keep_body_when_dead := false
 var heal_target_id := -1          ## CLIENT: replicated heal-beam target (net id; -1 = none/self), visual only
 var net_role := "auth"             ## "auth" simulates fully; "predicted" (client's own hero) moves only; "puppet" is driven by snapshots
 var _muzzle: Node3D
@@ -590,7 +593,7 @@ func _die(killer, kind: String, ability_id := "") -> void:
         return
     dead = true
     health.hp = 0.0
-    visible = false
+    visible = keep_body_when_dead
     collision_layer = 0
     velocity = Vector3.ZERO
     respawn_left = RESPAWN_TIME
