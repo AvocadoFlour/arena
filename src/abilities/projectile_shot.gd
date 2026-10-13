@@ -90,7 +90,7 @@ func _impact(pos: Vector3, target) -> void:
     if target != null and src and target.team != src.team and not target.dead:
         victims.append(target)
         if dmg > 0.0:
-            target.take_damage(dmg * scale, src, pos, kind)
+            target.take_damage(dmg * scale, src, pos, kind, String(def.get("id", def.get("type", ""))))
     if splash > 0.0 and src:
         for h in get_tree().get_nodes_in_group("heroes"):
             if h == src or h.dead or h.team == src.team or victims.has(h):
@@ -98,7 +98,7 @@ func _impact(pos: Vector3, target) -> void:
             var amt := HitMath.aoe_damage(pos, splash, dmg, h.global_position + Vector3(0, 0.9, 0))
             if amt > 0.0:
                 victims.append(h)
-                h.take_damage(amt * scale, src, h.global_position + Vector3(0, 1.2, 0), kind)
+                h.take_damage(amt * scale, src, h.global_position + Vector3(0, 1.2, 0), kind, String(def.get("id", def.get("type", ""))))
         Fx.ring(get_parent(), pos, splash, Color(String(def.get("color", "#ffd040"))), 0.3)
     var slow: Dictionary = def.get("slow", {})
     if not slow.is_empty():

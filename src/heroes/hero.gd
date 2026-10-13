@@ -497,19 +497,20 @@ func heal(amount: float) -> float:
     return health.hp - before
 
 ## Area damage to enemies (used by abilities). Returns number of heroes hit.
-func aoe(center: Vector3, radius: float, dmg: float, kind: String) -> int:
+func aoe(center: Vector3, radius: float, dmg: float, kind: String, ability_id := "") -> int:
     var n := 0
     for h in get_tree().get_nodes_in_group("heroes"):
         if h == self or h.dead or h.team == team:
             continue
         var amt := HitMath.aoe_damage(center, radius, dmg, h.global_position + Vector3(0, 0.9, 0))
         if amt > 0.0:
-            h.take_damage(amt * damage_mult(), self, h.global_position + Vector3(0, 1.2, 0), kind)
+            h.take_damage(amt * damage_mult(), self, h.global_position + Vector3(0, 1.2, 0), kind, ability_id)
             n += 1
     return n
 
 ## Damage contract (INTERFACES.md section 3). Returns damage actually applied.
-func take_damage(amount: float, source, pos: Vector3, kind: String) -> float:
+## ability_id: the source ability's id ("" = primary weapon). Carried in damage_dealt / killed (INTERFACES §4).
+func take_damage(amount: float, source, pos: Vector3, kind: String, ability_id := "") -> float:
     if dead or not Net.is_authority():   # THE authority check: only the host/offline sim applies damage
         return 0.0
     var absorbed := 0.0
@@ -521,17 +522,17 @@ func take_damage(amount: float, source, pos: Vector3, kind: String) -> float:
     if d <= 0.0:
         return 0.0
     var killed := health.is_dead()
-    Events.damage_dealt.emit({"source": source, "target": self, "amount": d, "pos": pos, "kind": kind, "killed": killed})
+    Events.damage_dealt.emit({"source": source, "target": self, "amount": d, "pos": pos, "kind": kind, "killed": killed, "ability_id": ability_id, "crit": false})
     if source and source.has_method("on_damage_dealt"):
         source.on_damage_dealt(d)
     if killed:
-        _die(source, kind)
+        _die(source, kind, ability_id)
     return d
 
 func on_damage_dealt(d: float) -> void:
     ult.add(d)
 
-func _die(killer, kind: String) -> void:
+func _die(killer, kind: String, ability_id := "") -> void:
     if dead:
         return
     dead = true
@@ -543,7 +544,7 @@ func _die(killer, kind: String) -> void:
     slow_mult = 1.0
     slow_left = 0.0
     clear_buffs()
-    Events.killed.emit({"killer": killer, "victim": self, "kind": kind})
+    Events.killed.emit({"killer": killer, "victim": self, "kind": kind, "ability_id": ability_id})
 
 func respawn() -> void:
     dead = false

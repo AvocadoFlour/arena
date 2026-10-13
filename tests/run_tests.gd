@@ -73,6 +73,7 @@ func _run_units() -> void:
                 continue
             s.errors = []
             var e0 := tap.count
+            seed(4242)
             s.call(n)
             if tap.count > e0:
                 s.errors.append("runtime error: " + tap.last)
@@ -106,7 +107,10 @@ func _next() -> void:
     root.add_child(holder)
     _sim_t0 = Time.get_ticks_msec()
     _sim_err0 = tap.count
+    seed(4242)   # deterministic sims: global RNG, plus a driver's own seed hook (bot/hero RNGs) when it has one
     current = scr.new()
+    if "run_seed" in current and int(current.run_seed) < 0:
+        current.run_seed = 4242
     current.set_meta("label", path.get_file().get_basename())
     holder.add_child(current)
 

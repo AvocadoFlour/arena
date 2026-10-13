@@ -107,16 +107,19 @@ FOV animation (zoom/sprint) must be relative to `Settings.fov`. Audio buses `Mas
 (res://default_bus_layout.tres, core-owned); `Settings` volumes apply to them by name.
 
 ## 3. Damage & health
-- `hero.take_damage(amount, source: Hero|null, pos: Vector3, kind: String) -> float applied`.
-  `kind` ∈ `primary, slam, ultimate, fall, …`.
-- Emits `Events.damage_dealt({source, target, amount, pos, kind, killed})`, then
+- `hero.take_damage(amount, source: Hero|null, pos: Vector3, kind: String, ability_id := "") -> float applied`.
+  `kind` ∈ `primary, slam, ultimate, fall, …`; `ability_id` = the source ability's `id` (hero JSON ability id,
+  else its type), `""` for the primary weapon and falls. `hero.aoe(center, radius, dmg, kind, ability_id := "")`.
+- Emits `Events.damage_dealt({source, target, amount, pos, kind, killed, ability_id, crit})`, then
   `source.on_damage_dealt(amount)` (charges ult 1:1), then on death
-  `Events.killed({killer, victim, kind})`. Respawn after 3 s → `Events.respawned(hero)`.
+  `Events.killed({killer, victim, kind, ability_id})`. `crit: bool` is always false for now (no crits/headshots
+  planned); UI may style it. Online both payloads replicate unchanged to clients (§10). Respawn after 3 s → `Events.respawned(hero)`.
 - AoE falloff: `HitMath.aoe_damage` — 100 % at centre to 50 % at the edge.
 - `hero.damage_scale` multiplies outgoing damage (bots use 0.3).
 
 ## 4. Event bus (`Events` autoload)
-`damage_dealt(ev)`, `killed(ev)`, `respawned(hero)`, `ability_used(hero, slot, ability_id)`,
+`damage_dealt({source, target, amount, pos, kind, killed, ability_id, crit})`, `killed({killer, victim, kind, ability_id})`
+(`ability_id` "" = primary/fall; `crit` always false for now; see §3), `respawned(hero)`, `ability_used(hero, slot, ability_id)`,
 `capture_progress({zone_id, team, progress 0..1, contested, owner})` (≤ 10 Hz, immediate when `contested` flips;
 `team` = capturing team, or the owner when nobody is capturing), `capture_completed({zone_id, team, previous})`,
 `match_score({mode, scores, target})`, `match_ended({winner_team (-1 = draw), reason ("score"|"forced"), mode, scores, time})`.

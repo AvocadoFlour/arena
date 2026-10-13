@@ -450,7 +450,7 @@ func _hook_net_dump() -> void:
     var idof := func(n): return int(n.net_id) if is_instance_valid(n) and n is Hero else -1
     Events.killed.connect(func(ev):
         if _dump_open and (Net.is_client() or not Net.peers.is_empty()):
-            _dump.kills.append([idof.call(ev.killer), idof.call(ev.victim), String(ev.kind)]))
+            _dump.kills.append([idof.call(ev.killer), idof.call(ev.victim), String(ev.kind), String(ev.get("ability_id", "?"))]))
     Events.damage_dealt.connect(func(ev):
         if is_instance_valid(ev.source) and ev.source is Hero and ev.source.has_meta("peer"):
             _dump.remote_dmg += float(ev.amount))

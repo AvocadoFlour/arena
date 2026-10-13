@@ -19,5 +19,5 @@ func on_landed() -> void:
 
 func _impact() -> void:
     var r := float(def.get("radius", 5.0))
-    hero.aoe(hero.global_position, r, float(def.get("damage", 70.0)), "slam")
+    hero.aoe(hero.global_position, r, float(def.get("damage", 70.0)), "slam", id)
     Fx.ring(hero.get_parent(), hero.global_position + Vector3(0, 0.3, 0), r, Color(String(def.get("color", "#ff9919"))))
