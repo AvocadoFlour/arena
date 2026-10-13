@@ -102,6 +102,20 @@ func _finish() -> void:
     for p in get_tree().get_nodes_in_group("toon_fx"):
         colliders += p.find_children("*", "CollisionObject3D", true, false).size()
     _rec("fx_have_no_collision", colliders == 0)
+    # polish (vfx2): encore heal event -> pop + ground ring + pulse note along the ribbon
+    var tt: Hero = heroes.tt
+    var n0: int = tt.fx.spawned
+    Events.healed.emit({"source": tt, "target": heroes.tb, "amount": 20.0, "ability_id": "encore_beam"})
+    _rec("encore_heal_pop_and_pulse", tt.fx.spawned - n0 >= 3, "pieces=%d" % (tt.fx.spawned - n0))
+    # staccato cast ring is raised to at least chest height
+    tt.abilities.ability2.cooldown.remaining = 0.0
+    await get_tree().process_frame
+    var before := get_tree().get_nodes_in_group("toon_fx").size()
+    tt.abilities.ability2.cooldown.remaining = tt.abilities.ability2.cooldown.duration
+    await get_tree().process_frame
+    await get_tree().process_frame
+    var rings := get_tree().get_nodes_in_group("toon_fx").filter(func(p): return p.get_child_count() > 0 and p.get_child(0) is MeshInstance3D and p.get_child(0).mesh is TorusMesh and p.global_position.distance_to(tt.global_position) < 3.0)
+    _rec("staccato_ring_raised", rings.size() > 0 and rings.all(func(p): return p.global_position.y - tt.global_position.y >= 1.2), "rings=%d of %d new" % [rings.size(), get_tree().get_nodes_in_group("toon_fx").size() - before])
     # everything cleans up (longest: geode crystals = wall duration 5 s, no_limits flames 7 s)
     await get_tree().create_timer(7.5).timeout
     var left := get_tree().get_nodes_in_group("toon_fx").size()

@@ -4,6 +4,7 @@ extends RefCounted
 ## hero already tracks for its animations (ammo drop = shot, cooldown jump = cast + slot, dash_time, yaw/pitch,
 ## position, dead) and by replicated Events (damage_dealt / healed with ability_id). Never touches gameplay.
 ## Effects are keyed by the ability ids in the hero JSON; unknown ids simply get no extra effect.
+const ICE_SOFT := Color("#d8ecff")
 const ICE := Color("#9ecff5")
 const ICE_DK := Color("#6ba8e6")
 const WHITE := Color("#f7faff")
@@ -90,8 +91,13 @@ func _on_shot(w: Node) -> void:
             var y: float = hero.rotation.y
             var base := Transform3D(Basis(Vector3.UP, y), hero.global_position + Vector3(0, 1.15, 0))
             if hero._anim_finisher:
-                var v := base * Transform3D(Basis(Vector3.FORWARD, PI * 0.5) * Basis(Vector3.UP, PI * 0.5), Vector3.ZERO)
-                _count(ToonFx.arc(w, v, WHITE, 200, 340, 0.9, 2.1, 0.3))
+                # crisp vertical slash in front: thin tapered white crescent with a red edge and two
+                # translucent trailing bands (arc plane rolled so local X -> up, opening forward)
+                var v := base * Transform3D(Basis(Vector3.BACK, PI * 0.5), Vector3(0, -0.1, 0.55))
+                _count(ToonFx.arc(w, v, WHITE, 205, 335, 1.45, 1.85, 0.28))
+                _count(ToonFx.arc(w, v.translated_local(Vector3(0, 0.02, 0)), RED, 215, 325, 1.78, 1.92, 0.28))
+                _count(ToonFx.arc(w, v, WHITE, 215, 330, 1.2, 1.45, 0.24, 0.45))
+                _count(ToonFx.arc(w, v, ICE_SOFT, 225, 322, 0.98, 1.2, 0.2, 0.22))
                 var hit_at: Vector3 = hero.global_position + _fwd() * 1.9 + Vector3(0, 0.1, 0)
                 _timers.append({"kind": "finisher_hit", "t": 0.0, "end": 0.14, "pos": hit_at})
             else:
@@ -116,12 +122,18 @@ func _on_cast(w: Node, ab) -> void:
     var d: Dictionary = ab.def
     match String(ab.id):
         "encore_beam":
-            for i in 3:
-                _count(ToonFx.note(w, hero.beam_origin(), ICE if i != 1 else WHITE, 0.8, Vector3(randf_range(-1, 1), 1.6, randf_range(-1, 1)), 0.7))
+            _count(ToonFx.ring(w, hero.beam_origin(), 0.5, ICE, 0.3, 0.14, hero.look_dir()))
+            for i in 6:
+                _count(ToonFx.note(w, hero.beam_origin(), ICE if i % 2 == 0 else WHITE, 0.9, Vector3(randf_range(-1.2, 1.2), randf_range(1.3, 2.0), randf_range(-1.2, 1.2)), 0.85))
         "staccato_note":
+            # big ring raised to chest/wand height in front (the cast pose holds the wand low)
             var o: Vector3 = hero.beam_origin()
-            _count(ToonFx.ring(w, o, 0.45, WHITE, 0.2, 0.15, hero.look_dir()))
-            _count(ToonFx.burst(w, o, ICE, 6, 0.45, 0.2, hero.look_dir(), 0.16))
+            o = Vector3(o.x, maxf(o.y, hero.global_position.y + 1.3), o.z) + hero.look_dir() * 0.35
+            o += hero.look_dir() * 0.4
+            _count(ToonFx.ring(w, o, 0.75, WHITE, 0.28, 0.2, hero.look_dir()))
+            _count(ToonFx.ring(w, o + hero.look_dir() * 0.25, 0.5, ICE, 0.24, 0.16, hero.look_dir()))
+            _count(ToonFx.burst(w, o, ICE, 8, 0.75, 0.24, hero.look_dir(), 0.2))
+            _count(ToonFx.note(w, o + Vector3(0, 0.25, 0), WHITE, 0.5, Vector3(0, 1.4, 0), 0.8))
         "grand_finale":
             var r := float(d.get("radius", 12.0))
             _count(ToonFx.ring(w, pos + Vector3(0, 0.12, 0), r, ICE, 0.8, 0.12))
@@ -262,4 +274,12 @@ func _on_healed(ev: Dictionary) -> void:
     if _clock < float(_heal_cd.get(key, -1.0)):
         return
     _heal_cd[key] = _clock + (0.35 if aid == "encore_beam" else 0.0)
-    _count(ToonFx.plus(w, tgt.global_position + Vector3(randf_range(-0.3, 0.3), 1.6, randf_range(-0.3, 0.3)), ICE if aid == "encore_beam" else WHITE, 0.45, 0.6))
+    var tp: Vector3 = tgt.global_position
+    _count(ToonFx.plus(w, tp + Vector3(randf_range(-0.3, 0.3), 1.7, randf_range(-0.3, 0.3)), ICE if aid == "encore_beam" else WHITE, 0.7, 0.7))
+    _count(ToonFx.ring(w, tp + Vector3(0, 0.08, 0), 0.9, ICE, 0.35, 0.1))
+    if aid == "encore_beam" and hero.is_inside_tree():
+        # pulse note travelling along the ribbon to the healed ally
+        var o: Vector3 = hero.beam_origin()
+        var dst := tp + Vector3(0, 1.1, 0)
+        var life := clampf(o.distance_to(dst) / 14.0, 0.12, 0.6)
+        _count(ToonFx.note(w, o, WHITE, life, (dst - o) / life, 0.9))

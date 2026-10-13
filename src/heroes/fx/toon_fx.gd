@@ -21,6 +21,18 @@ static func _mi(mesh: Mesh, c: Color, outline := true) -> MeshInstance3D:
     mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     return mi
 
+## Flat translucent unshaded material (no outline) for partial-opacity bands.
+static func glow_mat(c: Color, alpha: float) -> StandardMaterial3D:
+    var key := "glow|%s|%s" % [c.to_html(), alpha]
+    if not _mats.has(key):
+        var m := StandardMaterial3D.new()
+        m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+        m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+        m.cull_mode = BaseMaterial3D.CULL_DISABLED
+        m.albedo_color = Color(c.r, c.g, c.b, alpha)
+        _mats[key] = m
+    return _mats[key]
+
 static func _piece(parent: Node, pos: Vector3, life: float) -> FxPiece:
     var p := FxPiece.new()
     p.life = life
@@ -63,6 +75,38 @@ static func crystal_mesh() -> Mesh:  ## hex crystal along +Y
         m.rings = 1
         _meshes["crystal"] = m
     return _meshes.crystal
+
+## Faceted hex prism crystal along +Y (unit height, unit width): straight 6-sided column + pointed tip,
+## flat-shaded facets so the toon step and outline read as cut crystal.
+static func prism_mesh() -> Mesh:
+    if not _meshes.has("prism"):
+        var st := SurfaceTool.new()
+        st.begin(Mesh.PRIMITIVE_TRIANGLES)
+        var col := 0.68
+        var ring: Array = []
+        for i in 6:
+            var a := TAU * i / 6.0 + 0.26
+            ring.append(Vector3(cos(a) * 0.5, 0, sin(a) * 0.5))
+        var tip := Vector3(0, 1.0, 0)
+        for i in 6:
+            var a0: Vector3 = ring[i]
+            var a1: Vector3 = ring[(i + 1) % 6]
+            var b0 := a0 + Vector3(0, col, 0)
+            var b1 := a1 + Vector3(0, col, 0)
+            for tri0 in [[a0, b1, b0], [a0, a1, b1], [b0, b1, tip], [Vector3.ZERO, a1, a0]]:
+                var p0: Vector3 = tri0[0]
+                var p1: Vector3 = tri0[1]
+                var p2: Vector3 = tri0[2]
+                var n: Vector3 = (p1 - p0).cross(p2 - p0).normalized()
+                var tri: Array = [p0, p2, p1]   # Godot front faces are clockwise
+                if n.dot((p0 + p1 + p2) / 3.0 - Vector3(0, 0.45, 0)) < 0.0:
+                    n = -n
+                    tri = [p0, p1, p2]
+                for v in tri:
+                    st.set_normal(n)
+                    st.add_vertex(v)
+        _meshes["prism"] = st.commit()
+    return _meshes.prism
 
 static func blob_mesh() -> Mesh:     ## low-poly puff / pebble
     if not _meshes.has("blob"):
@@ -270,12 +314,15 @@ static func crystal(parent: Node, pos: Vector3, c: Color, height := 1.0, width :
     return p
 
 ## Flat sword-arc crescent at `xf` (arc in the local XZ plane, opening toward local -Z).
-static func arc(parent: Node, xf: Transform3D, c: Color, a0 := 200.0, a1 := 340.0, r0 := 0.9, r1 := 2.0, life := 0.22) -> FxPiece:
+static func arc(parent: Node, xf: Transform3D, c: Color, a0 := 200.0, a1 := 340.0, r0 := 0.9, r1 := 2.0, life := 0.22, alpha := 1.0) -> FxPiece:
     if not ok(parent):
         return null
     var p := _piece(parent, xf.origin, life)
     p.orient = xf.basis
-    p.add_child(_mi(arc_mesh(a0, a1, r0, r1), c))
+    var mi := _mi(arc_mesh(a0, a1, r0, r1), c, alpha >= 1.0)
+    if alpha < 1.0:
+        mi.material_override = glow_mat(c, alpha)
+    p.add_child(mi)
     p.scale_from = Vector3.ONE * 0.85
     p.scale_to = Vector3.ONE
     p.grow = 0.3

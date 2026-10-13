@@ -20,35 +20,38 @@ static func note(color: Color) -> Node3D:
     n.add_child(g)
     return n
 
-## Geode crystal wall: a staggered row of outlined toon crystals filling the box (`size`, centred), plus a
-## faint translucent plate so the collision extent stays readable.
+## Geode crystal wall: faceted hex prisms filling the box (`size`, centred): a row of tall base columns,
+## then a denser band of smaller tilted crystals along the top edge, plus a faint translucent plate so the
+## collision extent stays readable. Layout comes from a fixed-seed RNG (same on every peer).
 static func crystal_wall(size: Vector3, color: Color) -> Node3D:
     var root := Node3D.new()
     root.name = "CrystalWall"
-    var n := maxi(3, int(ceil(size.x / 0.55)))
-    for row in 2:
+    var rng := RandomNumberGenerator.new()
+    rng.seed = 7331 + int(size.x * 100.0) * 31 + int(size.y * 100.0)
+    var light := color.lightened(0.35)
+    var cols: Array = [color, color, light, AMBER]
+    # tiers: [count per metre, height frac lo, hi, width (m) lo, hi, base y frac lo, hi, max tilt]
+    var tiers := [[1.8, 0.62, 0.9, 0.42, 0.6, 0.0, 0.05, 0.12],
+                  [2.6, 0.32, 0.5, 0.26, 0.4, 0.38, 0.55, 0.35],
+                  [3.6, 0.2, 0.3, 0.16, 0.26, 0.66, 0.8, 0.55]]
+    for ti in tiers.size():
+        var t: Array = tiers[ti]
+        var n := maxi(3, int(round(size.x * float(t[0]))))
         for i in n:
-            var u := (float(i) + 0.5 * row) / float(n) - 0.5 + 0.5 / float(n) * (1 - row)
-            if u > 0.5:
-                continue
-            var h := size.y * (0.75 + 0.25 * absf(sin(float(i) * 2.3 + row)))
-            if row == 1:
-                h *= 0.7
-            var w := size.x / float(n) * (1.25 if row == 0 else 1.0)
-            var mi := ToonFx._mi(ToonFx.crystal_mesh(), AMBER if (i + row) % 4 == 1 else color)
-            mi.scale = Vector3(w, h, maxf(w * 0.7, size.z * 1.4))
-            mi.position = Vector3(u * size.x, -size.y * 0.5 + h * 0.5, (row - 0.5) * size.z * 0.6)
-            mi.rotation.z = sin(float(i) * 1.7 + row) * 0.12
+            var u := (float(i) + 0.5 + rng.randf_range(-0.3, 0.3)) / float(n) - 0.5
+            var h := size.y * rng.randf_range(t[1], t[2])
+            var w := rng.randf_range(t[3], t[4])
+            var mi := ToonFx._mi(ToonFx.prism_mesh(), cols[rng.randi() % cols.size()])
+            mi.scale = Vector3(w, h, w)
+            mi.position = Vector3(u * (size.x - w * 0.6), -size.y * 0.5 + size.y * rng.randf_range(t[5], t[6]), rng.randf_range(-0.4, 0.4) * size.z)
+            var tilt: float = t[7]
+            mi.rotation = Vector3(rng.randf_range(-0.15, 0.15), rng.randf_range(0.0, TAU), rng.randf_range(-tilt, tilt) - u * 0.35 * (ti / 2.0))
             root.add_child(mi)
     var plate := MeshInstance3D.new()
     var bm := BoxMesh.new()
     bm.size = size
     plate.mesh = bm
-    var m := StandardMaterial3D.new()
-    m.albedo_color = Color(color.r, color.g, color.b, 0.16)
-    m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-    m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-    plate.material_override = m
+    plate.material_override = ToonFx.glow_mat(color, 0.14)
     plate.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     root.add_child(plate)
     return root

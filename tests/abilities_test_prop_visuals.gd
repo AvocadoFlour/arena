@@ -23,8 +23,11 @@ func test_remote_wall_is_crystals_with_same_collision() -> void:
     check(n is StaticBody3D, "wall stays solid")
     var shapes := n.find_children("*", "CollisionShape3D", true, false)
     check(shapes.size() == 1 and (shapes[0].shape as BoxShape3D).size == size, "collision box unchanged")
-    var crystals := n.find_children("*", "MeshInstance3D", true, false).filter(func(m): return m.mesh is CylinderMesh)
-    check(crystals.size() >= 8, "crystals=%d" % crystals.size())
+    var crystals := n.find_children("*", "MeshInstance3D", true, false).filter(func(m): return m.mesh == ToonFx.prism_mesh())
+    var top := crystals.filter(func(m): return m.position.y + m.scale.y * 0.5 > 0.0).size()
+    var bottom := crystals.size() - top
+    check(top > bottom, "denser at the top: top=%d bottom=%d" % [top, bottom])
+    check(crystals.size() >= 20, "crystals=%d" % crystals.size())
     var opaque_box := n.find_children("*", "MeshInstance3D", true, false).filter(func(m): return m.mesh is BoxMesh and (m.material_override == null or m.material_override.albedo_color.a > 0.3))
     check(opaque_box.is_empty(), "plain box hidden/faint")
     var a := Net.make_prop("wall", size, Color("#b080ff"), VIS)
