@@ -167,3 +167,71 @@ func test_tails_sway_over_time() -> void:
     h._process(0.5)
     check(tail.rotation != r1, "tail sways while idle")
     h.free()
+
+func _weapon_node(h: Hero) -> Node3D:
+    for a in h._anim_parts:
+        if a[1] == "weapon":
+            return a[0]
+    return null
+
+## Puppet = what a client sees: only snapshot fields are written (as Net._apply_state does), no physics.
+func _puppet(id: String) -> Hero:
+    var h := Hero.from_def("res://src/heroes/%s.json" % id)
+    h.net_role = "puppet"
+    h._process(1.0 / 60.0)   # first frame records the baseline
+    return h
+
+func test_puppet_sword_swing_from_replicated_ammo() -> void:
+    var h := _puppet("the_best")
+    var w := _weapon_node(h)
+    var rest := w.rotation
+    h.weapon.ammo -= 1                # snapshot: one swing happened
+    h._process(0.1)
+    check(w.rotation.x < rest.x - 0.5, "sword swings on puppet (rx %.2f vs %.2f)" % [w.rotation.x, rest.x])
+    var side1 := signf(w.rotation.y - rest.y)
+    for i in 60:
+        h._process(1.0 / 60.0)
+    check(w.rotation.distance_to(rest) < 0.05, "swing settles back to rest")
+    h.weapon.ammo -= 1                # next swing alternates side
+    h._process(0.1)
+    check(signf(w.rotation.y - rest.y) == -side1 and side1 != 0.0, "combo alternates swing side")
+    check(h.combo_step == 0 and h.weapon._shot_cd == 0.0, "no local-only state used/changed")
+    h.free()
+
+func test_puppet_gun_recoil_and_reload_from_replicated() -> void:
+    for id in ["twin_tails", "cob"]:
+        var h := _puppet(id)
+        var w := _weapon_node(h)
+        var rest := w.rotation.x
+        h.weapon.ammo -= 1
+        h._process(0.02)
+        check(w.rotation.x > rest + 0.1, id + ": recoil on puppet")
+        for i in 60:
+            h._process(1.0 / 60.0)
+        near(w.rotation.x, rest, 0.01, id + ": recoil settles")
+        h.weapon._reload_left = 0.01   # as Net._apply_state sets the replicated `reloading` flag
+        h._process(0.02)
+        check(w.rotation.x > rest + 0.2, id + ": weapon dips while reloading")
+        h.weapon._reload_left = 0.0
+        h.free()
+
+func test_puppet_reload_refill_is_not_a_shot() -> void:
+    var h := _puppet("twin_tails")
+    h.weapon.ammo = 0
+    h._process(0.5)
+    for i in 60:
+        h._process(1.0 / 60.0)
+    var shots := h._anim_shots
+    h.weapon.ammo = h.weapon.mag_size   # refill
+    h._process(0.02)
+    check(h._anim_shots == shots and h._anim_atk == 0.0, "ammo increase does not animate")
+    h.free()
+
+func test_puppet_ability_cast_from_replicated_cooldown() -> void:
+    var h := _puppet("cob")
+    h._process(0.02)
+    check(h._anim_cast == 0.0, "idle")
+    h.abilities["ability2"].cooldown.remaining = 12.0   # snapshot: wall just used
+    h._process(0.02)
+    check(h._anim_cast > 0.5, "cast flourish from cooldown jump")
+    h.free()

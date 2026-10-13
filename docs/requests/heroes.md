@@ -1,5 +1,16 @@
 # Requests from heroes
 
+## Round 4 (open, optional; nothing blocks heroes)
+Attack visuals are now driven only by replicated snapshot fields: a drop in `weapon.ammo` = shot or swing
+(melee also spends 1 of 999 per swing). That drives sword swing, gun recoil, and the side alternation
+(from shot-count parity). `reloading` drives the weapon dip, and a jump in ability `cds` drives the cast
+flourish. Not replicated, so not used for visuals:
+1. **`combo_step`** (melee): needed for a distinct finisher (3rd-hit) animation on remote heroes. Suggest adding
+   `combo_step` (int) to the hero snapshot (`net.gd` `_hero_state` / `_apply_state`, field 16).
+2. **`dash_time`**: the dash/leap lean uses it. Remote heroes still lean from interpolated velocity, so this is low priority.
+3. Note: if a hero ever fires > 1 shot per snapshot (20 Hz), it shows as one swing/kick (the side parity
+   stays correct). Fine for all current heroes (max 7 shots/s).
+
 ## Round 3 (open)
 1. **Smoke flake (core, main.gd / build.sh):** smoke requires `kills > 0` within 35 s. On arena02 this randomly
    fails with 0 kills, for cob and twin_tails. It reproduces on unmodified master (1 of 3 runs of

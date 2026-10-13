@@ -44,6 +44,13 @@ var _muzzle: Node3D
 var _vis: Node3D                     ## visual root (animated); never affects collision/gameplay
 var _anim_parts: Array = []          ## [node, kind, base_rotation, phase]
 var _anim_t := 0.0
+## Attack-visual state, derived ONLY from replicated fields (weapon.ammo, weapon.reloading(), ability
+## cooldown.remaining) so puppets on clients animate exactly like the host's sim. Client-side only.
+var _anim_ammo := -1                 ## last seen ammo; a drop = shot/swing fired
+var _anim_atk := 0.0                 ## 1 right after a shot/swing -> 0
+var _anim_shots := 0                 ## shots seen (parity alternates the sword swing side)
+var _anim_cds: Dictionary = {}       ## slot -> last seen cooldown.remaining
+var _anim_cast := 0.0                ## 1 right after an ability/ult was used -> 0
 var _team_mats: Array = []
 
 static func from_def(path: String) -> Hero:
@@ -160,11 +167,11 @@ func _process(dt: float) -> void:
     _vis.rotation.x = lerpf(_vis.rotation.x, lean_x, minf(1.0, dt * 10.0))
     _vis.rotation.z = lerpf(_vis.rotation.z, lean_z, minf(1.0, dt * 10.0))
     # attack: 1 right after a shot/swing -> 0 when the next is allowed
-    var atk := 0.0
-    if weapon and weapon.fire_interval > 0.0:
-        atk = clampf(weapon._shot_cd / weapon.fire_interval, 0.0, 1.0)
+    _track_attack_state(dt)
+    var atk := _anim_atk
     var melee := String(def.get("primary", {}).get("type", "hitscan")) == "melee"
-    var combo_side := 1.0 if combo_step % 2 == 0 else -1.0
+    var combo_side := 1.0 if _anim_shots % 2 == 1 else -1.0
+    var reload_droop := 0.35 if weapon and weapon.reloading() and not melee else 0.0
     for a in _anim_parts:
         var n: Node3D = a[0]
         var base: Vector3 = a[2]
@@ -178,10 +185,10 @@ func _process(dt: float) -> void:
             "weapon":
                 if melee:
                     var sw := sin(atk * PI)   # 0 -> 1 -> 0 over the swing
-                    r.x = base.x - sw * 1.4 + (atk - 0.5) * 0.4
+                    r.x = base.x - sw * 1.4 + (atk - 0.5) * 0.4 * sw
                     r.y = base.y + sw * 0.9 * combo_side
                 else:
-                    r.x = base.x + atk * 0.18   # recoil kick
+                    r.x = base.x + atk * 0.18 + reload_droop   # recoil kick; dips while reloading
             "leg_l":
                 r.x = base.x + sin(stride) * 0.6 * minf(run, 1.0) + air * 0.4
             "leg_r":
@@ -189,11 +196,28 @@ func _process(dt: float) -> void:
             "arm_l":
                 r.x = base.x - sin(stride) * 0.4 * minf(run, 1.0) + sin(_anim_t * 2.2) * 0.04
             "arm_r":
-                r.x = base.x + sin(stride) * 0.4 * minf(run, 1.0) + sin(_anim_t * 2.2 + 1.0) * 0.04
+                r.x = base.x + sin(stride) * 0.4 * minf(run, 1.0) + sin(_anim_t * 2.2 + 1.0) * 0.04 - sin(_anim_cast * PI) * 1.2
             "head":
                 r.x = base.x + sin(_anim_t * 2.2 + 0.5) * 0.04 + fwd * 0.08
                 r.y = base.y + sin(_anim_t * 0.7) * 0.06
         n.rotation = r
+
+## Detects shots and ability casts from replicated state changes (works for auth, predicted and puppet).
+func _track_attack_state(dt: float) -> void:
+    if weapon:
+        var a := weapon.ammo
+        if _anim_ammo >= 0 and a < _anim_ammo:
+            _anim_shots += _anim_ammo - a
+            _anim_atk = 1.0
+        _anim_ammo = a
+        var dur := maxf(minf(weapon.fire_interval, 0.5), 0.1)
+        _anim_atk = maxf(0.0, _anim_atk - dt / dur)
+    for slot in abilities:
+        var rem: float = abilities[slot].cooldown.remaining
+        if _anim_cds.has(slot) and rem > float(_anim_cds[slot]) + 0.05:
+            _anim_cast = 1.0
+        _anim_cds[slot] = rem
+    _anim_cast = maxf(0.0, _anim_cast - dt / 0.35)
 
 func set_team(t: int) -> void:
     team = t
