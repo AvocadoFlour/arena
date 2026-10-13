@@ -45,3 +45,12 @@ Test discovery, INTERFACES §5 params, GameConfig difficulty -> BotBrain.
    for `TARGET_MEMORY` (2 s) instead of wandering or switching to a farther enemy.
    No interface change (still `poll(hero) -> InputFrame`). tests/ai_melee_driver.gd threshold back to 8.0 m
    (closest gap to the engaged target); bench: `godot --headless --path . -s tests/ai_standoff_run.gd -- --n=30`.
+
+## Round 5
+1. **Smoke stats (src/main.gd, lead)**: `bot_dmg` counts only damage *to the player*. On arena02 (Control,
+   3v3) the two ally bots stand in front and soak enemy fire (enemies target the nearest visible hero), and the
+   Twin Tails autopilot holds its 10 m stand-off, so `bot_dmg` is naturally low (14-245 over 8 seeds with
+   allies; 165-316 with `--allies=0`). Not an AI bug. Suggest adding `team0_dmg_taken` (damage to any team-0
+   hero) and `ally_heal` to STATS so team-mode runs show enemy pressure and support activity.
+2. **Smoke `forced` ability1 for twin_tails/arena02 (lead, FYI)**: the heal beam is situational (an ally < 80 %
+   or self < 70 %); in seeds where nobody is hurt by 0.6 × smoke time, the force is expected.

@@ -38,8 +38,9 @@ func _ready() -> void:
     ranged.input_source = BotBrain.new({"difficulty": "hard", "use_abilities": false, "seek_cover": false, "escort_allies": false, "sight": 15.0})
     dummy2 = _hero("res://src/heroes/cob.json", 1, Vector3(4, 0.2, 0))   # open lane z=0, x 4..17 (no blocks)
     if run_seed >= 0:
-        for h in [melee, dummy, ranged, dummy2]:
-            h._rng.seed = hash([run_seed, h.get_instance_id() % 7])
+        var heroes := [melee, dummy, ranged, dummy2]
+        for k in heroes.size():   # fixed per-slot seeds (no instance ids): fully deterministic
+            heroes[k]._rng.seed = hash([run_seed, k])
         mb._rng.seed = hash([run_seed, "m"])
         ranged.input_source._rng.seed = hash([run_seed, "r"])
     Events.damage_dealt.connect(_on_dmg)
