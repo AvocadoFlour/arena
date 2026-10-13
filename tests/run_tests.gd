@@ -4,6 +4,25 @@ extends SceneTree
 ##   unit suites:  tests/test_*.gd and tests/<owner>_*test*.gd (not *run*)  -> methods test_*
 ##   integration:  tests/physics_driver.gd, tests/<owner>_*_sim.gd, tests/<owner>_*_driver.gd -> Node with `done`, `results`
 ## Integration scenes run one at a time, each in its own SubViewport world.
+## Runtime script/engine errors are captured with a Logger (GDScript has no try/catch: an erroring call just
+## returns early). Any error logged while a unit test or a sim runs fails that test.
+class ErrorTap extends Logger:
+    var count := 0
+    var last := ""
+    var _m := Mutex.new()
+    func _log_error(function: String, file: String, line: int, code: String, rationale: String,
+            _editor_notify: bool, error_type: int, _script_backtrace: Array[ScriptBacktrace]) -> void:
+        if error_type == Logger.ERROR_TYPE_WARNING:
+            return
+        _m.lock()
+        count += 1
+        last = "%s (%s:%d %s)" % [rationale if rationale != "" else code, file.get_file(), line, function]
+        _m.unlock()
+    func _log_message(_message: String, _error: bool) -> void:
+        pass
+
+var tap := ErrorTap.new()
+var _sim_err0 := 0
 var passed := 0
 var failed := 0
 var sims: Array = []
@@ -16,8 +35,8 @@ func _discover() -> Dictionary:
     for f in DirAccess.get_files_at("res://tests"):
         if not f.ends_with(".gd") or f == "test_base.gd":
             continue
-        if f.contains("run"):
-            continue   # per-branch runners (heroes_run.gd, ai_run_tests.gd, ...) are not suites
+        if f.ends_with("_run.gd") or f == "run_tests.gd":
+            continue   # per-branch runners (heroes_run.gd, maps_run.gd, ...) are not suites
         if f.begins_with("test_") or f.contains("_test"):
             units.append("res://tests/" + f)
         elif f.ends_with("_sim.gd") or (f.ends_with("_driver.gd") and f != "physics_driver.gd"):
@@ -30,7 +49,7 @@ const SIM_TIMEOUT_MS := 120000
 var _sim_t0 := 0
 
 func _initialize() -> void:
-    pass
+    OS.add_logger(tap)
 
 ## Suites run on the first frame so autoloads (Actions, Settings, GameConfig, InputMap) are ready.
 func _run_units() -> void:
@@ -42,6 +61,9 @@ func _run_units() -> void:
             failed += 1
             print("  FAIL  %s  (script failed to load/parse)" % path.get_file())
             continue
+        if scr.get_instance_base_type() == "SceneTree":
+            print("  skip  %s  (SceneTree runner, not a suite)" % path.get_file())
+            continue
         var s = scr.new()
         if "tree" in s:
             s.tree = self
@@ -50,7 +72,10 @@ func _run_units() -> void:
             if not n.begins_with("test_"):
                 continue
             s.errors = []
+            var e0 := tap.count
             s.call(n)
+            if tap.count > e0:
+                s.errors.append("runtime error: " + tap.last)
             if s.errors.is_empty():
                 passed += 1
                 print("  ok    %s::%s" % [path.get_file(), n])
@@ -80,6 +105,7 @@ func _next() -> void:
     holder.size = Vector2i(2, 2)
     root.add_child(holder)
     _sim_t0 = Time.get_ticks_msec()
+    _sim_err0 = tap.count
     current = scr.new()
     current.set_meta("label", path.get_file().get_basename())
     holder.add_child(current)
@@ -100,6 +126,9 @@ func _process(_dt: float) -> bool:
             else:
                 failed += 1
             print("  %s  %s::%s  %s" % ["ok  " if r[1] else "FAIL", current.get_meta("label"), r[0], r[2]])
+        if tap.count > _sim_err0:
+            failed += 1
+            print("  FAIL  %s::runtime_errors  %d error(s), last: %s" % [current.get_meta("label"), tap.count - _sim_err0, tap.last])
         _next()
     if current == null:
         print("RESULT: %d passed, %d failed" % [passed, failed])
