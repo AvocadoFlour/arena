@@ -90,3 +90,42 @@ Round 5 requests 1–2 done by core (ability_id, crit). UI now uses them.
 ## Miku queue 3 (hero preview)
 - core/heroes: please document in INTERFACES a supported way for UI to build a hero's display model (currently UI calls `HeroModel.create(model_scene)` read-only, with a raw-GLB fallback and a mirror of hero.gd's §2 primitive build). If this is not meant to be public, tell UI which builder to use.
 - ai: `ai_teamplay_driver::team_groups_up` fails deterministically on clean master 88f6d8d (6.6 m vs 5.9 m baseline), with or without UI changes; this blocks ./build.sh.
+
+## In-match controls hook spec (Esc overlay "Match" page; adapter src/ui/match_control.gd)
+UI calls these on the composition root (main.gd, the PauseMenu's parent) only if `has_method` / `has_signal`
+says they exist. Until then the page shows "Not available yet". No UI changes are needed when core adds them.
+Owner: core (main.gd + Net). Swap delay owner: **core**, `const HERO_SWAP_DELAY := 3.0` in main.gd
+(host/offline runs the timer, UI only displays the `delay` it is given).
+
+Query (every side, local data):
+- `func match_bot_counts() -> Dictionary`: `{0: int, 1: int}` current bot count per team (clients: last value from host).
+- `func local_team() -> int`: local player's team (0/1).
+- `func local_net_id() -> int`: local player's hero net_id (offline: player's id, e.g. Net.register id). Used to filter swap signals.
+
+Commands:
+- `func set_bot_count(team: int, n: int) -> bool`: **offline/host only** (clients return false, no RPC). Validate team in {0,1}; clamp n to 0..5.
+  Spawns (`_spawn_bot` at the team's next spawn slot, roster as in _start_match) or despawns (`Net.despawn`, newest first) bots live.
+  Online the host's spawn/despawn replicate through the existing broadcast_spawn / hero_despawned path. Emits `bot_counts_changed`.
+  Host also sends `@rpc("authority", "call_remote", "reliable") _bot_counts(counts: Dictionary)` (host -> all clients) so clients update `match_bot_counts()` and emit the signal.
+- `func request_hero_change(hero_id: String) -> bool`: offline/host: validate and start the swap locally. Client: `Net` sends
+  `@rpc("any_peer", "call_remote", "reliable") _rq_hero(hero_id: String)` (client -> host, rpc_id 1); returns true once sent.
+  Host validation: sender = `multiplayer.get_remote_sender_id()` owns a hero; `hero_id in GameConfig.hero_ids()`; differs from current hero;
+  no swap already pending for that hero; match not ended. On reject: `hero_swap_cancelled(net_id, reason)` sent back to that client
+  (`_swap_cancelled(net_id, reason)`, host -> client rpc_id). On accept: host starts the HERO_SWAP_DELAY timer, broadcasts
+  `@rpc("authority", "call_local", "reliable") _swap_started(net_id: int, hero_id: String, delay: float)` -> emits `hero_swap_started`
+  on every peer. When the timer ends the host despawns the old hero and spawns the new one (same net owner, team, stats/score kept) at the
+  team spawn (`SpawnPicker.pick_for`) with full HP, then `_swap_finished(net_id, hero_id)` -> `hero_swap_finished`. Dying during the
+  delay keeps the swap pending (the respawn uses the new hero). Offline: GameConfig.set_hero(hero_id) is also called so "Play again" keeps it.
+- `func request_team_change(team: int) -> bool`: same transport: `_rq_team(team: int)` client -> host. Host validates team in {0,1},
+  differs from the current team, and humans on the target team <= humans on the other team (no stacking). On accept: move one bot from
+  the target team to the old team (keeps counts), respawn the requester on the new team after HERO_SWAP_DELAY (same signals as the hero swap,
+  with the current hero_id), then emit `team_changed(net_id, team)` on all peers (`_team_changed` host -> all, call_local).
+  Rejects use `hero_swap_cancelled(net_id, reason)`.
+
+Signals on main.gd (UI connects these):
+- `signal hero_swap_started(net_id: int, hero_id: String, delay: float)`
+- `signal hero_swap_finished(net_id: int, hero_id: String)`
+- `signal hero_swap_cancelled(net_id: int, reason: String)`: short reason shown to the player (e.g. "match ended")
+- `signal bot_counts_changed(counts: Dictionary)`
+- `signal team_changed(net_id: int, team: int)`
+Docs: please add these to INTERFACES (§8/§10) when implemented.

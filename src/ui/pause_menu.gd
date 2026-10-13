@@ -11,6 +11,9 @@ signal resumed
 var panel: PanelContainer
 var options: MainMenu
 var paused_tree := false   ## whether *we* paused the tree (offline only)
+var match_page: MatchPage
+var match_ctl: MatchControl
+var swap_layer: CanvasLayer  ## holds match_page.countdown; own layer so it stays up after the overlay closes
 var _match_end_hook = null ## fallback leave route: the HUD match-end screen's documented main_menu signal
 
 func _ready() -> void:
@@ -39,16 +42,44 @@ func _ready() -> void:
     note.name = "OnlineNote"
     note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     v.add_child(note)
-    for item in [["Resume", close], ["Settings", open_settings], ["Leave match", leave]]:
+    for item in [["Resume", close], ["Match", open_match], ["Settings", open_settings], ["Leave match", leave]]:
         var b := MenuStyle.button(item[0], item[1])
         b.name = item[0].replace(" ", "")
         b.custom_minimum_size = Vector2(360, 72)
         v.add_child(b)
+    match_page = MatchPage.new()
+    match_page.visible = false
+    center.add_child(match_page)
+    match_page.back.connect(close_match)
+    swap_layer = CanvasLayer.new()
+    swap_layer.name = "SwapLayer"
+    swap_layer.layer = 9
+    swap_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+    swap_layer.add_child(match_page.countdown)
+    add_child(swap_layer)   # CanvasLayer visibility doesn't propagate to child layers: stays up when we hide
+    set_control(MatchControl.new(get_parent()))
     options = MainMenu.new()
     options.options_only = true
     options.options_closed.connect(_on_options_closed)
     add_child(options)
     visible = false
+
+## Swap the Match page's adapter (tests pass mocks; default = parent composition root + Net).
+func set_control(c: MatchControl) -> void:
+    match_ctl = c
+    match_page.setup(c)
+
+func open_match() -> void:
+    panel.visible = false
+    match_page.visible = true
+    match_page.refresh()
+
+func close_match() -> void:
+    match_page.visible = false
+    panel.visible = true
+
+func match_open() -> bool:
+    return match_page != null and match_page.visible
 
 static func online() -> bool:
     return Net.is_online()
@@ -68,6 +99,8 @@ func open() -> void:
 func close() -> void:
     if options and options.visible:
         options.visible = false
+    if match_page:
+        match_page.visible = false
     visible = false
     if paused_tree:
         get_tree().paused = false
@@ -91,6 +124,9 @@ func settings_open() -> bool:
 func handle_escape() -> bool:
     if not visible:
         return false
+    if match_open():
+        close_match()
+        return true
     if settings_open():
         if options.current == "settings":
             options.show_screen("main")    # -> options_closed -> back to the pause panel
