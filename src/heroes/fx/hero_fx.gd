@@ -149,15 +149,7 @@ func _on_cast(w: Node, ab) -> void:
         "geode_wall":
             var f := _fwd()
             var c: Vector3 = pos + f * float(d.get("distance", 1.8))
-            var side := f.cross(Vector3.UP).normalized()
-            var width := float(d.get("width", 4.5))
-            var life := float(d.get("duration", 5.0))
-            var geode := Color(String(d.get("color", "#b080ff")))
-            var n := 9
-            for i in n:
-                var u := (float(i) / (n - 1) - 0.5) * width
-                var tilt := Vector3(randf_range(-0.25, 0.25), 0, randf_range(-0.25, 0.25))
-                _count(ToonFx.crystal(w, c + side * u + Vector3(0, -0.05, 0), AMBER if i % 3 == 1 else geode, randf_range(0.7, 1.3), randf_range(0.35, 0.55), life, tilt))
+            # the crystals themselves are the wall's prop visual (prop_visuals.gd); here only the burst
             _count(ToonFx.chunks(w, c, STONE, 8, 0.22, 3.5, 4.0, 0.6))
         "quarry_quake":
             _timers.append({"kind": "quake", "t": 0.0, "end": 2.0, "y0": pos.y, "low": pos.y, "r": float(d.get("radius", 9.0))})

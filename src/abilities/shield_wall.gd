@@ -27,7 +27,13 @@ func _do() -> bool:
     m.albedo_color = Color(c.r, c.g, c.b, 0.45)
     m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
     mi.material_override = m
-    wall.add_child(mi)
+    var vis_path := String(def.get("visual", ""))
+    var vis: Node3D = load(vis_path).build_prop("wall", size, c) if vis_path != "" and ResourceLoader.exists(vis_path) else null
+    if vis:
+        mi.free()
+        wall.add_child(vis)   # same toon visual as remote clients (visual only; collision box unchanged)
+    else:
+        wall.add_child(mi)
     wall.add_to_group("net_props")
     wall.set_meta("net_kind", "wall")
     wall.set_meta("net_size", size)
