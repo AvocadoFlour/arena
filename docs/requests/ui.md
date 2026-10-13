@@ -58,3 +58,8 @@ Round 5 requests 1–2 done by core (ability_id, crit). UI now uses them.
    edge-detects from `ability.cooldown.is_ready()` and `hero.ult.is_full()` in the HUD each frame, which works
    but would also fire on respawn cooldown resets.
 2. No assets added: all SFX are synthesised in `src/ui/ui_sfx.gd`; no licence entries needed.
+
+## Queue 2 (scoreboard / match-end summary)
+1. **Healing event** (INTERFACES §3/§4): `Events.healed({source: Hero|null, target: Hero, amount: float, ability_id})`,
+   emitted from `hero.heal()` with the amount actually restored (and optionally overheal granted). The healing
+   column shows "-" and "Top healing" is hidden until this exists; UI picks it up automatically (`has_signal`).
