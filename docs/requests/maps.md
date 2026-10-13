@@ -44,3 +44,11 @@ run_tests discovery, INTERFACES §6 optional keys, SpawnPicker respawn hook — 
    `shadow_mode` (default PSSM 2 splits) and `shadow_distance` (default 60).
 3. Suggestion: in low quality also disable sun shadows (measured: shadows are ~40 % of frame time under
    software GL). Not done since the task scope was props + fog.
+
+## Round 5 — runner hardening
+1. **tests/run_tests.gd gap**: a unit test that raises a runtime script error (e.g. invalid key access) just
+   returns early with no `check()` errors and is reported `ok`; build.sh does not grep tests.log for
+   `SCRIPT ERROR`. tests/maps_run.gd now catches this with a `Logger` (`OS.add_logger`, counts non-warning
+   errors per test). Suggest the same in run_tests.gd (or grep tests.log for SCRIPT ERROR in build.sh).
+2. Discovery quirk: run_tests.gd skips any file whose name contains "run" — e.g. `*_runtime_test.gd` would be
+   silently ignored. Suggest matching `_run.gd` / `_run_tests.gd` suffixes instead.
