@@ -19,3 +19,11 @@ Round 3: ammo counter hidden for melee / no-ammo primaries (`Hud.shows_ammo`); h
 role labels (`UiCatalog.role_label`); Settings adds FOV (applied to the current Camera3D) and
 Master/Music/SFX volumes (applied only to existing buses); MainMenu network hook
 (`network_slot`, `add_menu_entry()`, `add_screen()`). Tests: `tests/ui_round3_test.gd`.
+
+Round 4: audio sliders drive the Master/Music/SFX buses (default_bus_layout.tres).
+**Low quality** (for Maps/FX): read `Settings.low_quality` (bool, persisted in user://settings.cfg
+`[video] low_quality`), and connect `Settings.low_quality_changed(on: bool)` to react live. Emitted only
+when the value changes (also once at startup if the saved value is true). Set via
+`Settings.set_low_quality(on)` (UI toggle on the Settings page). `MenuStyle.polish(screen)` is applied by
+`MainMenu.add_screen` to screens built elsewhere (core NetPanel): visual only (touch sizes, button/edit
+styles, column width/spacing); never changes text, signals or logic.

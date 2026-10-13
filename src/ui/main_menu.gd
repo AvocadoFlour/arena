@@ -54,7 +54,7 @@ func _name_of(list: Array, path: String) -> String:
             return e.name
     return "-"
 
-func _centered_column() -> Array:
+func _centered_column(scroll := false) -> Array:
     var root := Control.new()
     root.set_anchors_preset(Control.PRESET_FULL_RECT)
     var m := MenuStyle.margin()
@@ -62,7 +62,15 @@ func _centered_column() -> Array:
     var v := VBoxContainer.new()
     v.alignment = BoxContainer.ALIGNMENT_CENTER
     v.add_theme_constant_override("separation", 14)
-    m.add_child(v)
+    if scroll:   # long pages scroll instead of overflowing on 720p / phone screens
+        var sc := ScrollContainer.new()
+        sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+        v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        v.size_flags_vertical = Control.SIZE_EXPAND_FILL
+        sc.add_child(v)
+        m.add_child(sc)
+    else:
+        m.add_child(v)
     return [root, v]
 
 ## Network hook (core fills this; UI builds no Host/Join flow). Empty and hidden until used.
@@ -81,7 +89,8 @@ func add_menu_entry(text: String, cb: Callable) -> Button:
 func add_screen(n: String, c: Control) -> void:
     c.set_anchors_preset(Control.PRESET_FULL_RECT)
     screens[n] = c
-    $Background.add_child(c)
+    $Background.add_child(c)   # runs c._ready(), so polish sees the built widgets
+    MenuStyle.polish(c)
     c.visible = current == n
 
 func _main_screen() -> Control:
@@ -139,7 +148,7 @@ func select(kind: String, path: String) -> void:
     _refresh_info()
 
 func _settings_screen() -> Control:
-    var rv := _centered_column()
+    var rv := _centered_column(true)
     var v: VBoxContainer = rv[1]
     v.add_child(MenuStyle.title("Settings"))
     var mode := OptionButton.new()
@@ -169,6 +178,10 @@ func _settings_screen() -> Control:
     fov.value = Settings.fov
     fov.value_changed.connect(func(x): Settings.fov = x; _changed())
     v.add_child(_row("Field of view", fov))
+    var lq := MenuStyle.toggle("Low quality (faster on weak GPUs / phones)", Settings.low_quality,
+        func(on): Settings.set_low_quality(on); Settings.save())
+    lq.name = "LowQualityToggle"
+    v.add_child(lq)
     v.add_child(MenuStyle.button("Audio", func(): show_screen("audio")))
     v.add_child(MenuStyle.button("Controls / key bindings", func(): show_screen("keybinds")))
     v.add_child(MenuStyle.button("Back", func(): show_screen("main")))
