@@ -94,3 +94,15 @@ Test discovery, INTERFACES §5 params, GameConfig difficulty -> BotBrain.
    Input/ability interface unchanged.
 2. **Maps (FYI, Arena Maps)**: if destructible cover is ever added, keep it a StaticBody3D with meta
    `kind = "cover"` and free the node when destroyed; bots then re-pick automatically.
+
+## Round 7 (team play)
+No core hooks needed: Control zones come from the map root's `zones` meta (§6) and ownership from
+`Events.capture_progress` / `capture_completed` (§4), which `BotTeam` listens to (host only, like all bots).
+1. **INTERFACES §5 (lead, doc only)**: new `src/ai/bot_team.gd` (`BotTeam`): per world+team board of enemies
+   seen by teammates (0.5 s), shared focus = lowest HP fraction (`BotTeam.focus`), zone owners from the bus.
+   BotBrain param `team_play` (true): bots switch to the team focus when they see it and it is at most 8 m
+   (melee 3 m) farther than their own nearest target; idle bots regroup at a rally point (tank -> zone centre;
+   others -> the tank, else zone, else team centre); ranged bots drift back toward the rally point beyond 8 m
+   while fighting; a `role: "tank"` hero holds the first zone its team doesn't own (fights from inside it and
+   skips opportunistic cover there; low-HP cover still applies). FFA (no zones): focus + grouping only.
+2. **Heroes (FYI)**: the tank behaviour keys off `role == "tank"`; keep that role on tank heroes.
