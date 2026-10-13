@@ -6,9 +6,9 @@ extends RefCounted
 ## spawner from spread_deg) plus difficulty-dependent aim jitter and reaction delay.
 
 const DIFFICULTY := {
-    "easy":   {"spread_deg": 10.0, "turn_rate": 2.5, "fire_cone": 0.20, "reaction_time": 0.60, "aim_jitter": 0.12, "ability_delay": 1.2, "low_hp_frac": 0.20, "cover_time": 2.0},
-    "normal": {"spread_deg": 6.0,  "turn_rate": 4.0, "fire_cone": 0.15, "reaction_time": 0.35, "aim_jitter": 0.05, "ability_delay": 0.6, "low_hp_frac": 0.35, "cover_time": 3.0},
-    "hard":   {"spread_deg": 3.0,  "turn_rate": 7.0, "fire_cone": 0.10, "reaction_time": 0.18, "aim_jitter": 0.015, "ability_delay": 0.2, "low_hp_frac": 0.40, "cover_time": 3.5},
+    "easy":   {"spread_deg": 10.0, "turn_rate": 2.5, "fire_cone": 0.20, "reaction_time": 0.60, "aim_jitter": 0.12, "ability_delay": 1.2, "low_hp_frac": 0.20, "cover_time": 2.0, "peek_time": 1.4, "hide_min": 1.6, "hide_max": 2.4, "peek_side_mode": "same"},
+    "normal": {"spread_deg": 6.0,  "turn_rate": 4.0, "fire_cone": 0.15, "reaction_time": 0.35, "aim_jitter": 0.05, "ability_delay": 0.6, "low_hp_frac": 0.35, "cover_time": 3.0, "peek_time": 1.0, "hide_min": 1.0, "hide_max": 1.8, "peek_side_mode": "random"},
+    "hard":   {"spread_deg": 3.0,  "turn_rate": 7.0, "fire_cone": 0.10, "reaction_time": 0.18, "aim_jitter": 0.015, "ability_delay": 0.2, "low_hp_frac": 0.40, "cover_time": 3.5, "peek_time": 0.7, "hide_min": 0.5, "hide_max": 1.3, "peek_side_mode": "mixed"},
 }
 const ULT_RANGE := 8.0        ## Nova radius is 10; stay inside with margin
 const SLAM_RANGE := 4.5       ## grounded slam radius is 5
@@ -29,7 +29,13 @@ var reaction_time := 0.35     ## s before firing at a newly acquired target
 var aim_jitter := 0.05        ## rad, random aim offset refreshed twice a second
 var ability_delay := 0.6      ## mean s before an ability whose conditions hold is used
 var low_hp_frac := 0.35
-var cover_time := 3.0
+var cover_time := 3.0         ## s of the first hide after reaching cover
+var cover_session := 8.0      ## anti-stuck: leave cover after this many s without a successful peek (or 2x in total); 8 s cooldown
+var peek_time := 1.0          ## s exposed per peek once the threat is in sight
+var hide_min := 1.0           ## s ducked between peeks (random in [hide_min, hide_max])
+var hide_max := 1.8
+var peek_side_mode := "random"   ## "same" (predictable), "random", "mixed" (alternate, sometimes repeat)
+var opportunistic_cover := true  ## ranged bots under 70 % HP use cover within 6 m too
 var escort_allies := true
 var support_radius := 35.0    ## heal-beam bots look this far for hurt allies (then walk into beam range)
 var heal_below := 0.8         ## ally HP fraction under which a support bot heals it    ## idle bots roam near the nearest teammate
@@ -52,8 +58,18 @@ var _path_i := 0
 var _path_goal := Vector3.INF
 var _repath := 0.0
 var _cover = null             ## Vector3 or null
-var _cover_left := 0.0
 var _cover_cd := 0.0
+var _cover_block = null       ## block dictionary in use
+var _threat = null            ## enemy we are hiding from (kept while out of sight)
+var _cphase := ""             ## travel / hide / peek
+var _cphase_left := 0.0
+var _session := 0.0
+var _hid_once := false
+var _since_peek := 0.0
+var _peek_side := 1.0
+var _peek_seen := 0.0         ## s the threat has been in sight during this peek
+var _exposed := 0.0           ## s the threat has seen us while hiding (cover lost)
+var peeks := 0                ## completed peeks (tests/debug)
 var _map_root: Node3D = null
 var _nav_ver := 0
 var _lost := 0.0              ## s since the chase target was last in line of sight
@@ -106,11 +122,10 @@ func poll(h) -> InputFrame:
             _lost = 0.0
         target = t
     var low: bool = h.health.hp < h.health.max_hp * low_hp_frac
-    if target and seek_cover and low and _cover_cd <= 0.0 and state != "cover":
-        _cover = BotNav.best_cover(BotNav.cover_blocks(_map_root), h.global_position, target.global_position)
-        if _cover != null:
-            state = "cover"
-            _cover_left = cover_time + 4.0   # travel budget + hiding time
+    if target and seek_cover and _cover_cd <= 0.0 and state != "cover":
+        var hurt_ranged: bool = opportunistic_cover and melee_range(h) == 0.0 and h.health.hp < h.health.max_hp * 0.7
+        if low or hurt_ranged:
+            _enter_cover(h, target, INF if low else 6.0)
     if _do_support(h, f, dt):
         pass
     elif state == "cover":
@@ -222,31 +237,117 @@ static func slot_type(h, slot: String) -> String:
         return ""
     return String(h.abilities[slot].def.get("type", ""))
 
+func _enter_cover(h, threat, max_dist: float) -> bool:
+    var blk = BotNav.best_cover_block(BotNav.cover_blocks(_map_root), h.global_position, threat.global_position, 1.4, max_dist)
+    if blk == null:
+        return false
+    if state != "cover":   # new session (re-picks inside a session keep the 8 s anti-stuck clock)
+        _session = 0.0
+        _since_peek = 0.0
+        _hid_once = false
+    _cover_block = blk
+    _threat = threat
+    _cover = BotNav.cover_point(blk, threat.global_position)
+    state = "cover"
+    _cphase = "travel"
+    _cphase_left = 4.0     # travel budget
+    _exposed = 0.0
+    _peek_side = 1.0 if _rng.randf() < 0.5 else -1.0
+    return true
+
+func _leave_cover(cooldown: float) -> void:
+    state = "chase" if target else "wander"
+    _cover = null
+    _cover_block = null
+    _cphase = ""
+    _cover_cd = cooldown
+
+## Next peek side for the difficulty's style (pure given the random draw; unit-tested).
+static func next_peek_side(mode: String, last: float, r: float) -> float:
+    match mode:
+        "same":
+            return last
+        "mixed":
+            return -last if r < 0.75 else last
+    return 1.0 if r < 0.5 else -1.0
+
+## Cover cycle: travel -> hide (reload, duck) -> peek (step out past the edge, shoot) -> hide ...
+## Leaves after `cover_session` s (anti-stuck, 8 s cooldown), when the threat is gone, or when the
+## cover is lost (block gone, or the threat sees us while hiding -> re-pick, else fight).
 func _do_cover(h, f: InputFrame, dt: float) -> void:
-    _cover_left -= dt
-    var cp: Vector3 = _cover
-    var flat := Vector2(cp.x - h.global_position.x, cp.z - h.global_position.z).length()
-    var threat = target
-    if threat:
-        var to: Vector3 = (threat.global_position + Vector3(0, 1.1, 0)) - h.eye_position()
-        _aim(h, f, to, dt, true)
-    if flat > 0.7:
-        f.move = _follow(h, cp)
-        if threat == null:
-            _aim(h, f, _move_world(h, f.move), dt, false)
-        if use_abilities and flat > 5.0:
-            var ctx := _ctx(h, true, true)
-            ctx.moving = f.move.length() > 0.5
-            _apply_abilities(f, decide_abilities(ctx), dt)
-    else:
-        f.move = Vector2.ZERO
-        _cover_left = minf(_cover_left, cover_time)
-        if h.weapon.ammo < h.weapon.mag_size:
-            f.reload = true
-    if _cover_left <= 0.0:
-        state = "chase" if target else "wander"
-        _cover = null
-        _cover_cd = 8.0   # peek out and fight before hiding again
+    if _threat == null or not is_instance_valid(_threat) or _threat.dead:
+        _threat = target
+        if _threat == null:
+            _leave_cover(2.0)
+            return
+    if target != null and target != _threat and h.global_position.distance_to(target.global_position) < h.global_position.distance_to(_threat.global_position):
+        _threat = target   # a closer enemy showed up
+        if not _enter_cover(h, _threat, 12.0):
+            _leave_cover(4.0)
+            return
+    var tpos: Vector3 = _threat.global_position
+    var to: Vector3 = (tpos + Vector3(0, 1.1, 0)) - h.eye_position()
+    var err := _aim(h, f, to, dt, true)
+    var seen: bool = _visible(h, _threat)
+    _cphase_left -= dt
+    if _cphase != "travel":
+        _session += dt
+        _since_peek += dt
+        # anti-stuck: leave after `cover_session` s without a successful peek, or 2x that in total
+        if _since_peek >= cover_session or _session >= cover_session * 2.0:
+            _leave_cover(8.0)
+            return
+    # cover destroyed (e.g. a removed block) -> re-pick or fight
+    if _cover_block != null and _cover_block.has("node") and not is_instance_valid(_cover_block.node):
+        if not _enter_cover(h, _threat, 12.0):
+            _leave_cover(4.0)
+        return
+    var cp: Vector3 = BotNav.cover_point(_cover_block, tpos)   # follows the threat as it moves
+    _cover = cp
+    match _cphase:
+        "travel":
+            var flat := Vector2(cp.x - h.global_position.x, cp.z - h.global_position.z).length()
+            f.move = _follow(h, cp)
+            f.fire = seen and err < fire_cone and _react_left <= 0.0
+            if use_abilities and flat > 5.0:
+                var ctx := _ctx(h, true, true)
+                ctx.moving = f.move.length() > 0.5
+                _apply_abilities(f, decide_abilities(ctx), dt)
+            if flat < 0.8:
+                _cphase = "hide"
+                _cphase_left = cover_time if not _hid_once else _rng.randf_range(hide_min, hide_max)
+                _hid_once = true
+            elif _cphase_left <= 0.0:
+                _leave_cover(8.0)   # could not reach it
+        "hide":
+            var flat := Vector2(cp.x - h.global_position.x, cp.z - h.global_position.z).length()
+            f.move = _follow(h, cp) if flat > 0.4 else Vector2.ZERO
+            if h.weapon.ammo < h.weapon.mag_size:
+                f.reload = true
+            _exposed = _exposed + dt if seen and flat <= 0.6 else 0.0   # only counts once back at the cover point
+            if _exposed > 0.4:    # flanked / cover no longer blocks: find another, else fight
+                if not _enter_cover(h, _threat, 10.0):
+                    _leave_cover(4.0)
+                return
+            if _cphase_left <= 0.0 and h.weapon.ammo > 0 and not h.weapon.reloading():
+                _cphase = "peek"
+                _cphase_left = 1.6   # time to get line of sight
+                _peek_seen = 0.0
+        "peek":
+            var pp := BotNav.peek_point(_cover_block, tpos, _peek_side)
+            f.move = _follow(h, pp) if not seen else Vector2.ZERO
+            f.fire = seen and err < fire_cone and _react_left <= 0.0
+            if seen:
+                _peek_seen += dt
+            if _peek_seen >= peek_time or _cphase_left <= 0.0 or h.weapon.ammo == 0:
+                if _peek_seen == 0.0:
+                    _peek_side = -_peek_side   # no sight from this side: try the other next time
+                else:
+                    peeks += 1
+                    _since_peek = 0.0
+                    _peek_side = next_peek_side(peek_side_mode, _peek_side, _rng.randf())
+                _cphase = "hide"
+                _cphase_left = _rng.randf_range(hide_min, hide_max)
 
 ## Support: a hero with a heal beam aims at the most hurt visible ally in range and channels.
 ## Returns true when it took over this tick (movement keeps following the ally).
