@@ -10,7 +10,7 @@ var hp_bar: ProgressBar
 var hp_label: Label
 var ammo_label: Label
 var ab_labels := {}
-var kill_feed: VBoxContainer
+var kill_feed: KillFeed
 var crosshair: Crosshair
 var center_label: Label
 var _bars := {}
@@ -61,7 +61,8 @@ func setup(p) -> void:
     _place(crosshair, 0, 0, 1, 1, 0, 0, 0, 0)
     fps_label = _label(18)
     _place(fps_label, 0, 0, 0, 0, 16, 10, 300, 40)
-    kill_feed = VBoxContainer.new()
+    kill_feed = KillFeed.new()
+    kill_feed.player = p
     _place(kill_feed, 1, 0, 1, 0, -420, 10, -16, 260)
     hp_label = _label(20)
     _place(hp_label, 0, 1, 0, 1, 24, -100, 360, -72)
@@ -217,22 +218,7 @@ func _on_damage(ev: Dictionary) -> void:
         var l := DamageNumber.new(ev.amount, ev.kind, ev.killed)
         player.get_parent().add_child(l)
         l.global_position = ev.pos + Vector3(randf_range(-0.3, 0.3), 0.3, randf_range(-0.3, 0.3))
-        var tw := l.create_tween().set_parallel(true)
-        tw.tween_property(l, "position:y", l.position.y + 1.0, 0.7)
-        tw.tween_property(l, "modulate:a", 0.0, 0.7).set_delay(0.2)
-        tw.chain().tween_callback(l.queue_free)
+        l.pop()
 
 func _on_kill(ev: Dictionary) -> void:
-    var killer: String = ev.killer.display_name if ev.killer else "World"
-    var l := _label(18)
-    l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-    l.text = "%s  [%s]  %s" % [killer, ev.kind, ev.victim.display_name]
-    if ev.killer == player:
-        l.label_settings.font_color = Color(1, 0.85, 0.3)
-    elif ev.victim == player:
-        l.label_settings.font_color = Color(1, 0.4, 0.4)
-    kill_feed.add_child(l)
-    while kill_feed.get_child_count() > 6:
-        kill_feed.get_child(0).queue_free()
-        kill_feed.remove_child(kill_feed.get_child(0))
-    get_tree().create_timer(6.0).timeout.connect(func(): if is_instance_valid(l): l.queue_free())
+    kill_feed.on_kill(ev)
