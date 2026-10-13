@@ -52,3 +52,16 @@ run_tests discovery, INTERFACES §6 optional keys, SpawnPicker respawn hook — 
    errors per test). Suggest the same in run_tests.gd (or grep tests.log for SCRIPT ERROR in build.sh).
 2. Discovery quirk: run_tests.gd skips any file whose name contains "run" — e.g. `*_runtime_test.gd` would be
    silently ignored. Suggest matching `_run.gd` / `_run_tests.gd` suffixes instead.
+
+## Queue item 1 — toon restyle
+1. **INTERFACES §6** (visual-only theme/material keys, collision unchanged):
+   theme `toon` (bool: palette materials use `src/maps/toon/map_toon.gdshader`, flat 2-tone with sun shadows,
+   no ambient/specular), `tonemap` ("filmic" default | "linear"), `outline_width` (m, >0 enables merged
+   inverted-hull outlines: one `Outlines` MeshInstance3D, front-culled unshaded, no shadow/collision, meta
+   `hull_count`), `outline_color`; per material `shade` (shadow tone multiplier, default 0.74) and `outline`
+   (false = no hull; floors/decals); per block/prop `outline: false`. Low quality keeps block hulls, drops prop hulls.
+   `MapLoader.mat_color(mat)` returns the base colour of either material type.
+2. **Heroes (FYI, no change needed)**: ToonKit's normal-push outline leaves gaps on hard-edged box meshes, so
+   maps grow hulls per shape instead (same visual: black inverted hull). Map scenes now use linear tonemapping
+   (theme `tonemap: "linear"`) so unshaded toon heroes render at their exact authored colours too; please
+   confirm with the heroes owner that this is fine (it slightly darkens heroes vs filmic).
