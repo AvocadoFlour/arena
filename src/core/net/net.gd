@@ -37,7 +37,10 @@ var my_net_id := -1              ## CLIENT: our hero
 var server_tick := 0             ## CLIENT: newest snapshot tick
 var last_snap_hp := {}           ## CLIENT: {net_id: hp} of newest snapshot
 var reconciles := 0              ## CLIENT: corrections applied
-var max_correction := 0.0
+var max_correction := 0.0       ## CLIENT: largest prediction error (m), respawn/teleport snaps excluded
+var teleports := 0               ## CLIENT: respawn snaps (not counted as corrections)
+var max_teleport := 0.0
+var big_corrections: Array = []  ## CLIENT: [tick, err] for errors > 2 m (diagnostics, net test)
 var public_ip := ""
 ## Skip all internet lookups (api.ipify.org). Set by tests, or `-- --net_offline`; headless runs default to it.
 var offline := DisplayServer.get_name() == "headless" or OS.get_cmdline_user_args().has("--net_offline")
@@ -53,6 +56,7 @@ func _ready() -> void:
             Events.connect(s, func(a, b, c): _on_event(s, [a, b, c]))
         else:
             Events.connect(s, func(a): _on_event(s, [a]))
+    Events.respawned.connect(func(h): if mode == HOST and h.input_source is RemoteInput: h.input_source.queue.clear())
     multiplayer.peer_connected.connect(_on_peer_connected)
     multiplayer.peer_disconnected.connect(_on_peer_disconnected)
     multiplayer.connected_to_server.connect(_on_connected)
@@ -433,8 +437,13 @@ func _apply_state(h, s: Array) -> void:
     if h.team != int(s[15]):
         h.set_team(int(s[15]))
     if was_dead and not h.dead:
+        if h.input_source is ClientInput:
+            max_teleport = maxf(max_teleport, h.global_position.distance_to(s[1]))   # death spot -> spawn
         h.global_position = s[1]   # respawn teleport
         _interp.erase(h.net_id)
+        if h.input_source is ClientInput:   # inputs sent before death predicted from the death spot: drop them
+            h.input_source.pending.clear()
+            h.input_source.respawn_seq = h.input_source.seq
 
 ## Own hero: drop acknowledged inputs; if our prediction at that input differs from the host, snap and replay.
 func _reconcile(h, s: Array) -> void:
@@ -446,12 +455,21 @@ func _reconcile(h, s: Array) -> void:
     if h.dead:
         h.global_position = server_pos
         return
+    if int(s[14]) <= ci.respawn_seq:
+        # host is still acking pre-death inputs: the server position is the respawn point, not a prediction miss
+        if predicted != null:
+            max_teleport = maxf(max_teleport, (predicted as Vector3).distance_to(server_pos))
+        teleports += 1
+        h.global_position = server_pos
+        return
     var err: float = INF if predicted == null else (predicted as Vector3).distance_to(server_pos)
     if err <= RECONCILE_EPS:
         return
     reconciles += 1
     if err < INF:
         max_correction = maxf(max_correction, err)
+        if err > 2.0:
+            big_corrections.append([server_tick, snappedf(err, 0.01)])
     h.global_position = server_pos
     h.velocity = s[2]
     var dt := 1.0 / Engine.physics_ticks_per_second

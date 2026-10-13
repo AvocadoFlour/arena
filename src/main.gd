@@ -470,6 +470,10 @@ func _net_dump() -> void:
         d["me"] = Net.my_net_id
         d["reconciles"] = Net.reconciles
         d["max_correction"] = snappedf(Net.max_correction, 0.001)
+        d["teleports"] = Net.teleports
+        d["max_teleport"] = snappedf(Net.max_teleport, 0.01)
+        d["big_corrections"] = Net.big_corrections
+        d["deaths"] = stats.deaths
         d["sent"] = player.input_source.sent if player and player.input_source is ClientInput else 0
     else:
         var log := {}

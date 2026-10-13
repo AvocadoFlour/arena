@@ -8,6 +8,7 @@ var seq := 0
 var counters := [0, 0, 0, 0, 0]
 var pending: Array = []    ## [{seq, move, yaw, jump, pos}]
 var sent := 0
+var respawn_seq := -1   ## inputs up to this seq predate our last respawn (ignored for reconciliation)
 
 func _init(src) -> void:
     inner = src

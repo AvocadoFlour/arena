@@ -259,6 +259,8 @@ team with fewer humans). Modes: `OFFLINE` (single player, unchanged), `HOST`, `C
   Abilities adding networked transient geometry must add the node to `net_props` with metas `net_kind`,
   `net_size`, `net_color`.
 - **Client rendering**: remote heroes are interpolated `INTERP_DELAY` = 0.1 s behind the estimated server
+  Respawn: the client drops its pending inputs and ignores acks for inputs sent before death (host also clears the
+  queued inputs of a respawned remote hero), so the death-spot → spawn snap is not counted as a correction (`Net.teleports`).
   clock; own hero is predicted and, when the predicted position at `acked_seq` differs by > 0.15 m, snapped to
   the server state and the pending inputs are replayed with `Motion.step_velocity` + `move_and_slide`.
 - **Events**: every `Events` signal fires on the host only and is replicated (`reliable`, except

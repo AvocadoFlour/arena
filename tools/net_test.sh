@@ -34,8 +34,8 @@ snap = h["snap_hp"].get(str(c["server_tick"]))
 if snap is None: fails.append("host has no snapshot for client tick %s" % c["server_tick"])
 elif any(abs(float(snap[k]) - float(v)) > 1e-3 for k, v in c["hp"].items()) or set(snap) != set(c["hp"]):
     fails.append("hp differs at tick %s: %s vs %s" % (c["server_tick"], snap, c["hp"]))
-print("NET host: kills=%d remote_dmg=%.0f inputs=%d | client: kills=%d tick=%d reconciles=%d max_corr=%.3f m | match_ended=%s"
-      % (len(h["kills"]), h["remote_dmg"], h["inputs_received"], len(c["kills"]), c["server_tick"], c["reconciles"], c["max_correction"], h["match_ended"]))
+print("NET host: kills=%d remote_dmg=%.0f inputs=%d | client: kills=%d tick=%d reconciles=%d max_corr=%.3f m (respawn snaps excluded: %d, max %.1f m; >2 m: %s; deaths %d) | match_ended=%s"
+      % (len(h["kills"]), h["remote_dmg"], h["inputs_received"], len(c["kills"]), c["server_tick"], c["reconciles"], c["max_correction"], c.get("teleports", 0), c.get("max_teleport", 0), c.get("big_corrections", []), c.get("deaths", 0), h["match_ended"]))
 if fails:
     print("NET TEST FAIL: " + "; ".join(fails)); sys.exit(1)
 print("NET TEST PASS")
