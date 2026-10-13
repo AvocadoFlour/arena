@@ -18,6 +18,7 @@ var hero_note: Label
 var team_note: Label
 var swap_left := -1.0
 var swap_hero := ""
+var swap_team_only := false
 
 func setup(c: MatchControl) -> void:
     ctl = c
@@ -72,6 +73,7 @@ func _ready() -> void:
         var b := MenuStyle.button(String(h.name), _pick_hero.bind(String(h.id)))
         b.name = "Hero_" + String(h.id)
         b.set_meta("hero_id", String(h.id))
+        b.set_meta("hero_name", String(h.name))
         b.custom_minimum_size = Vector2(210, 64)
         b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
         grid.add_child(b)
@@ -129,8 +131,11 @@ func refresh() -> void:
         bot_btn[t][1].disabled = not (bots_ok and host_ok and n >= 0 and n < MatchControl.MAX_BOTS)
     bot_note.text = NA if not bots_ok else ("Only the host can change bots" if not host_ok else "")
     var swapping := swap_left >= 0.0
+    var cur := ctl.local_hero_id()
     for b in hero_btns:
-        b.disabled = not ctl.hero_available() or swapping
+        var is_cur: bool = b.get_meta("hero_id") == cur
+        b.disabled = not ctl.hero_available() or swapping or is_cur
+        b.text = _base_name(b) + ("  (current)" if is_cur else "")
     if not ctl.hero_available():
         hero_note.text = NA
     var mine := ctl.local_team()
@@ -160,6 +165,7 @@ func _pick_team(t: int) -> void:
 
 func _on_swap_started(hero_id: String, delay: float) -> void:
     swap_hero = hero_id
+    swap_team_only = hero_id == ctl.local_hero_id()   # team change: respawn as the same hero
     swap_left = maxf(0.0, delay)
     _update_countdown()
     refresh()
@@ -170,16 +176,19 @@ func _end_swap(reason: String) -> void:
     hero_note.text = "" if reason == "" else "Switch cancelled: " + reason
     refresh()
 
+func _base_name(b: Button) -> String:
+    return String(b.get_meta("hero_name", b.text))
+
 func _hero_name(id: String) -> String:
     for b in hero_btns:
         if b.get_meta("hero_id") == id:
-            return b.text
+            return _base_name(b)
     return id
 
 func _update_countdown() -> void:
     countdown.visible = swap_left >= 0.0
     if countdown.visible:
-        countdown.text = "Switching to %s in %d" % [_hero_name(swap_hero), ceili(swap_left)]
+        countdown.text = ("Switching team in %d" % maxi(1, ceili(swap_left))) if swap_team_only else "Switching to %s in %d" % [_hero_name(swap_hero), maxi(1, ceili(swap_left))]
 
 func _process(dt: float) -> void:
     if swap_left < 0.0:

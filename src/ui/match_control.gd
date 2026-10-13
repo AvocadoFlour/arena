@@ -68,9 +68,17 @@ func local_team() -> int:
 func local_net_id() -> int:
     return int(src.local_net_id()) if _has("local_net_id") else -1
 
+## Local player's current hero id, or "" (read-only from the root's `player`, INTERFACES §8.1 has no query).
+func local_hero_id() -> String:
+    var p = src.get("player") if src != null and is_instance_valid(src) else null
+    if p == null or not is_instance_valid(p) or not ("def" in p):
+        return ""
+    return String(p.def.get("id", ""))
+
+## Swap events for us. net_id < 0 = a reject the host sent only to us before we had a hero (Net._rq_hero "no hero").
 func _mine(net_id: int) -> bool:
     var me := local_net_id()
-    return me < 0 or net_id == me
+    return me < 0 or net_id < 0 or net_id == me
 
 func _on_started(net_id: int, hero_id: String, delay: float) -> void:
     if _mine(net_id):
