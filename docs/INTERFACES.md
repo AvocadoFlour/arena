@@ -165,6 +165,13 @@ Support (v0.6, AI round 5): support bots look for hurt allies within `support_ra
 sight needed), walk to them on the navmesh and channel the heal beam once in range with line of sight, healing
 allies below `heal_below` (0.8 of max HP) and themselves when hurt. Bots only consider heroes in their own World3D
 (test SubViewports share the `"heroes"` group), so tests in separate worlds don't interfere.
+Cover + peek (v0.7, AI round 6): the `cover` state cycles travel → hide → peek → hide …. Difficulty-preset params:
+`peek_time` (easy 1.4 / normal 1.0 / hard 0.7 s), `hide_min`/`hide_max` (1.6–2.4 / 1.0–1.8 / 0.5–1.3 s),
+`peek_side_mode` (`same` / `random` / `mixed`), `cover_session` (8 s: leave after 8 s without a successful peek or
+16 s in total, then an 8 s cooldown), `opportunistic_cover` (true: ranged bots under 70 % HP use cover within 6 m).
+Cover is re-picked when the hiding bot has been seen for > 0.4 s (flank / shield wall) or its block node is freed;
+with no cover available the bot fights. Helpers: `BotNav.peek_point()`, `BotNav.best_cover_block()`; cover block
+dictionaries carry `node`. Input/ability interface unchanged.
 Smoke STATS: `bot_dmg` = damage to the player; `team_dmg_taken` = damage dealt by team 1 to any team-0 hero. On
 maps with allies the smoke gate uses `team_dmg_taken` (allies soak fire) instead of `bot_dmg`. Team-0 bots are the player's allies (never target team 0).
 Core sets difficulty from `GameConfig.bot_difficulty` (`-- --difficulty=` or `--bots=`) and scales bot damage
@@ -206,6 +213,9 @@ Visual keys (approved v0.4, maps round 3; no gameplay effect, collision unchange
 - `"props"`: `[{shape: box|cylinder|cone|sphere, pos, size | radius+height, rot_deg?, mat|color, no_shadow?}]`
   → MeshInstance3D children of a `Props` Node3D under the map root, **no collision**. Props are stored in the
   JSON, so host and client build identical maps; nothing about maps is replicated.
+Destructible cover (if ever added): it must stay a solid StaticBody3D block with meta `kind = "cover"` (name prefix
+`cover_`), and breaking it frees the node (`queue_free`); bots then re-pick cover automatically (§5). Online, a
+destructible block must be removed on clients too (replicate the break; maps are otherwise not replicated, §10).
 Build options (approved v0.4, maps round 4): `MapLoader.build(path, opts := {})`; `opts.low_quality` overrides
 `MapLoader.low_quality_flag()` (= `Settings.low_quality` OR `GameConfig.low_quality`). Low quality skips `Props`
 and fog and disables sun shadows; collision is identical. Props are batched: `Props` children are one merged

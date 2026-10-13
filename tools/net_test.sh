@@ -7,10 +7,10 @@ GODOT=${GODOT:-$HOME/godot/godot}
 PORT=${NET_TEST_PORT:-24599}
 OUT=${OUT:-/tmp/arena_net}
 mkdir -p "$OUT"
-"$GODOT" --headless --path . -- --net_host=$PORT --hero=cob --map=arena01 --autopilot --force_end=24 --net_test=30 >"$OUT/host.log" 2>&1 &
+"$GODOT" --headless --path . -- --net_host=$PORT --hero=cob --map=arena01 --autopilot --force_end=45 --net_test=51 >"$OUT/host.log" 2>&1 &
 HP=$!
 sleep 3
-"$GODOT" --headless --path . -- --net_join=127.0.0.1:$PORT --hero=the_best --autopilot --net_test=40 >"$OUT/client.log" 2>&1 &
+"$GODOT" --headless --path . -- --net_join=127.0.0.1:$PORT --hero=the_best --autopilot --net_test=62 >"$OUT/client.log" 2>&1 &
 CP=$!
 wait $HP; HE=$?
 wait $CP; CE=$?
