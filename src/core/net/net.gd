@@ -368,7 +368,16 @@ func _hero_state(h) -> Array:
     var acked: int = h.input_source.acked if h.input_source is RemoteInput else -1
     return [h.net_id, h.global_position, h.velocity, h.yaw, h.pitch, h.health.hp, h.dead, h.visible,
         h.weapon.ammo, h.weapon.reloading(), h.ult.charge, cds, h.overheal, h.respawn_left, acked, h.team,
-        h.combo_step, h.dash_time]
+        h.combo_step, h.dash_time, _heal_target_id(h)]
+
+## HOST: net id of the ally a hero's heal beam is channelling into; -1 for none or self.
+func _heal_target_id(h) -> int:
+    for ab in h.abilities.values():
+        if ab.has_method("channeling") and ab.channeling() and "target" in ab:
+            var t = ab.target
+            if is_instance_valid(t) and t != h and t.has_meta("net_id"):
+                return int(t.get_meta("net_id"))
+    return -1
 
 func _send_snapshot() -> void:
     var hs: Array = []
@@ -434,6 +443,8 @@ func _apply_state(h, s: Array) -> void:
     if s.size() > 17:   # visual-only (remote attack/dash animation)
         h.combo_step = int(s[16])
         h.dash_time = float(s[17])
+    if s.size() > 18:
+        h.heal_target_id = int(s[18])
     if h.team != int(s[15]):
         h.set_team(int(s[15]))
     if was_dead and not h.dead:

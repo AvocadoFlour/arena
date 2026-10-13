@@ -260,7 +260,8 @@ team with fewer humans). Modes: `OFFLINE` (single player, unchanged), `HOST`, `C
   doubled edges). Host side: `RemoteInput` (queue ≤ 8, pitch/move clamped); client side: `ClientInput(inner)`.
 - **Snapshots** (host → clients, 20 Hz = every `SNAP_EVERY` = 3 ticks, unreliable_ordered):
   heroes `[id, pos, vel, yaw, pitch, hp, dead, visible, ammo, reloading, ult, cds×3, overheal, respawn_left,
-  acked_seq, team, combo_step, dash_time]` (the last two are visual only, used for remote finisher/dash animation), props `[id, kind, pos, rot_y, size, color]` for every node in group `net_props`
+  acked_seq, team, combo_step, dash_time, heal_target_id]` (the last three are visual only: remote finisher/dash animation and the
+  Encore Beam target, `heal_target_id` = net id of the healed ally, -1 for none or self → `hero.heal_target_id` on clients), props `[id, kind, pos, rot_y, size, color]` for every node in group `net_props`
   (projectile shots `shot`, shield walls `wall`; walls are solid StaticBody3D on clients too).
   Abilities adding networked transient geometry must add the node to `net_props` with metas `net_kind`,
   `net_size`, `net_color`.

@@ -149,6 +149,10 @@ func visual_process(dt: float) -> void:
     var on := channel_visible()
     if on:
         vis_target = pick_target()
+        if Net.is_client():   # prefer the host's exact target (snapshot heal_target_id); -1 = self/none -> local pick
+            var rt = Net.entities.get(int(hero.heal_target_id))
+            if is_instance_valid(rt):
+                vis_target = rt
         vis_alpha = minf(1.0, vis_alpha + dt / 0.05)
     else:
         vis_alpha = maxf(0.0, vis_alpha - dt / FADE)
