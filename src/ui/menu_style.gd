@@ -10,6 +10,7 @@ static func button(text: String, cb: Callable) -> Button:
     b.custom_minimum_size = MIN_BUTTON
     b.add_theme_font_size_override("font_size", 26)
     b.focus_mode = Control.FOCUS_ALL
+    b.pressed.connect(click)
     b.pressed.connect(cb)
     style_button(b)
     return b
@@ -28,6 +29,12 @@ static func _box(bg: Color, border := Color(0, 0, 0, 0), bw := 0) -> StyleBoxFla
     sb.content_margin_top = 8
     sb.content_margin_bottom = 8
     return sb
+
+## Menu click sound (Settings.sfx). Also used by polish() for buttons built elsewhere.
+static func click() -> void:
+    var st = Engine.get_main_loop().root.get_node_or_null("Settings") if Engine.get_main_loop() is SceneTree else null
+    if st and st.sfx:
+        st.sfx.play("click")
 
 static func style_button(b: BaseButton) -> void:
     b.add_theme_stylebox_override("normal", _box(Color(0.12, 0.17, 0.27)))
@@ -49,6 +56,7 @@ static func toggle(text: String, on: bool, cb: Callable) -> CheckButton:
     c.button_pressed = on
     c.custom_minimum_size = MIN_BUTTON
     c.add_theme_font_size_override("font_size", 22)
+    c.toggled.connect(func(_on): click())
     c.toggled.connect(cb)
     return c
 
@@ -61,6 +69,8 @@ static func polish(root: Node) -> void:
             n.custom_minimum_size.y = maxf(n.custom_minimum_size.y, MIN_BUTTON.y)
             n.custom_minimum_size.x = maxf(n.custom_minimum_size.x, MIN_BUTTON.x)
             style_button(n)
+            if not n.pressed.is_connected(click):
+                n.pressed.connect(click)
         elif n is LineEdit:
             style_line_edit(n)
         elif n is MarginContainer and not n.has_meta("polished"):

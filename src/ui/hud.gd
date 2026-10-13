@@ -17,21 +17,35 @@ var _bars := {}
 var fps_samples: Array = []
 
 class Crosshair extends Control:
+    ## Hit-marker flash: X marks + crosshair tint; a kill is longer, bigger, thicker and red.
+    const HIT := {"time": 0.15, "inner": 8.0, "outer": 16.0, "width": 3.0, "color": Color(1, 1, 1)}
+    const KILL := {"time": 0.4, "inner": 9.0, "outer": 24.0, "width": 5.0, "color": Color(1, 0.2, 0.2)}
     var hit_t := 0.0
     var kill := false
+    func flash(is_kill: bool) -> void:
+        if kill and hit_t > 0.0 and not is_kill:
+            return   # don't downgrade an active kill flash to a hit
+        kill = is_kill
+        hit_t = (KILL if is_kill else HIT).time
+    func params() -> Dictionary:
+        return KILL if kill else HIT
     func _process(dt: float) -> void:
         hit_t = maxf(0.0, hit_t - dt)
         queue_redraw()
     func _draw() -> void:
         var c := size * 0.5
-        var col := Color(1, 1, 1, 0.9)
+        var p := params()
+        var k: float = hit_t / p.time if hit_t > 0.0 else 0.0   # 1 -> 0 over the flash
+        var col := Color(1, 1, 1, 0.9).lerp(p.color, k * 0.8)
         for d in [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]:
             draw_line(c + d * 5, c + d * 13, col, 2.0)
         draw_circle(c, 1.5, col)
         if hit_t > 0.0:
-            var hc := Color(1, 0.2, 0.2) if kill else Color(1, 1, 1)
+            var hc: Color = p.color
+            hc.a = clampf(k * 1.5, 0.0, 1.0)
+            var grow: float = 1.0 + (1.0 - k) * (0.5 if kill else 0.2)   # marks expand while fading
             for d in [Vector2(1, 1), Vector2(-1, 1), Vector2(1, -1), Vector2(-1, -1)]:
-                draw_line(c + d * 8, c + d * 16, hc, 3.0)
+                draw_line(c + d * p.inner * grow, c + d * p.outer * grow, hc, p.width)
 
 func _label(size: int) -> Label:
     var l := Label.new()
@@ -165,6 +179,13 @@ func _process(dt: float) -> void:
         else:
             ready = ab.cooldown.is_ready()
             status = "READY" if ready else "%.1fs" % ab.cooldown.remaining
+        if ready_edge(slot, ready):
+            Settings.sfx.play("ready")
+            var pc: Control = l.get_parent()
+            pc.pivot_offset = pc.size * 0.5
+            var tw := pc.create_tween()
+            tw.tween_property(pc, "scale", Vector2.ONE * 1.12, 0.08)
+            tw.tween_property(pc, "scale", Vector2.ONE, 0.15)
         l.text = "[%s] %s\n%s" % [key_label(slot), ab.def.get("name", ab.id), status]
         sb.bg_color = Color(0.1, 0.45, 0.8, 0.8) if ready else Color(0.05, 0.07, 0.12, 0.7)
     center_label.text = ("RESPAWNING IN %.1f" % player.respawn_left) if player.dead else ""
@@ -213,8 +234,9 @@ func _make_bar(h) -> Node3D:
 
 func _on_damage(ev: Dictionary) -> void:
     if ev.source == player:
-        crosshair.hit_t = 0.15
-        crosshair.kill = ev.killed
+        crosshair.flash(bool(ev.get("killed", false)))
+        if not ev.get("killed", false):
+            Settings.sfx.play("hit")   # kill sound comes from Events.killed
         var l := DamageNumber.from_event(ev)
         player.get_parent().add_child(l)
         l.global_position = ev.pos + Vector3(randf_range(-0.3, 0.3), 0.3, randf_range(-0.3, 0.3))
@@ -222,3 +244,14 @@ func _on_damage(ev: Dictionary) -> void:
 
 func _on_kill(ev: Dictionary) -> void:
     kill_feed.on_kill(ev)
+    if player != null and ev.get("killer") == player and ev.get("victim") != player:
+        crosshair.flash(true)
+        Settings.sfx.play("kill")
+
+## Ability-ready edge detection (no ability_ready event exists; polls the cooldown/ult queries the
+## HUD already reads). Returns true on a not-ready -> ready transition; the first sample never fires.
+var _was_ready := {}
+func ready_edge(slot: String, ready: bool) -> bool:
+    var prev = _was_ready.get(slot)
+    _was_ready[slot] = ready
+    return prev == false and ready and not (player != null and player.dead)
