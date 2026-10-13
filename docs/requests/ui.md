@@ -74,3 +74,15 @@ Round 5 requests 1–2 done by core (ability_id, crit). UI now uses them.
 3. `Net.is_online()` is used by main.gd but INTERFACES §10 only lists the modes; please list `is_online()` /
    `is_host()` / `is_client()` there, since UI depends on `is_online()`.
 4. `Events.ability_ready(hero, slot)` still not on master; the HUD binds it automatically when added.
+
+## Miku queue 2 (ping indicator / connection lost)
+1. **Ping data**: Net exposes no RTT and INTERFACES §10 doesn't sanction reading the ENet peer from UI. Please add
+   `Net.ping_ms() -> int` (client: RTT to host, e.g. `ENetPacketPeer.get_statistic(PEER_ROUND_TRIP_TIME)`; host: -1 or
+   worst peer) and `Net.last_packet_age() -> float` (s since the last snapshot/packet). The HUD indicator shows
+   "Ping --" and no stall warning until then, and uses them automatically (`has_method`).
+2. **Document `Net.disconnected(reason: String)`** in §10 (UI listens to it). Reasons seen: "host closed the
+   connection", "could not connect", host rejects.
+3. **main.gd `_on_net_lost` restarts immediately**, so the UI's "Host left / Connection lost" screen is replaced by
+   the reload before the player can read it. Proposal: in-match, don't `_restart`; instead connect
+   `hud.conn_lost.return_requested.connect(func(): _restart(false))` (or keep relying on `menu.leave_requested`,
+   which the screen already uses). Net state is already closed by then, so `_restart` stays the single exit.

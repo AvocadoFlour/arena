@@ -117,6 +117,7 @@ func setup(p) -> void:
     Events.killed.connect(_on_kill)
     _setup_round2()
     bind_ready_event(Events)
+    _setup_net_ui()
     Settings.apply_fov(get_viewport().get_camera_3d())   # player camera exists (rig set up before HUD)
 
 var match_stats: MatchStats
@@ -246,6 +247,32 @@ func _on_kill(ev: Dictionary) -> void:
     if player != null and ev.get("killer") == player and ev.get("victim") != player:
         crosshair.flash(true)
         Settings.sfx.play("kill")
+
+var ping: PingIndicator
+var conn_lost: ConnectionLostScreen
+
+## Ping indicator (online only) + connection-lost screen, hooked to Net.disconnected(reason).
+func _setup_net_ui(net: Object = null) -> void:
+    ping = PingIndicator.new()
+    ping.info = NetLinkInfo.new(net)
+    _place(ping, 0, 0, 0, 0, 16, 42, 260, 74)
+    conn_lost = ConnectionLostScreen.new()
+    add_child(conn_lost)
+    var src = net if net != null else get_tree().root.get_node_or_null("Net")
+    if src != null and src.has_signal("disconnected"):
+        src.connect("disconnected", on_net_lost)
+
+func on_net_lost(reason: String) -> void:
+    if conn_lost == null:
+        return
+    # Routes resolved now: main.gd creates its PauseMenu after hud.setup().
+    conn_lost.routes.clear()
+    var p := get_parent()
+    if p != null and "menu" in p and p.menu != null and p.menu.has_signal("leave_requested"):
+        conn_lost.routes.append(p.menu.leave_requested)
+    if match_end:
+        conn_lost.routes.append(match_end.main_menu)
+    conn_lost.show_lost(reason)
 
 ## Ability-ready cue (sound + panel pulse). Source: `Events.ability_ready(hero, slot)` when core
 ## provides it; otherwise the polling fallback below.

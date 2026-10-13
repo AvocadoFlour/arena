@@ -75,3 +75,11 @@ so the highlight never competes with team colours. 5 s lifetime, max 5, newest o
 Setting **Damage numbers** (`Settings.damage_numbers`, default on, `[hud] damage_numbers` in
 user://settings.cfg, toggle on the Settings page): off = HUD spawns no floating numbers (hit marker and sounds stay).
 Tests: `tests/ui_round10_test.gd`.
+
+Miku queue 2: `ping_indicator.gd` (`PingIndicator`, top-left under FPS, only while `Net.is_online()`):
+"Ping N ms" green < 60 / yellow < 120 / red, "Connection unstable" (orange, pulsing) when no packet for 0.75 s,
+"Ping --" grey while Net exposes no RTT. Data via `net_link_info.gd` (`NetLinkInfo`), documented Net API only;
+picks up `Net.ping_ms()` / `Net.last_packet_age()` automatically when core adds them.
+`connection_lost_screen.gd`: "Host left" / "Connection lost" + reason + 420x96 "Return to menu"; the HUD shows it
+on `Net.disconnected(reason)`. Return: `return_requested` → else PauseMenu `leave_requested` (main.gd) → else
+`match_end.main_menu`. Tests: `tests/ui_round11_test.gd` (mock Net).
