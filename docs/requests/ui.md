@@ -40,3 +40,10 @@ Round 1 requests 1–3 done on master (bbd8445). Round 1 #4 (live HUD key labels
    UI tests avoid instantiating the host panel for that reason. A flag (e.g. `Net.offline` / skip under
    headless tests) would let UI test the real host screen.
 4. Core's edit to `tests/ui_round3_test.gd` (Music now applied) matches UI behaviour; kept as is.
+
+## Round 5
+1. **Ability id on kills/damage**: `Events.killed` / `damage_dealt` carry only `kind`. The kill feed infers the
+   ability name from the killer's def by damage kind and falls back to the kind when ambiguous (e.g. a hero with
+   two `slam`-producing abilities). Adding `ability_id` (or `slot`) to both payloads would make it exact.
+2. **Crits**: no crit/headshot flag exists. DamageNumber emphasises big hits (>= 50) and killing blows; if a
+   `crit: bool` is added to `damage_dealt`, UI will style it.

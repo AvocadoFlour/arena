@@ -27,3 +27,8 @@ when the value changes (also once at startup if the saved value is true). Set vi
 `Settings.set_low_quality(on)` (UI toggle on the Settings page). `MenuStyle.polish(screen)` is applied by
 `MainMenu.add_screen` to screens built elsewhere (core NetPanel): visual only (touch sizes, button/edit
 styles, column width/spacing); never changes text, signals or logic.
+
+Round 5: `kill_feed.gd` (`KillFeed`: newest on top, max 5, 5 s life with fade, player kill/death
+highlight, weapon/ability name from the killer's def by damage kind); `DamageNumber.pop()` replaces the
+HUD's inline tween (scale punch, eased rise, fade; big hits >= 50 and killing blows larger, thicker
+outline, "!" on kills). Tests: `tests/ui_round5_test.gd` (incl. real NetPanel host/join with Net.offline).
