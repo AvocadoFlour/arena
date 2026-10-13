@@ -92,9 +92,9 @@ func test_build_is_deterministic() -> void:
         var pa: Array = []
         var pb: Array = []
         for n in a.find_children("*", "MeshInstance3D", true, false):
-            pa.append([n.get_parent().name, n.transform, n.material_override.albedo_color, n.mesh.get_aabb()])
+            pa.append([n.get_parent().name, n.transform, MapLoader.mat_color(n.material_override), n.mesh.get_aabb()])
         for n in b.find_children("*", "MeshInstance3D", true, false):
-            pb.append([n.get_parent().name, n.transform, n.material_override.albedo_color, n.mesh.get_aabb()])
+            pb.append([n.get_parent().name, n.transform, MapLoader.mat_color(n.material_override), n.mesh.get_aabb()])
         check(pa == pb, "%s builds identically twice" % f)
         a.free()
         b.free()

@@ -24,32 +24,36 @@
     {"kind": "cover", "pos": [10, 0.6, -12], "size": [3, 1.2, 3], "color": "#c08040", "mat": "crate"}
   ],
   "theme": {
-    "sky_top": "#2f5d9a",
-    "sky_horizon": "#e6c9a0",
-    "ground_horizon": "#b89a78",
-    "ground_bottom": "#5a4a3a",
+    "sky_top": "#7fa8d8",
+    "sky_horizon": "#f4e2c8",
+    "ground_horizon": "#d8c8a8",
+    "ground_bottom": "#8a7a62",
     "sun_rot": [-42, -38, 0],
-    "sun_color": "#ffe2b8",
-    "sun_energy": 1.25,
-    "ambient_energy": 0.7,
-    "fog_density": 0.004,
-    "fog_color": "#e0c8a8"
+    "sun_color": "#fff0d8",
+    "sun_energy": 1.0,
+    "ambient_energy": 0.8,
+    "fog_density": 0.003,
+    "fog_color": "#f0e0c8",
+    "toon": true,
+    "tonemap": "linear",
+    "outline_width": 0.08,
+    "outline_color": "#16161e"
   },
   "materials": {
-    "floor": {"color": "#8a7e6c", "pattern": "tiles", "pattern_scale": 0.25, "tint": 0.78, "roughness": 0.95},
-    "wall": {"color": "#5b5f6e", "pattern": "bricks", "pattern_scale": 0.35, "tint": 0.72},
-    "plat": {"color": "#8c6e50", "pattern": "planks", "pattern_scale": 0.4, "tint": 0.7},
-    "ramp": {"color": "#9c8262", "pattern": "stripes", "pattern_scale": 0.6, "tint": 0.85},
-    "crate": {"color": "#c88a48", "pattern": "planks", "pattern_scale": 0.6, "tint": 0.7},
-    "pillar": {"color": "#a0683a", "pattern": "bricks", "pattern_scale": 0.6, "tint": 0.75},
-    "trim": {"color": "#3c3f4a", "roughness": 0.6, "metallic": 0.3},
-    "paint": {"color": "#e8dcc0", "roughness": 1.0},
-    "lamp": {"color": "#ffd890", "emission": "#ffc060", "emission_energy": 2.0},
-    "banner_b": {"color": "#3b6fb8"},
-    "banner_r": {"color": "#b83b3b"},
-    "trunk": {"color": "#5a3e2a"},
-    "leaf": {"color": "#4f7a3a"},
-    "rock": {"color": "#7a7068", "roughness": 1.0}
+    "floor": {"color": "#c8b89c", "pattern": "tiles", "pattern_scale": 0.25, "tint": 0.92, "roughness": 0.95, "outline": false},
+    "wall": {"color": "#b8a8c8", "pattern": "bricks", "pattern_scale": 0.35, "tint": 0.9},
+    "plat": {"color": "#e0b890", "pattern": "planks", "pattern_scale": 0.4, "tint": 0.88},
+    "ramp": {"color": "#e8c8a0", "pattern": "stripes", "pattern_scale": 0.6, "tint": 0.92},
+    "crate": {"color": "#f0a868", "pattern": "planks", "pattern_scale": 0.6, "tint": 0.86},
+    "pillar": {"color": "#d88870", "pattern": "bricks", "pattern_scale": 0.6, "tint": 0.88},
+    "trim": {"color": "#6a6478", "roughness": 0.6},
+    "paint": {"color": "#fffaf0", "roughness": 1.0},
+    "lamp": {"color": "#fff0b0", "emission": "#ffc060", "emission_energy": 2.0},
+    "banner_b": {"color": "#5a8ad8"},
+    "banner_r": {"color": "#e06a6a"},
+    "trunk": {"color": "#8a6a50"},
+    "leaf": {"color": "#88c088"},
+    "rock": {"color": "#b0a8a0", "roughness": 1.0}
   },
   "props": [
     {"shape": "box", "pos": [0, 4.6, -20.5], "size": [42.4, 0.2, 1.4], "mat": "trim"},
@@ -212,6 +216,6 @@
     {"shape": "sphere", "pos": [27, 0.2, -9], "radius": 2.0, "mat": "rock"},
     {"shape": "sphere", "pos": [6, 0.2, 28], "radius": 1.4, "mat": "rock"},
     {"shape": "sphere", "pos": [-9, 0.2, -28], "radius": 1.8, "mat": "rock"},
-    {"shape": "box", "pos": [0, -0.6, 0], "size": [140, 0.2, 140], "color": "#6f7a4a", "no_shadow": true}
+    {"shape": "box", "pos": [0, -0.6, 0], "size": [140, 0.2, 140], "color": "#6f7a4a", "no_shadow": true, "outline": false}
   ]
 }

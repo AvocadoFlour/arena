@@ -13,7 +13,7 @@ static func build(path: String, opts: Dictionary = {}) -> Node3D:
     root.name = "Map"
     var grid := _grid_tex()
     var theme: Dictionary = d.get("theme", {})
-    var mats := _materials(d.get("materials", {}), grid)
+    var mats := _materials(d.get("materials", {}), grid, bool(theme.get("toon", false)))
     var i := 0
     for b in d.get("blocks", []):
         var body := _box(b, grid, mats)
@@ -25,6 +25,10 @@ static func build(path: String, opts: Dictionary = {}) -> Node3D:
         var props := _props(d.get("props", []), mats)
         if props.get_child_count() > 0:
             root.add_child(props)
+    if float(theme.get("outline_width", 0.0)) > 0.0:
+        var ol := _outlines(d, theme, lq)
+        if ol != null:
+            root.add_child(ol)
     root.add_child(_environment(theme, lq))
     root.add_child(_sun(theme, lq))
     var spawns := {}
@@ -106,7 +110,7 @@ static func _environment(t: Dictionary, low_quality := false) -> WorldEnvironmen
     e.sky = sky
     e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
     e.ambient_light_energy = float(t.get("ambient_energy", 0.8))
-    e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+    e.tonemap_mode = Environment.TONE_MAPPER_LINEAR if String(t.get("tonemap", "filmic")) == "linear" else Environment.TONE_MAPPER_FILMIC
     if t.has("fog_density") and not low_quality:
         e.fog_enabled = true
         e.fog_light_color = Color(String(t.get("fog_color", "#a8b8c8")))
@@ -129,11 +133,16 @@ static func _sun(t: Dictionary, low_quality := false) -> DirectionalLight3D:
 
 ## Palette (optional "materials" key): name -> {color, roughness?, metallic?, pattern?, pattern_scale?,
 ## tint?, emission?, emission_energy?}. Patterns are tiny deterministic procedural textures.
-static func _materials(defs: Dictionary, grid: Texture2D) -> Dictionary:
+## toon = true (theme key): materials use src/maps/toon/map_toon.gdshader (flat 2-tone, exact palette colours,
+## receives sun shadows). Alpha materials stay StandardMaterial3D.
+static func _materials(defs: Dictionary, grid: Texture2D, toon := false) -> Dictionary:
     var out := {}
     var texs := {"grid": grid}
     for name in defs:
         var m: Dictionary = defs[name]
+        if toon and not m.has("alpha"):
+            out[name] = _toon_mat(m, texs)
+            continue
         var mat := StandardMaterial3D.new()
         mat.albedo_color = Color(String(m.get("color", "#888888")))
         mat.roughness = float(m.get("roughness", 0.9))
@@ -184,6 +193,97 @@ static func _pattern_tex(pat: String, tint: float) -> Texture2D:
             img.set_pixel(x, y, Color(v, v, v))
     img.generate_mipmaps()
     return ImageTexture.create_from_image(img)
+
+## Black outlines (theme keys "outline_width" m, "outline_color"): inverted hulls, i.e. every block/prop
+## re-emitted slightly larger (box +2w, round shapes +w radius) with a front-culled unshaded black material,
+## all merged into ONE MeshInstance3D "Outlines" (1 draw call, no shadow, no collision). Same idea as
+## ToonKit's outline pass, but hulls are grown per shape instead of along normals, because box meshes have
+## split (hard) normals and normal-push leaves gaps at every edge. Skipped: blocks/props/materials with
+## "outline": false, and anything thinner than 5 cm (floor decals). Low quality: block outlines only.
+static func _outlines(d: Dictionary, theme: Dictionary, lq: bool) -> MeshInstance3D:
+    var w := float(theme.outline_width)
+    var mdefs: Dictionary = d.get("materials", {})
+    var st := SurfaceTool.new()
+    st.begin(Mesh.PRIMITIVE_TRIANGLES)
+    var n := 0
+    for b in d.get("blocks", []):
+        if not _outlined(b, mdefs):
+            continue
+        var sz := _v(b.size)
+        if minf(sz.x, minf(sz.y, sz.z)) < 0.05:
+            continue
+        var bm := BoxMesh.new()
+        bm.size = sz + Vector3.ONE * (2.0 * w)
+        var xf := Transform3D(Basis.from_euler(_v(b.get("rot_deg", [0, 0, 0])) * (PI / 180.0), EULER_ORDER_YXZ), _v(b.pos))
+        st.append_from(bm, 0, xf)
+        n += 1
+    if not lq:
+        for p in d.get("props", []):
+            if not _outlined(p, mdefs):
+                continue
+            var q: Dictionary = p.duplicate()
+            var shape := String(p.get("shape", "box"))
+            if shape == "box":
+                var sz := _v(p.get("size", [1, 1, 1]))
+                if minf(sz.x, minf(sz.y, sz.z)) < 0.05:
+                    continue
+                q["size"] = [sz.x + 2.0 * w, sz.y + 2.0 * w, sz.z + 2.0 * w]
+            else:
+                if shape != "sphere" and float(p.get("height", 1.0)) < 0.05:
+                    continue
+                q["radius"] = float(p.get("radius", 0.5)) + w
+                q["height"] = float(p.get("height", 1.0)) + 2.0 * w
+            var xf := Transform3D(Basis.from_euler(_v(p.get("rot_deg", [0, 0, 0])) * (PI / 180.0), EULER_ORDER_YXZ), _v(p.pos))
+            st.append_from(_prop_mesh(q), 0, xf)
+            n += 1
+    if n == 0:
+        return null
+    var mat := StandardMaterial3D.new()
+    mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    mat.cull_mode = BaseMaterial3D.CULL_FRONT
+    mat.albedo_color = Color(String(theme.get("outline_color", "#111118")))
+    var mi := MeshInstance3D.new()
+    mi.name = "Outlines"
+    mi.mesh = st.commit()
+    mi.material_override = mat
+    mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    mi.set_meta("hull_count", n)
+    return mi
+
+static func _outlined(e: Dictionary, mdefs: Dictionary) -> bool:
+    if not e.get("outline", true):
+        return false
+    if e.has("mat") and mdefs.has(e.mat) and not mdefs[e.mat].get("outline", true):
+        return false
+    return true
+
+const MAP_TOON := preload("res://src/maps/toon/map_toon.gdshader")
+
+static func _toon_mat(m: Dictionary, texs: Dictionary) -> ShaderMaterial:
+    var mat := ShaderMaterial.new()
+    mat.shader = MAP_TOON
+    mat.set_shader_parameter("albedo", Color(String(m.get("color", "#888888"))))
+    mat.set_shader_parameter("shade", float(m.get("shade", 0.74)))
+    var pat := String(m.get("pattern", "none"))
+    if pat != "none":
+        var key := pat + str(m.get("tint", ""))
+        if not texs.has(key):
+            texs[key] = _pattern_tex(pat, float(m.get("tint", 0.82)))
+        mat.set_shader_parameter("pattern", texs[key])
+        mat.set_shader_parameter("use_pattern", 1.0)
+        mat.set_shader_parameter("pattern_scale", float(m.get("pattern_scale", 0.5)))
+    if m.has("emission"):
+        mat.set_shader_parameter("emission", Color(String(m.emission)))
+        mat.set_shader_parameter("emission_energy", float(m.get("emission_energy", 1.0)))
+    return mat
+
+## Base colour of a map material (StandardMaterial3D or map toon ShaderMaterial); used by tests/tools.
+static func mat_color(mat: Material) -> Color:
+    if mat is BaseMaterial3D:
+        return mat.albedo_color
+    if mat is ShaderMaterial:
+        return mat.get_shader_parameter("albedo")
+    return Color.WHITE
 
 ## Low-quality flag, read defensively: Settings.low_quality (player setting) OR GameConfig.low_quality (-- --low_quality).
 static func low_quality_flag() -> bool:
