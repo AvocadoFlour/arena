@@ -6,7 +6,7 @@ extends RefCounted
 ## spawner from spread_deg) plus difficulty-dependent aim jitter and reaction delay.
 
 const DIFFICULTY := {
-    "easy":   {"spread_deg": 14.0, "turn_rate": 2.2, "fire_cone": 0.30, "reaction_time": 0.75, "aim_jitter": 0.18, "fire_duty": 0.55, "ability_delay": 2.0, "focus_slack": 0.0, "low_hp_frac": 0.20, "cover_time": 2.0, "peek_time": 1.4, "hide_min": 1.6, "hide_max": 2.4, "peek_side_mode": "same"},
+    "easy":   {"spread_deg": 14.0, "turn_rate": 2.2, "fire_cone": 0.30, "reaction_time": 0.75, "aim_jitter": 0.18, "fire_duty": 0.65, "ability_delay": 2.0, "focus_slack": 0.0, "low_hp_frac": 0.20, "cover_time": 2.0, "peek_time": 1.4, "hide_min": 1.6, "hide_max": 2.4, "peek_side_mode": "same"},
     "normal": {"fire_duty": 1.0, "spread_deg": 6.0,  "turn_rate": 4.0, "fire_cone": 0.15, "reaction_time": 0.35, "aim_jitter": 0.05, "ability_delay": 0.6, "focus_slack": 8.0, "low_hp_frac": 0.35, "cover_time": 3.0, "peek_time": 1.0, "hide_min": 1.0, "hide_max": 1.8, "peek_side_mode": "random"},
     "hard":   {"fire_duty": 1.0, "spread_deg": 3.0,  "turn_rate": 7.0, "fire_cone": 0.10, "reaction_time": 0.15, "aim_jitter": 0.015, "ability_delay": 0.2, "focus_slack": 12.0, "low_hp_frac": 0.30, "cover_time": 3.5, "peek_time": 0.7, "hide_min": 0.5, "hide_max": 1.3, "peek_side_mode": "mixed"},
 }
