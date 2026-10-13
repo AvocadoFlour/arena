@@ -42,6 +42,11 @@ var net_id := -1                   ## network id (Net registry), -1 = unregister
 var heal_target_id := -1          ## CLIENT: replicated heal-beam target (net id; -1 = none/self), visual only
 var net_role := "auth"             ## "auth" simulates fully; "predicted" (client's own hero) moves only; "puppet" is driven by snapshots
 var _muzzle: Node3D
+## Skinned GLB model (hero JSON "model_scene"); null = primitive model. `--primitive_models` forces primitives.
+static var use_primitive_models := OS.get_cmdline_user_args().has("--primitive_models")
+var model: HeroModel
+var _was_dead := false
+var _anim_casts := 0                 ## cumulative ability casts seen (from replicated cooldown jumps)
 var _vis: Node3D                     ## visual root (animated); never affects collision/gameplay
 var _anim_parts: Array = []          ## [node, kind, base_rotation, phase]
 var _anim_t := 0.0
@@ -84,6 +89,7 @@ func _build() -> void:
     floor_snap_length = 0.25
     floor_max_angle = deg_to_rad(50)
     _build_model(def.get("model", []))
+    _build_scene_model()
     add_to_group("heroes")
     set_team(team)
 
@@ -149,12 +155,40 @@ func _build_model(parts: Array) -> void:
             _muzzle.position = pos + Vector3(0, 0, -0.4)
             add_child(_muzzle)   # not under _vis: shot origin is never animated
 
+## Replaces the primitive parts with the skinned GLB model when the def has "model_scene" (and
+## primitives are not forced). The muzzle node from the primitive def is kept (gameplay-neutral anchor).
+func _build_scene_model() -> void:
+    if use_primitive_models or not def.has("model_scene"):
+        return
+    var m := HeroModel.create(def.model_scene)
+    if m == null:
+        push_warning("model_scene failed to load, using primitive model: %s" % def.model_scene)
+        return
+    for c in _vis.get_children():
+        _vis.remove_child(c)
+        c.free()
+    _anim_parts.clear()
+    _streak = null
+    model = m
+    _vis.add_child(model)
+
+## Where beams/tracers leave the hero: the animated mic-wand tip on the 3D model, else the muzzle.
+func beam_origin() -> Vector3:
+    if model and model.wand_tip and model.wand_tip.is_inside_tree():
+        return model.wand_tip.global_position
+    if _muzzle and _muzzle.is_inside_tree():
+        return _muzzle.global_position
+    return eye_position()
+
 ## Procedural animation, render-rate, read-only on existing state (velocity, on-floor, weapon
 ## cooldown, dash/leap timers). Changes only _vis transforms, so it is safe for networking.
 func _process(dt: float) -> void:
     for ab in abilities.values():
         if ab.has_method("visual_process"):
             ab.visual_process(dt)   # ability visuals (e.g. heal ribbon fade-out also runs while dead)
+    if model and dead and not _was_dead and is_inside_tree():
+        model.spawn_corpse(get_parent(), global_transform, def.model_scene)   # replicated `dead` edge
+    _was_dead = dead
     if _vis == null or dead:
         return
     _anim_t += dt
@@ -168,9 +202,18 @@ func _process(dt: float) -> void:
     var stride := _anim_t * (6.0 + 6.0 * run)
     # body: idle breathing bob, run bounce, lean into motion, tilt when dashing
     var bob := sin(_anim_t * 2.2) * 0.025 + (absf(sin(stride)) * 0.06 * run if grounded else 0.0)
+    if model:
+        bob = 0.0   # the skeletal idle/run animations carry the body motion
     _vis.position.y = lerpf(_vis.position.y, bob, minf(1.0, dt * 20.0))
     _track_attack_state(dt)
     _update_streak()
+    if model:
+        var healing := false
+        for ab in abilities.values():
+            if ab.has_method("channel_visible") and ab.channel_visible():
+                healing = true
+        model.drive({"run": run, "fwd": fwd, "side": side, "air": air, "shots": _anim_shots,
+            "casts": _anim_casts, "healing": healing}, dt)
     var lean_x := -fwd * 0.16 - 0.3 * _anim_dash - (0.2 * sin(_anim_atk * PI) if _anim_finisher else 0.0)
     var lean_z := side * 0.12
     _vis.rotation.x = lerpf(_vis.rotation.x, lean_x, minf(1.0, dt * 10.0))
@@ -229,6 +272,7 @@ func _track_attack_state(dt: float) -> void:
         var rem: float = abilities[slot].cooldown.remaining
         if _anim_cds.has(slot) and rem > float(_anim_cds[slot]) + 0.05:
             _anim_cast = 1.0
+            _anim_casts += 1
         _anim_cds[slot] = rem
     _anim_cast = maxf(0.0, _anim_cast - dt / 0.35)
     var target := 1.0 if dash_time > 0.0 else 0.0
@@ -387,7 +431,7 @@ func _fire_shot() -> void:
         var c = hit.collider
         if c is Hero and c.team != team and not c.dead:
             c.take_damage(weapon.damage * damage_mult(), self, end, "primary")
-    var from := _muzzle.global_position if _muzzle else eye_position()
+    var from := beam_origin()
     Fx.tracer(get_parent(), from, end, Color(1, 0.9, 0.4) if team == 0 else Color(1, 0.4, 0.3))
 
 ## Outgoing damage multiplier: bot/difficulty scale x active buffs.

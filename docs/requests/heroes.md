@@ -65,3 +65,8 @@ flourish. Not replicated, so not used for visuals:
 
 ## Round 1 (resolved in master 13df7ab/bbd8445)
 Test auto-discovery, hero API docs, damage kinds, mixed bot roster.
+
+## R7 (Twin Tails 3D model)
+- Optional, not blocking: the live hero is hidden on death by core, so the death animation is played on a client-side corpse copy (HeroModel.spawn_corpse). If core ever adds a "keep body visible while dead" hook, the corpse copy can be dropped.
+- Optional: the import step needs `godot --headless --import` after the GLB changes. If build.sh does not already reimport, consider adding that so fresh checkouts never show a stale model.
+- Info: `--primitive_models` user arg / `Hero.use_primitive_models` keeps the old primitive look (fallback, tests).

@@ -65,8 +65,7 @@ func channel_visible() -> bool:
     return cooldown.duration - cooldown.remaining < float(def.get("duration", 3.0))
 
 func beam_start() -> Vector3:
-    var m = hero._muzzle
-    return m.global_position if m and m.is_inside_tree() else hero.global_position + Vector3(0, 1.1, 0)
+    return hero.beam_origin() if hero.is_inside_tree() else hero.global_position + Vector3(0, 1.1, 0)
 
 func beam_end() -> Vector3:
     return vis_target.global_position + Vector3(0, 1.0, 0)

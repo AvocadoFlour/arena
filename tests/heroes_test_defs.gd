@@ -133,6 +133,7 @@ func test_heal_beam_self_fallback() -> void:
     h.free()
 
 func test_models_animated_and_visual_only() -> void:
+    Hero.use_primitive_models = true   # primitive fallback model (GLB model: heroes_test_model.gd)
     for id in HEROES:
         var h := Hero.from_def("res://src/heroes/%s.json" % id)
         check(h._vis != null and h._anim_parts.size() >= 3, id + ": visual root + animated parts")
@@ -154,8 +155,10 @@ func test_models_animated_and_visual_only() -> void:
         check(h.velocity == v0 and h.position == p0 and h.health.hp == hp0, id + ": anim is read-only")
         check(h._vis.rotation.x != 0.0, id + ": run lean applied")
         h.free()
+    Hero.use_primitive_models = false
 
 func test_tails_sway_over_time() -> void:
+    Hero.use_primitive_models = true   # primitive fallback model (GLB model: heroes_test_model.gd)
     var h := Hero.from_def("res://src/heroes/twin_tails.json")
     var tail: Node3D = null
     for a in h._anim_parts:
@@ -167,6 +170,7 @@ func test_tails_sway_over_time() -> void:
     h._process(0.5)
     check(tail.rotation != r1, "tail sways while idle")
     h.free()
+    Hero.use_primitive_models = false
 
 func _weapon_node(h: Hero) -> Node3D:
     for a in h._anim_parts:
@@ -199,6 +203,7 @@ func test_puppet_sword_swing_from_replicated_ammo() -> void:
     h.free()
 
 func test_puppet_gun_recoil_and_reload_from_replicated() -> void:
+    Hero.use_primitive_models = true   # primitive fallback model (GLB model: heroes_test_model.gd)
     for id in ["twin_tails", "cob"]:
         var h := _puppet(id)
         var w := _weapon_node(h)
@@ -214,6 +219,7 @@ func test_puppet_gun_recoil_and_reload_from_replicated() -> void:
         check(w.rotation.x > rest + 0.2, id + ": weapon dips while reloading")
         h.weapon._reload_left = 0.0
         h.free()
+    Hero.use_primitive_models = false
 
 func test_puppet_reload_refill_is_not_a_shot() -> void:
     var h := _puppet("twin_tails")
