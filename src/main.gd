@@ -117,7 +117,6 @@ func _start_match() -> void:
     Net.register(player)
     _seed_for_smoke(player)
     var roster: Array = GameConfig.hero_ids()   # mixed bot roster: cycle through all heroes
-    var diff: Dictionary = GameConfig.difficulty()
     stats["bots"] = []
     stats["difficulty"] = GameConfig.bot_difficulty
     var n_allies := GameConfig.allies_for(map)
@@ -125,11 +124,11 @@ func _start_match() -> void:
     var pidx: int = maxi(0, roster.find(GameConfig.hero_id))
     for i in n_allies:
         var aid: String = roster[(pidx + 1 + i) % roster.size()]   # allies: the heroes after the player's in the roster
-        _spawn_bot(aid, 0, i, spawns, map, diff, "Ally %d (%s)", (i + 1))
+        _spawn_bot(aid, 0, i, spawns, map, GameConfig.difficulty_for(0), "Ally %d (%s)", (i + 1))
         stats.allies.append(aid)
     for i in GameConfig.enemy_count:
         var bid: String = roster[i % roster.size()]
-        _spawn_bot(bid, 1, i, spawns, map, diff, "Bot %d (%s)", i)
+        _spawn_bot(bid, 1, i, spawns, map, GameConfig.difficulty_for(1), "Bot %d (%s)", i)
         stats.bots.append(bid)
     hud = Hud.new()
     add_child(hud)
@@ -187,7 +186,7 @@ func _spawn_bot(id: String, team: int, i: int, spawns: Dictionary, map: Node3D, 
     b.display_name = label % [i + 1, b.def.get("name", id)]
     b.set_team(team)
     b.damage_scale = diff.damage_scale
-    var brain := BotBrain.new({"bounds": float(map.get_meta("bounds")), "difficulty": GameConfig.bot_difficulty})
+    var brain := BotBrain.new({"bounds": float(map.get_meta("bounds")), "difficulty": GameConfig.team_difficulty.get(team, "normal")})
     b.input_source = brain
     b.extra_spread_deg = brain.spread_deg
     var arr: Array = spawns[team]
@@ -564,6 +563,32 @@ signal hero_swap_finished(net_id: int, hero_id: String)
 signal hero_swap_cancelled(net_id: int, reason: String)
 signal bot_counts_changed(counts: Dictionary)
 signal team_changed(net_id: int, team: int)
+signal bot_difficulty_changed(team: int, level: String)
+var _client_bot_diff := {0: "normal", 1: "normal"}
+
+func match_bot_difficulty() -> Dictionary:
+    return _client_bot_diff.duplicate() if Net.is_client() else GameConfig.team_difficulty.duplicate()
+
+## OFFLINE/HOST: live per-team bot level (BotBrain preset + core damage scale on every live bot of the team).
+func set_bot_difficulty(team: int, level: String) -> bool:
+    if Net.is_client() or not GameConfig.set_team_difficulty(team, level):
+        return false
+    var dmg: float = GameConfig.difficulty_for(team).damage_scale
+    for b in _bots[team]:
+        if is_instance_valid(b) and not b.is_queued_for_deletion():
+            b.damage_scale = dmg
+            if b.input_source is BotBrain and b.input_source.has_method("set_difficulty"):
+                b.input_source.set_difficulty(level)
+                b.extra_spread_deg = b.input_source.spread_deg
+    bot_difficulty_changed.emit(team, level)
+    if Net.is_host():
+        Net.send_bot_difficulty(team, level)
+    return true
+
+## CLIENT: host -> all (Net._bot_difficulty) and the welcome's bot_difficulty.
+func net_bot_difficulty(team: int, level: String) -> void:
+    _client_bot_diff[team] = level
+    bot_difficulty_changed.emit(team, level)
 var _swaps := {}          ## HOST/OFFLINE: net_id -> {hero_id, team, left}
 var _swap_ids := {}       ## every peer: net ids with a swap in flight (stats rows carried across the respawn)
 var _carry := {}          ## net_id -> {"row": MatchStats row, "ci": ClientInput} while the hero is being replaced
@@ -600,7 +625,7 @@ func set_bot_count(team: int, n: int) -> bool:
     while counts[team] < n:
         var i: int = counts[team]
         var hid: String = roster[(pidx + 1 + i) % roster.size()] if team == 0 else roster[i % roster.size()]
-        var b := _spawn_bot(hid, team, i, _spawns, _map, GameConfig.difficulty(), "Ally %d (%s)" if team == 0 else "Bot %d (%s)", i + (1 if team == 0 else 0))
+        var b := _spawn_bot(hid, team, i, _spawns, _map, GameConfig.difficulty_for(team), "Ally %d (%s)" if team == 0 else "Bot %d (%s)", i + (1 if team == 0 else 0))
         b.process_mode = Node.PROCESS_MODE_PAUSABLE
         Net.broadcast_spawn(b)
         counts[team] += 1
@@ -728,7 +753,7 @@ func _do_swap(old: Hero, s: Dictionary) -> void:
             var bot: Hero = _bots[team].pop_back()
             var bid := String(bot.def.get("id", GameConfig.DEFAULT_HERO))
             Net.despawn(bot)
-            var nb := _spawn_bot(bid, old.team, _bots[old.team].size(), _spawns, _map, GameConfig.difficulty(), "Ally %d (%s)" if old.team == 0 else "Bot %d (%s)", _bots[old.team].size() + 1)
+            var nb := _spawn_bot(bid, old.team, _bots[old.team].size(), _spawns, _map, GameConfig.difficulty_for(old.team), "Ally %d (%s)" if old.team == 0 else "Bot %d (%s)", _bots[old.team].size() + 1)
             nb.process_mode = Node.PROCESS_MODE_PAUSABLE
             Net.broadcast_spawn(nb)
     var h := Hero.from_def(GameConfig.hero_path(String(s.hero_id)))

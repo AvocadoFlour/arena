@@ -247,7 +247,8 @@ func _c_hello(hero_id: String, pname: String) -> void:
     var broken: Array = world.net_broken_cover() if world.has_method("net_broken_cover") else []
     rpc_id(pid, "_s_welcome", {"map_id": GameConfig.map_id, "you": h.net_id, "tick": tick, "heroes": list, "broken_cover": broken, "props": _prop_sent.values(),
         "bot_counts": world.match_bot_counts() if world.has_method("match_bot_counts") else {},
-        "objects": map_objects().state() if map_objects() else {}})
+        "objects": map_objects().state() if map_objects() else {},
+        "bot_difficulty": world.match_bot_difficulty() if world.has_method("match_bot_difficulty") else {}})
     for other in peers:
         if other != pid:
             rpc_id(other, "_s_spawn", hero_info(h))
@@ -282,6 +283,9 @@ func _s_welcome(info: Dictionary) -> void:
     GameConfig.map_id = String(info.map_id)
     if world and world.has_method("net_bot_counts") and info.has("bot_counts"):
         world.net_bot_counts(info.bot_counts)
+    if world and world.has_method("net_bot_difficulty"):
+        for t in info.get("bot_difficulty", {}):
+            world.net_bot_difficulty(int(t), String(info.bot_difficulty[t]))
     for pi in info.get("props", []):
         _prop_info[int(pi.id)] = pi
     welcomed.emit(info)
@@ -319,6 +323,15 @@ func send_despawn_id(id: int) -> void:
     _interp.erase(id)
     if mode == HOST:
         _bcast("_s_despawn", [id])
+
+func send_bot_difficulty(team: int, level: String) -> void:
+    if mode == HOST:
+        _bcast("_bot_difficulty", [team, level])
+
+@rpc("authority", "call_remote", "reliable")
+func _bot_difficulty(team: int, level: String) -> void:
+    if mode == CLIENT and world and world.has_method("net_bot_difficulty"):
+        world.net_bot_difficulty(team, level)
 
 func send_bot_counts(c: Dictionary) -> void:
     if mode == HOST:

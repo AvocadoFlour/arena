@@ -22,7 +22,7 @@ func _ready() -> void:
     GameConfig.skip_menu_once = true
     m = load("res://src/main.tscn").instantiate()
     add_child(m)
-    for s in ["hero_swap_started", "hero_swap_finished", "hero_swap_cancelled", "bot_counts_changed", "team_changed"]:
+    for s in ["hero_swap_started", "hero_swap_finished", "hero_swap_cancelled", "bot_counts_changed", "team_changed", "bot_difficulty_changed"]:
         var sname: String = s
         m.connect(s, func(a = null, b = null, c = null): ev.append([sname, a, b, c]))
 
@@ -50,6 +50,17 @@ func _physics_process(dt: float) -> void:
             _rec("bots_signal", _names().has("bot_counts_changed"))
             var live := get_tree().get_nodes_in_group("heroes").filter(func(h): return h.team == 1 and not h.is_queued_for_deletion()).size()
             _rec("bots_live_heroes", live == c1, "team1 heroes %d" % live)
+            var dsig := ev.size()
+            _rec("diff_bad_level", not m.set_bot_difficulty(1, "insane") and not m.set_bot_difficulty(3, "hard"))
+            _rec("diff_set", m.set_bot_difficulty(1, "hard") and m.match_bot_difficulty()[1] == "hard" and GameConfig.bot_difficulty == "hard")
+            _rec("diff_signal", ev.size() > dsig and ev[-1][0] == "bot_difficulty_changed" and ev[-1][1] == 1 and ev[-1][2] == "hard", str(ev.slice(dsig)))
+            var t1 := get_tree().get_nodes_in_group("heroes").filter(func(h): return h.team == 1 and not h.is_queued_for_deletion())
+            _rec("diff_live_bots", t1.size() > 0 and t1.all(func(h): return is_equal_approx(h.damage_scale, GameConfig.DIFFICULTY.hard.damage_scale)), "%d bots" % t1.size())
+            m.set_bot_count(1, c1 + 1)
+            var nb = m._bots[1][-1]
+            _rec("diff_new_bot", is_equal_approx(nb.damage_scale, GameConfig.DIFFICULTY.hard.damage_scale))
+            m.set_bot_count(1, c1)
+            m.set_bot_difficulty(1, "normal")
             old_hero = String(m.player.def.id)
             for id in GameConfig.hero_ids():
                 if id != old_hero:

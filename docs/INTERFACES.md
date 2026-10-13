@@ -312,7 +312,15 @@ enemy *i* gets `hero_ids()[i % n]`; ally *i* gets the (i+1)-th hero after the pl
   target team to the old team (team sizes kept), then `team_changed(net_id, team)`. Offline hero swaps also call
   `GameConfig.set_hero` so "Play again" keeps the new hero. The local hero is replaced: read `main.player` again (HUD,
   kill feed and scoreboard are rebound by core).
-- Signals on main.gd: `hero_swap_started`, `hero_swap_finished`, `hero_swap_cancelled`, `bot_counts_changed`, `team_changed`.
+- Bot difficulty: `GameConfig.team_difficulty = {0: level, 1: level}` (levels = `GameConfig.DIFFICULTY` keys),
+  `GameConfig.set_team_difficulty(team, level) -> bool`, `GameConfig.difficulty_for(team)` (core damage scale).
+  `GameConfig.bot_difficulty` is the team-1 alias. CLI `--difficulty=` sets both teams, `--ally_difficulty=` team 0.
+  Every bot (match start, `set_bot_count`, team-change bot moves) uses its team's level. Live:
+  `match_bot_difficulty() -> {0, 1}` (clients: host's value, also in the welcome `bot_difficulty`),
+  `set_bot_difficulty(team, level) -> bool` (offline/host; clients false) sets the GameConfig level, calls
+  `BotBrain.set_difficulty` and sets the damage scale on every live bot of the team, emits
+  `bot_difficulty_changed(team, level)` (every peer, via `Net._bot_difficulty`).
+- Signals on main.gd: `hero_swap_started`, `hero_swap_finished`, `hero_swap_cancelled`, `bot_counts_changed`, `team_changed`, `bot_difficulty_changed`.
 
 ## 9. Match modes & win condition (core: src/core/match_rules.gd, node "MatchRules" under main)
 | mode | when | rule |
@@ -392,7 +400,7 @@ team with fewer humans). Modes: `OFFLINE` (single player, unchanged), `HOST`, `C
 - **In-match control RPCs** (§8.1 logic lives in main.gd): client -> host `_rq_hero(hero_id)`, `_rq_team(team)`
   (`Net.request_hero` / `request_team`); host -> requester `_swap_cancelled(net_id, reason)`; host -> all
   `_swap_started(net_id, hero_id, delay)`, `_swap_finished(net_id, hero_id)`, `_team_changed(net_id, team)`,
-  `_bot_counts(counts)`. A swap is `_s_despawn(id)` + `_s_spawn(info)` with the same id (`Net.send_despawn_id`);
+  `_bot_counts(counts)`, `_bot_difficulty(team, level)`. A swap is `_s_despawn(id)` + `_s_spawn(info)` with the same id (`Net.send_despawn_id`);
   `Net.hero_despawning(net_id, node)` fires on clients just before the node is dropped. Welcome info has `bot_counts`.
   tools/net_test.sh swaps the client's hero mid-match (`--net_swap=S --net_swap_hero=ID`) and checks both sides.
 
