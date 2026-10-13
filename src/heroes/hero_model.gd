@@ -40,6 +40,86 @@ static func create(cfg: Dictionary) -> HeroModel:
     m._setup(cfg)
     return m
 
+## Primitive hero model (INTERFACES §2 "model" parts) built under `vis`. Team-colored materials are appended to
+## `team_mats`, animated parts to `anim_parts`. Returns the muzzle position (Vector3) or null. Visual only.
+static func build_parts(vis: Node3D, parts: Array, team_mats: Array = [], anim_parts: Array = []) -> Variant:
+    var muzzle = null
+    for p in parts:
+        var mi := MeshInstance3D.new()
+        match String(p.shape):
+            "capsule":
+                var m := CapsuleMesh.new()
+                m.radius = p.radius
+                m.height = maxf(p.height, p.radius * 2.0)
+                m.radial_segments = 12
+                m.rings = 4
+                mi.mesh = m
+            "sphere":
+                var m2 := SphereMesh.new()
+                m2.radius = p.radius
+                m2.height = p.radius * 2.0
+                m2.radial_segments = 12
+                m2.rings = 6
+                mi.mesh = m2
+            _:
+                var m3 := BoxMesh.new()
+                m3.size = Vector3(p.size[0], p.size[1], p.size[2])
+                mi.mesh = m3
+        var mat := StandardMaterial3D.new()
+        mat.roughness = float(p.get("roughness", 0.75))
+        mat.metallic = float(p.get("metallic", 0.0))
+        if p.color == "team":
+            team_mats.append(mat)
+        else:
+            mat.albedo_color = Color(p.color)
+        if p.has("emission"):
+            mat.emission_enabled = true
+            mat.emission = Color(p.emission)
+        mi.material_override = mat
+        var pos := Vector3(p.pos[0], p.pos[1], p.pos[2])
+        if p.has("rot"):
+            mi.rotation_degrees = Vector3(p.rot[0], p.rot[1], p.rot[2])
+        if p.has("scale"):
+            mi.scale = Vector3(p.scale[0], p.scale[1], p.scale[2])
+        if p.has("pivot"):
+            var pv := Node3D.new()
+            pv.position = Vector3(p.pivot[0], p.pivot[1], p.pivot[2])
+            vis.add_child(pv)
+            pv.add_child(mi)
+            mi.position = pos - pv.position
+            if p.has("anim"):
+                anim_parts.append([pv, String(p.anim), pv.rotation, pos.x * 3.1])
+        else:
+            mi.position = pos
+            vis.add_child(mi)
+            if p.has("anim"):
+                anim_parts.append([mi, String(p.anim), mi.rotation, pos.x * 3.1])
+        if p.get("muzzle", false):
+            muzzle = pos + Vector3(0, 0, -0.4)
+    return muzzle
+
+## Supported display-only hero model for UI (hero preview etc., INTERFACES §2): the GLB HeroModel when the def has a
+## loadable "model_scene", otherwise the primitive parts (team-colored parts get `team_color`). No gameplay nodes
+## (no collision, abilities, input or Net registration). Returns null for an unknown hero id.
+static func create_display(hero_id: String, team_color := Color("#3a8bff")) -> Node3D:
+    var path := "res://src/heroes/%s.json" % hero_id
+    if not FileAccess.file_exists(path):
+        return null
+    var def = JSON.parse_string(FileAccess.get_file_as_string(path))
+    if not def is Dictionary:
+        return null
+    if def.has("model_scene"):
+        var m := HeroModel.create(def.model_scene)
+        if m:
+            return m
+    var root := Node3D.new()
+    root.name = "HeroDisplay"
+    var mats: Array = []
+    build_parts(root, def.get("model", []), mats)
+    for mat in mats:
+        mat.albedo_color = team_color
+    return root
+
 func _setup(cfg: Dictionary) -> void:
     ToonKit.apply(scene, float(cfg.get("outline", 0.008)), cfg.get("no_outline", []))
     var sks := scene.find_children("*", "Skeleton3D", true, false)

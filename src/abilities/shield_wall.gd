@@ -31,6 +31,7 @@ func _do() -> bool:
     wall.add_to_group("net_props")
     wall.set_meta("net_kind", "wall")
     wall.set_meta("net_size", size)
+    wall.set_meta("net_visual", String(def.get("visual", "")))   # client visual hook (INTERFACES §10)
     wall.set_meta("net_color", c)
     parent.add_child(wall)
     var f: Vector3 = hero.look_dir()

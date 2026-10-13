@@ -51,6 +51,8 @@ var _clock_offset := 0.0
 var _clock_init := false
 var _interp := {}                ## CLIENT: net_id -> [[t, pos, yaw, pitch]]
 var _props := {}                 ## CLIENT: net_id -> Node3D
+var _prop_info := {}             ## CLIENT: net_id -> spawn info (from _s_prop_spawn / welcome "props")
+var _prop_sent := {}             ## HOST: net_id -> spawn info already announced to clients
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
@@ -111,6 +113,8 @@ func close() -> void:
     history.clear()
     _interp.clear()
     _props.clear()
+    _prop_info.clear()
+    _prop_sent.clear()
     my_net_id = -1
     server_tick = 0
     _rtt_ms = -1.0
@@ -240,7 +244,7 @@ func _c_hello(hero_id: String, pname: String) -> void:
     for x in heroes():
         list.append(hero_info(x))
     var broken: Array = world.net_broken_cover() if world.has_method("net_broken_cover") else []
-    rpc_id(pid, "_s_welcome", {"map_id": GameConfig.map_id, "you": h.net_id, "tick": tick, "heroes": list, "broken_cover": broken})
+    rpc_id(pid, "_s_welcome", {"map_id": GameConfig.map_id, "you": h.net_id, "tick": tick, "heroes": list, "broken_cover": broken, "props": _prop_sent.values()})
     for other in peers:
         if other != pid:
             rpc_id(other, "_s_spawn", hero_info(h))
@@ -273,6 +277,8 @@ func _s_welcome(info: Dictionary) -> void:
     server_tick = int(info.tick)
     tick = server_tick
     GameConfig.map_id = String(info.map_id)
+    for pi in info.get("props", []):
+        _prop_info[int(pi.id)] = pi
     welcomed.emit(info)
 
 @rpc("authority", "reliable")
@@ -417,12 +423,20 @@ func _send_snapshot() -> void:
         hs.append(_hero_state(h))
         hp[h.net_id] = h.health.hp
     var props: Array = []
+    var live := {}
     for p in get_tree().get_nodes_in_group("net_props"):
         if not is_instance_valid(p) or p.is_queued_for_deletion():
             continue
         var id := register(p)
-        props.append([id, String(p.get_meta("net_kind", "")), p.global_position, p.global_rotation.y,
-            p.get_meta("net_size", Vector3.ONE * 0.3), p.get_meta("net_color", Color.WHITE)])
+        live[id] = true
+        if not _prop_sent.has(id):   # announced once, reliably; snapshots then carry only the transform
+            var info := prop_info(p, id)
+            _prop_sent[id] = info
+            _bcast("_s_prop_spawn", [info])
+        props.append([id, p.global_position, p.global_rotation.y])
+    for id in _prop_sent.keys():
+        if not live.has(id):
+            _prop_sent.erase(id)
     snap_log.append([tick, hp])
     while snap_log.size() > 400:
         snap_log.pop_front()
@@ -524,6 +538,15 @@ func _reconcile(h, s: Array) -> void:
         h.move_and_slide()
         e.pos = h.global_position
 
+## HOST: the spawn description of a net prop (INTERFACES §10 "Networked props").
+static func prop_info(p: Node, id: int) -> Dictionary:
+    return {"id": id, "kind": String(p.get_meta("net_kind", "")), "size": p.get_meta("net_size", Vector3.ONE * 0.3),
+        "color": p.get_meta("net_color", Color.WHITE), "visual": String(p.get_meta("net_visual", ""))}
+
+@rpc("authority", "reliable")
+func _s_prop_spawn(info: Dictionary) -> void:
+    _prop_info[int(info.id)] = info
+
 func _sync_props(props: Array) -> void:
     var seen := {}
     for p in props:
@@ -531,18 +554,53 @@ func _sync_props(props: Array) -> void:
         seen[id] = true
         var n = _props.get(id)
         if not is_instance_valid(n):
-            n = _make_prop(String(p[1]), p[4], p[5])
-            if world == null:
-                continue
+            if not _prop_info.has(id) or world == null:
+                continue   # spawn message not here yet (reliable channel vs unreliable snapshot)
+            var pi: Dictionary = _prop_info[id]
+            n = make_prop(String(pi.kind), pi.size, pi.color, String(pi.get("visual", "")))
             world.add_child(n)
             _props[id] = n
-        n.global_position = p[2]
-        n.rotation.y = float(p[3])
+        n.global_position = p[1]
+        n.rotation.y = float(p[2])
     for id in _props.keys():
         if not seen.has(id):
             if is_instance_valid(_props[id]):
                 _props[id].queue_free()
             _props.erase(id)
+            _prop_info.erase(id)
+
+## Visual hook: `visual` is a res:// path to a PackedScene (instanced) or a script with
+## `static func build_prop(kind: String, size: Vector3, color: Color) -> Node3D`. Empty/invalid -> plain mesh.
+## Walls always keep a client-side collision box of `size`, so prediction still collides.
+static func make_prop(kind: String, size: Vector3, color: Color, visual := "") -> Node3D:
+    var vis := _visual_node(visual, kind, size, color)
+    if vis == null:
+        return _make_prop(kind, size, color)
+    if kind != "wall":
+        return vis
+    var body := StaticBody3D.new()
+    var cs := CollisionShape3D.new()
+    var bs := BoxShape3D.new()
+    bs.size = size
+    cs.shape = bs
+    body.add_child(cs)
+    body.add_child(vis)
+    return body
+
+static func _visual_node(visual: String, kind: String, size: Vector3, color: Color) -> Node3D:
+    if visual == "" or not ResourceLoader.exists(visual):
+        return null
+    var r = load(visual)
+    var n = null
+    if r is PackedScene:
+        n = r.instantiate()
+    elif r is Script and r.get_script_method_list().any(func(m): return m.name == "build_prop"):
+        n = r.build_prop(kind, size, color)
+    if n is Node3D:
+        return n
+    if n is Node:
+        n.free()
+    return null
 
 static func _make_prop(kind: String, size: Vector3, color: Color) -> Node3D:
     var mi := MeshInstance3D.new()

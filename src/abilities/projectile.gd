@@ -16,6 +16,7 @@ func _do() -> bool:
     s.add_to_group("net_props")
     s.set_meta("net_kind", "shot")
     s.set_meta("net_size", Vector3.ONE * float(def.get("size", 0.2)))
+    s.set_meta("net_visual", String(def.get("visual", "")))   # client visual hook (INTERFACES §10)
     s.set_meta("net_color", Color(String(def.get("color", "#ffd060"))))
     parent.add_child(s)
     s.launch(origin + dir * 0.6, dir)

@@ -110,6 +110,11 @@ View settings: `Settings.fov` is the base FOV; CameraRig starts from it and UI r
 FOV animation (zoom/sprint) must be relative to `Settings.fov`. Audio buses `Master`, `Music`, `SFX`
 (res://default_bus_layout.tres, core-owned); `Settings` volumes apply to them by name.
 
+- **Display-only model (UI)**: `HeroModel.create_display(hero_id, team_color = blue) -> Node3D` is the supported way
+  to show a hero outside gameplay (hero select preview etc.): the GLB `HeroModel` from "model_scene" when it loads,
+  otherwise the primitive "model" parts (built by `HeroModel.build_parts`, the same builder Hero uses). No collision,
+  abilities, input, events or Net ids; null for an unknown id. Do not instantiate `Hero` for previews.
+
 ## 3. Damage & health
 - Death visibility hook: `hero.keep_body_when_dead` (default false). If true, `_die()` leaves the hero visible
   (collision off, `dead = true`) so heroes can play a death animation on the live model, then sets `visible = false`
@@ -316,10 +321,17 @@ team with fewer humans). Modes: `OFFLINE` (single player, unchanged), `HOST`, `C
 - **Snapshots** (host → clients, 20 Hz = every `SNAP_EVERY` = 3 ticks, unreliable_ordered):
   heroes `[id, pos, vel, yaw, pitch, hp, dead, visible, ammo, reloading, ult, cds×3, overheal, respawn_left,
   acked_seq, team, combo_step, dash_time, heal_target_id]` (the last three are visual only: remote finisher/dash animation and the
-  Encore Beam target, `heal_target_id` = net id of the healed ally, -1 for none or self → `hero.heal_target_id` on clients), props `[id, kind, pos, rot_y, size, color]` for every node in group `net_props`
+  Encore Beam target, `heal_target_id` = net id of the healed ally, -1 for none or self → `hero.heal_target_id` on clients), props `[id, pos, rot_y]` for every node in group `net_props`
   (projectile shots `shot`, shield walls `wall`; walls are solid StaticBody3D on clients too).
   Abilities adding networked transient geometry must add the node to `net_props` with metas `net_kind`,
-  `net_size`, `net_color`.
+  `net_size`, `net_color` and optionally `net_visual`.
+- **Networked props (R9 visual hook)**: the first time the host sees a `net_props` node it sends a reliable
+  `_s_prop_spawn({id, kind, size, color, visual})` (late joiners get every live one in the welcome `props`);
+  snapshots then carry only the transform, and clients skip a prop until its spawn info arrived.
+  `visual` = meta `net_visual` (Projectile / ShieldWall copy the ability def key `"visual"`), a res:// path to a
+  PackedScene (instanced) or a script with `static func build_prop(kind, size, color) -> Node3D`. Clients build it
+  with `Net.make_prop(kind, size, color, visual)`; walls keep a collision box of `size` around the visual; empty or
+  unloadable visual → plain sphere/box. Visual only: the host's own gameplay node is unchanged.
 - **Client rendering**: remote heroes are interpolated `INTERP_DELAY` = 0.1 s behind the estimated server
   Respawn: the client drops its pending inputs and ignores acks for inputs sent before death (host also clears the
   queued inputs of a respawned remote hero), so the death-spot → spawn snap is not counted as a correction (`Net.teleports`).

@@ -54,13 +54,13 @@ func _physics_process(_dt: float) -> void:
         30:
             hp0 = dummy.health.hp
             _rec("projectile_fires", willow.abilities["ability2"].activate(), "")
-            var shots := get_children().filter(func(c): return c.get("vel") != null)
+            var shots := get_children().filter(func(c): return c.is_in_group("net_props") and c.get_meta("net_kind", "") == "shot")
             _rec("projectile_spawned", shots.size() == 1, "n=%d" % shots.size())
         58:
             var dmg := hp0 - dummy.health.hp
             _rec("projectile_hits_after_travel", dmg >= 20.0, "dmg=%.1f" % dmg)
             _rec("projectile_slows", dummy.slow_mult < 1.0 and dummy.slow_left > 0.0, "mult=%.2f" % dummy.slow_mult)
-            _rec("projectile_freed", get_children().filter(func(c): return c.get("vel") != null and is_instance_valid(c) and not c.is_queued_for_deletion()).is_empty(), "")
+            _rec("projectile_freed", get_children().filter(func(c): return c.is_in_group("net_props") and c.get_meta("net_kind", "") == "shot" and is_instance_valid(c) and not c.is_queued_for_deletion()).is_empty(), "")
         62:
             # shield wall between willow and dummy
             willow.global_position = Vector3(0, 0, 0)

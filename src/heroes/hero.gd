@@ -105,60 +105,11 @@ func _build_model(parts: Array) -> void:
     _vis = Node3D.new()
     _vis.name = "Visual"
     add_child(_vis)
-    for p in parts:
-        var mi := MeshInstance3D.new()
-        match String(p.shape):
-            "capsule":
-                var m := CapsuleMesh.new()
-                m.radius = p.radius
-                m.height = maxf(p.height, p.radius * 2.0)
-                m.radial_segments = 12
-                m.rings = 4
-                mi.mesh = m
-            "sphere":
-                var m2 := SphereMesh.new()
-                m2.radius = p.radius
-                m2.height = p.radius * 2.0
-                m2.radial_segments = 12
-                m2.rings = 6
-                mi.mesh = m2
-            _:
-                var m3 := BoxMesh.new()
-                m3.size = Vector3(p.size[0], p.size[1], p.size[2])
-                mi.mesh = m3
-        var mat := StandardMaterial3D.new()
-        mat.roughness = float(p.get("roughness", 0.75))
-        mat.metallic = float(p.get("metallic", 0.0))
-        if p.color == "team":
-            _team_mats.append(mat)
-        else:
-            mat.albedo_color = Color(p.color)
-        if p.has("emission"):
-            mat.emission_enabled = true
-            mat.emission = Color(p.emission)
-        mi.material_override = mat
-        var pos := Vector3(p.pos[0], p.pos[1], p.pos[2])
-        if p.has("rot"):
-            mi.rotation_degrees = Vector3(p.rot[0], p.rot[1], p.rot[2])
-        if p.has("scale"):
-            mi.scale = Vector3(p.scale[0], p.scale[1], p.scale[2])
-        if p.has("pivot"):
-            var pv := Node3D.new()
-            pv.position = Vector3(p.pivot[0], p.pivot[1], p.pivot[2])
-            _vis.add_child(pv)
-            pv.add_child(mi)
-            mi.position = pos - pv.position
-            if p.has("anim"):
-                _anim_parts.append([pv, String(p.anim), pv.rotation, pos.x * 3.1])
-        else:
-            mi.position = pos
-            _vis.add_child(mi)
-            if p.has("anim"):
-                _anim_parts.append([mi, String(p.anim), mi.rotation, pos.x * 3.1])
-        if p.get("muzzle", false):
-            _muzzle = Node3D.new()
-            _muzzle.position = pos + Vector3(0, 0, -0.4)
-            add_child(_muzzle)   # not under _vis: shot origin is never animated
+    var mz = HeroModel.build_parts(_vis, parts, _team_mats, _anim_parts)
+    if mz != null:
+        _muzzle = Node3D.new()
+        _muzzle.position = mz
+        add_child(_muzzle)   # not under _vis: shot origin is never animated
 
 ## Replaces the primitive parts with the skinned GLB model when the def has "model_scene" (and
 ## primitives are not forced). The muzzle node from the primitive def is kept (gameplay-neutral anchor).
