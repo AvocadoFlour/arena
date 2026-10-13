@@ -15,12 +15,25 @@ static func build(path: String, opts: Dictionary = {}) -> Node3D:
     var theme: Dictionary = d.get("theme", {})
     var mats := _materials(d.get("materials", {}), grid, bool(theme.get("toon", false)))
     var i := 0
+    var destruction := MapDestruction.new()
+    destruction.name = "Destruction"
+    destruction.map_name = String(d.get("name", "Map"))
     for b in d.get("blocks", []):
         var body := _box(b, grid, mats)
         body.name = "%s_%02d" % [String(b.get("kind", "block")), i]   # unique, keeps kind prefix (AI finds "cover")
         body.set_meta("kind", String(b.get("kind", "block")))
+        body.set_meta("block_id", i)
+        if body is DestructibleCover:
+            body.block_id = i
+            body.max_hp = float(b.hp)
+            body.hp = body.max_hp
+            body.add_to_group("destructible")
+            destruction.register(body)
+            if float(theme.get("outline_width", 0.0)) > 0.0 and _outlined(b, d.get("materials", {})):
+                body.add_child(_hull_instance(b, theme))
         root.add_child(body)
         i += 1
+    root.add_child(destruction)
     if not lq:
         var props := _props(d.get("props", []), mats)
         if props.get_child_count() > 0:
@@ -62,7 +75,7 @@ static func _v(a) -> Vector3:
     return Vector3(a[0], a[1], a[2])
 
 static func _box(b: Dictionary, grid: Texture2D, mats: Dictionary = {}) -> StaticBody3D:
-    var body := StaticBody3D.new()
+    var body: StaticBody3D = DestructibleCover.new() if is_destructible(b) else StaticBody3D.new()
     body.name = String(b.get("kind", "block"))
     var size := _v(b.size)
     var cs := CollisionShape3D.new()
@@ -207,7 +220,11 @@ static func _outlines(d: Dictionary, theme: Dictionary, lq: bool) -> MeshInstanc
     st.begin(Mesh.PRIMITIVE_TRIANGLES)
     var n := 0
     for b in d.get("blocks", []):
+<<<<<<< HEAD
         if not _outlined(b, mdefs):
+=======
+        if not _outlined(b, mdefs) or is_destructible(b):
+>>>>>>> f6789be
             continue
         var sz := _v(b.size)
         if minf(sz.x, minf(sz.y, sz.z)) < 0.05:
@@ -250,6 +267,30 @@ static func _outlines(d: Dictionary, theme: Dictionary, lq: bool) -> MeshInstanc
     mi.set_meta("hull_count", n)
     return mi
 
+<<<<<<< HEAD
+=======
+## Destructible = kind "cover" with "hp" > 0 (map JSON). Its hull is a child of the block, not in "Outlines".
+static func is_destructible(b: Dictionary) -> bool:
+    return String(b.get("kind", "")) == "cover" and float(b.get("hp", 0.0)) > 0.0
+
+static func _outline_mat(theme: Dictionary) -> StandardMaterial3D:
+    var mat := StandardMaterial3D.new()
+    mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    mat.cull_mode = BaseMaterial3D.CULL_FRONT
+    mat.albedo_color = Color(String(theme.get("outline_color", "#111118")))
+    return mat
+
+static func _hull_instance(b: Dictionary, theme: Dictionary) -> MeshInstance3D:
+    var bm := BoxMesh.new()
+    bm.size = _v(b.size) + Vector3.ONE * (2.0 * float(theme.outline_width))
+    var mi := MeshInstance3D.new()
+    mi.name = "Outline"
+    mi.mesh = bm
+    mi.material_override = _outline_mat(theme)
+    mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    return mi
+
+>>>>>>> f6789be
 static func _outlined(e: Dictionary, mdefs: Dictionary) -> bool:
     if not e.get("outline", true):
         return false

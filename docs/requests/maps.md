@@ -65,3 +65,32 @@ run_tests discovery, INTERFACES §6 optional keys, SpawnPicker respawn hook — 
    maps grow hulls per shape instead (same visual: black inverted hull). Map scenes now use linear tonemapping
    (theme `tonemap: "linear"`) so unshaded toon heroes render at their exact authored colours too; please
    confirm with the heroes owner that this is fine (it slightly darkens heroes vs filmic).
+
+## Queue item 2 — destructible cover (maps side done; needs core net hooks)
+Maps side: block `{"kind":"cover", ..., "hp": N}` → `DestructibleCover` (StaticBody3D, meta kind "cover",
+name `cover_NN`, group `destructible`, own outline hull child). `block_id` = index in the JSON `blocks` array
+(identical on host and clients). Manager: map root child `Destruction` (`MapDestruction`).
+Host/offline decides: `cover.apply_damage(amount, source) -> applied` (alias `take_damage(amount, source, pos,
+kind, ability_id)`, same signature as Hero) returns 0 when `Net.is_authority()` is false. At 0 HP:
+`Destruction.cover_broken({block_id, pos, map})` is emitted and, if `Events` has a `cover_broken` signal, also
+`Events.cover_broken(ev)`. Removal: collision off + hidden immediately, then `queue_free` (§6 rule).
+Clients: `Destruction.apply_break(block_id)` (idempotent); late join: `Destruction.apply_broken(ids)`,
+host side `Destruction.broken_ids()`. If `Events.cover_broken` exists, `Destruction` already listens and calls
+`apply_break` on non-authority peers — so with request 1 no extra client code is needed.
+
+Requests (core / heroes):
+1. **Events + Net**: add `signal cover_broken(ev: Dictionary)` to src/core/events.gd and `"cover_broken": 1`
+   to `Net.EVENT_SIGNALS` (reliable). That replicates the host's break to clients through the existing event path.
+2. **Late join**: in `_c_hello` add `"broken_cover": map.get_node("Destruction").broken_ids()` to the welcome
+   info; on the client after the map is built: `map.get_node("Destruction").apply_broken(info.get("broken_cover", []))`.
+3. **Damage routing (heroes/core)**: hitscan (hero.gd ~L434), melee, projectiles and `aoe()` currently only
+   damage `Hero`. Add: `elif c.is_in_group("destructible"): c.take_damage(dmg, self, end, kind)` (hitscan/
+   projectile hit collider); for AoE, `for c in get_tree().get_nodes_in_group("destructible")` within radius
+   (use `HitMath.aoe_damage` falloff on distance to `c.global_position`). Host only (take_damage already no-ops
+   on clients). Damage to cover should not charge ult (`on_damage_dealt`) — suggestion, your call.
+4. **INTERFACES §6**: document the `hp` key, `DestructibleCover`, `MapDestruction` API above.
+5. **Golden file**: tests/maps_collision_golden.json regenerated; only additions in arena02 `cover_42`..`cover_45`
+   (new blocks appended at the end of `blocks`, so every existing block keeps its index, name and collision;
+   verified: 0 entries removed/changed). arena01: unchanged golden — the two existing low walls `cover_10`,
+   `cover_11` (z=10) got `"hp": 300` instead of adding blocks, because tests/ai_team_driver.gd (ai-owned)
+   hardcodes 8 cover blocks on arena01. AI: if you'd like extra breakables on arena01, relax that count.

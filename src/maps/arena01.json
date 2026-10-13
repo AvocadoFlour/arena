@@ -16,8 +16,8 @@
     {"kind": "ramp", "pos": [-8.05, 1.55, -10], "size": [6.8, 0.4, 3], "rot_deg": [0, 0, 27], "color": "#8a7a64", "mat": "ramp"},
     {"kind": "cover", "pos": [-7, 1, 5], "size": [2, 2, 2], "color": "#c08040", "mat": "crate"},
     {"kind": "cover", "pos": [7, 1, 5], "size": [2, 2, 2], "color": "#c08040", "mat": "crate"},
-    {"kind": "cover", "pos": [-12, 0.75, 10], "size": [4, 1.5, 1], "color": "#c08040", "mat": "crate"},
-    {"kind": "cover", "pos": [12, 0.75, 10], "size": [4, 1.5, 1], "color": "#c08040", "mat": "crate"},
+    {"kind": "cover", "pos": [-12, 0.75, 10], "size": [4, 1.5, 1], "color": "#f6c46a", "mat": "breakable", "hp": 300},
+    {"kind": "cover", "pos": [12, 0.75, 10], "size": [4, 1.5, 1], "color": "#f6c46a", "mat": "breakable", "hp": 300},
     {"kind": "cover", "pos": [0, 1.25, 8], "size": [1, 2.5, 4], "color": "#a06838", "mat": "pillar"},
     {"kind": "cover", "pos": [-14, 1.5, -4], "size": [2, 3, 2], "color": "#c08040", "mat": "pillar"},
     {"kind": "cover", "pos": [14, 1.5, -4], "size": [2, 3, 2], "color": "#c08040", "mat": "pillar"},
@@ -40,6 +40,7 @@
     "outline_color": "#16161e"
   },
   "materials": {
+    "breakable": {"color": "#f6c46a", "pattern": "planks", "pattern_scale": 0.9, "tint": 0.8, "shade": 0.7},
     "floor": {"color": "#c8b89c", "pattern": "tiles", "pattern_scale": 0.25, "tint": 0.92, "roughness": 0.95, "outline": false},
     "wall": {"color": "#b8a8c8", "pattern": "bricks", "pattern_scale": 0.35, "tint": 0.9},
     "plat": {"color": "#e0b890", "pattern": "planks", "pattern_scale": 0.4, "tint": 0.88},
