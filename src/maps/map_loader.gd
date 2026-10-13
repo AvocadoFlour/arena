@@ -34,6 +34,8 @@ static func build(path: String, opts: Dictionary = {}) -> Node3D:
         root.add_child(body)
         i += 1
     root.add_child(destruction)
+    if d.has("pickups") or d.has("jump_pads"):
+        root.add_child(MapObjects.from_def(d))
     if not lq:
         var props := _props(d.get("props", []), mats)
         if props.get_child_count() > 0:

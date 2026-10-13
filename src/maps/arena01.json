@@ -5,6 +5,13 @@
     "0": [[0, 0.2, 15]],
     "1": [[-13, 0.2, -15], [13, 0.2, -15], [0, 3.2, -10]]
   },
+  "pickups": [
+    {"kind": "health", "pos": [-17, 0, 0], "amount": 50, "respawn": 15},
+    {"kind": "health", "pos": [17, 0, 0], "amount": 50, "respawn": 15}
+  ],
+  "jump_pads": [
+    {"pos": [6.5, 0, -8], "size": [2, 1, 2], "launch": [-4, 13, 0]}
+  ],
   "blocks": [
     {"kind": "floor", "pos": [0, -0.5, 0], "size": [40, 1, 40], "color": "#5a6070", "grid": true, "mat": "floor"},
     {"kind": "wall", "pos": [0, 2, -20.5], "size": [42, 5, 1], "color": "#3a3f4c", "mat": "wall"},

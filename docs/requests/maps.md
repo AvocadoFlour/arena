@@ -94,3 +94,40 @@ Requests (core / heroes):
    verified: 0 entries removed/changed). arena01: unchanged golden — the two existing low walls `cover_10`,
    `cover_11` (z=10) got `"hp": 300` instead of adding blocks, because tests/ai_team_driver.gd (ai-owned)
    hardcodes 8 cover blocks on arena01. AI: if you'd like extra breakables on arena01, relax that count.
+
+## Queue item 3 — health packs + jump pads (maps side done; needs core net/event hooks)
+Map JSON: `"pickups": [{"kind":"health","pos","amount":50,"respawn":15,"radius"?:1}]`,
+`"jump_pads": [{"pos","size":[x,y,z],"launch":[vx,vy,vz]}]`. Ids = index in each array (same on every peer).
+Built into map root child `Objects` (`MapObjects`), visuals only — **no physics bodies** (triggers are fixed-tick
+position checks in `_physics_process`, deterministic, independent of Area3D callback order), so the collision
+golden is unchanged (0 additions). Low quality keeps them (gameplay objects).
+Host/offline (`Net.is_authority()`): `step(heroes)` each physics tick — pack heals via `hero.heal(amount)` (only
+consumed if it healed > 0), then respawns after `respawn` s counted in 60 Hz ticks; pads set `hero.velocity =
+launch` when the hero is inside the pad box and not rising (re-arm 0.5 s per hero/pad). Clients: `step` no-ops.
+Signals on `Objects`: `pickup_taken({id, hero, amount})`, `pickup_respawned({id})`, `pad_launched({id, hero, velocity})`.
+Client entry points: `apply_pickup(id, active, respawn_left)`, late join `apply_state(state())`,
+`state() = {"pickups": [[id, active, left], ...]}`.
+
+Requests (core):
+1. **Events + Net**: add `signal pickup_changed(ev)` (`{id, active, left}`) and `signal pad_launched(ev)`
+   (`{id, hero, velocity}`) to events.gd, and both to `Net.EVENT_SIGNALS` (reliable). `Objects` already emits
+   them on the host when they exist and, on clients, already listens to `pickup_changed` and calls `apply_pickup`.
+   (`healed` from `hero.heal` already covers the HP change; pad_launched is for FX/sound only.)
+2. **Late join**: add `"objects": map.get_node("Objects").state()` to the welcome info (only if the node exists);
+   client after map build: `map.get_node("Objects").apply_state(info.get("objects", {}))`.
+3. **Jump pad prediction (client's own `predicted` hero)**: launch is a pure function of the map data. In the
+   predicted step (and in reconciliation replay), before `Motion.step_velocity`, call
+   `hero.velocity = objects.predict_pad(hero.global_position, hero.velocity)` — identical rule to the host
+   (inside pad box, `velocity.y <= 0.5`), so prediction and host agree and no correction happens. Without this
+   hook the client keeps walking over the pad until the host snapshot arrives, error exceeds 0.15 m and the
+   existing reconcile snaps it up (~1 RTT late, visible pop). Puppets need nothing (snapshot-driven).
+4. **INTERFACES §6**: document the two keys and the `MapObjects` API above.
+5. **UI (optional)**: show pack respawn timers from `pickups[i].left` / `pickup_changed.left`.
+6. **Fix bundled with item 3 (master was red)**: master 9eff0fd fails `ai_teamplay_driver::team_groups_up`
+   (and, after a first relocation attempt, `focus_fire_concentration`) because of item 2's two mid-lane
+   breakables on arena02 at (−6,13)/(6,−13). Verified with the driver seeded exactly as run_tests.gd (4242):
+   no breakables → pass (5.1 m vs 6.2 m; focus 0.85 vs 0.72); flank pair only → identical pass; mid pair (at
+   either spot tried) → fail. So the mid pair (`cover_44`, `cover_45`, last in `blocks`) is removed; the flank pair
+   `cover_42`/`cover_43` stays. Golden: exactly those two entries dropped vs master, nothing else changed.
+   **AI (FYI)**: those two checks are single-seed comparisons that flip on small geometry changes near mid; a
+   multi-seed mean or a margin would make them robust to future map edits.

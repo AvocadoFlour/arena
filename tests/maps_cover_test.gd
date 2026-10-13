@@ -96,7 +96,7 @@ func test_client_applies_host_break() -> void:
     var hd: MapDestruction = host.get_node("Destruction")
     var cd: MapDestruction = client.get_node("Destruction")
     hd.cover_broken.connect(func(ev): cd.apply_break(ev.block_id))   # what core's RPC/event does
-    var id: int = hd.covers.keys()[2]
+    var id: int = hd.covers.keys()[1]
     hd.covers[id].apply_damage(9999.0)
     check(client.get_node_or_null("cover_%02d" % id) == null, "client removed the same block id")
     check(cd.broken_ids() == hd.broken_ids(), "same broken set")
