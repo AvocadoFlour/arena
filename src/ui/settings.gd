@@ -25,6 +25,7 @@ signal low_quality_changed(on: bool)
 var low_quality := false
 ## HUD floating damage numbers (Settings page toggle "Damage numbers"), default on.
 var damage_numbers := true
+var bot_difficulty := {0: "normal", 1: "normal"}   ## last pre-match bot difficulty per team (main menu)
 
 func set_low_quality(on: bool) -> void:
     if on == low_quality:
@@ -55,6 +56,9 @@ func load_from(path: String) -> bool:
     fov = clampf(float(cfg.get_value("video", "fov", fov)), FOV_MIN, FOV_MAX)
     set_low_quality(bool(cfg.get_value("video", "low_quality", low_quality)))
     damage_numbers = bool(cfg.get_value("hud", "damage_numbers", damage_numbers))
+    for t in [0, 1]:
+        var lv := String(cfg.get_value("match", "bot_difficulty_%d" % t, bot_difficulty[t]))
+        bot_difficulty[t] = lv if lv in ["easy", "normal", "hard"] else "normal"
     for b in AUDIO_BUSES:
         volumes[b] = clampf(float(cfg.get_value("audio", b, volumes[b])), 0.0, 1.0)
     return true
@@ -67,6 +71,8 @@ func save(path := PATH) -> void:
     cfg.set_value("video", "fov", fov)
     cfg.set_value("video", "low_quality", low_quality)
     cfg.set_value("hud", "damage_numbers", damage_numbers)
+    for t in [0, 1]:
+        cfg.set_value("match", "bot_difficulty_%d" % t, bot_difficulty[t])
     for b in AUDIO_BUSES:
         cfg.set_value("audio", b, volumes[b])
     cfg.save(path)

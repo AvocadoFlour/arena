@@ -129,3 +129,27 @@ Signals on main.gd (UI connects these):
 - `signal bot_counts_changed(counts: Dictionary)`
 - `signal team_changed(net_id: int, team: int)`
 Docs: please add these to INTERFACES (§8/§10) when implemented.
+
+## Bot difficulty hook spec (UI: Map select picker + Esc Match page; adapter src/ui/difficulty_control.gd)
+Exists today and used: `GameConfig.bot_difficulty` (one level for all bots; main.gd passes it to every
+`BotBrain.new({"difficulty": ...})`) and per-brain `BotBrain.set_difficulty(level)`. UI drives the global value from the
+Enemy team row; the Your team row shows "Not available yet" until the per-team hook exists. Levels: "easy" | "normal" | "hard".
+Owner: core (GameConfig, main.gd, Net); ai already has what is needed.
+
+Pre-match (GameConfig, §8):
+- `var team_difficulty := {0: "normal", 1: "normal"}` and `func set_team_difficulty(team: int, level: String) -> bool`:
+  validates team in {0,1} and level in DIFFICULTY (false otherwise, no change); emits `changed`. Keep `bot_difficulty` as the
+  team-1 alias for CLI (`--difficulty=`), and add `--ally_difficulty=` for team 0 if wanted.
+- `func difficulty_for(team: int) -> Dictionary` (damage_scale etc.). main.gd uses `team_difficulty[team]` for each bot's
+  BotBrain and `difficulty_for(team)` for its damage scale, including bots spawned by `set_bot_count` and team-change swaps.
+
+Live (composition root main.gd; host/offline only, like `set_bot_count`):
+- `func match_bot_difficulty() -> Dictionary`: `{0: level, 1: level}` on every side (clients: last value from the host).
+- `func set_bot_difficulty(team: int, level: String) -> bool`: clients return false (no client RPC; UI disables the
+  control). Validates as above; sets `GameConfig.team_difficulty[team]`, calls `BotBrain.set_difficulty(level)` on every live bot
+  of that team and applies the damage scale to them; emits `bot_difficulty_changed(team, level)`.
+- `signal bot_difficulty_changed(team: int, level: String)` on main.gd (every peer).
+- Replication: host -> all `@rpc("authority", "call_remote", "reliable") Net._bot_difficulty(team: int, level: String)` ->
+  `world.net_bot_difficulty(team, level)` (updates the client copy, emits the signal). Welcome info carries `bot_difficulty`
+  (`{0: level, 1: level}`) for late joiners.
+- Please add to INTERFACES §8.1 / §10 when implemented. No UI change needed: the page enables itself once `set_bot_difficulty` exists.

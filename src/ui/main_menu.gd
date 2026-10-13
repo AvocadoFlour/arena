@@ -36,6 +36,8 @@ func _ready() -> void:
     screens.keybinds = kb
     for k in screens:
         bg.add_child(screens[k])
+    if not options_only:
+        refresh_difficulty()
     if options_only:
         layer = 30   # above the pause overlay
         visible = false
@@ -69,6 +71,8 @@ func show_screen(n: String) -> void:
 func _refresh_info() -> void:
     if hero_info:
         hero_info.text = "Hero: %s     Map: %s" % [_name_of(heroes, UiCatalog.selected_hero), _name_of(maps, UiCatalog.selected_map)]
+        if diff_ctl != null:
+            hero_info.text += "     Bots: %s / %s" % [DifficultyControl.LABELS[Settings.bot_difficulty[0]], DifficultyControl.LABELS[Settings.bot_difficulty[1]]]
 
 func _name_of(list: Array, path: String) -> String:
     for e in list:
@@ -174,8 +178,44 @@ func _list_screen(title: String, list: Array, fmt: Callable, kind: String) -> Co
         hero_detail = HeroDetail.new()
         split.add_child(hero_detail)
         hero_list = col
+    if kind == "map":
+        scroll.custom_minimum_size.y = 200
+        v.add_child(MenuStyle.label("Bot difficulty", 24))
+        diff_picker = DifficultyPicker.new()
+        diff_picker.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+        v.add_child(diff_picker)
+        diff_picker.picked.connect(pick_difficulty)
     v.add_child(MenuStyle.button("Back", func(): show_screen("main")))
     return rv[0]
+
+var diff_picker: DifficultyPicker
+var diff_ctl: DifficultyControl
+
+## Pre-match bot difficulty: saved in Settings (last choice) and pushed to GameConfig (INTERFACES §8).
+func pick_difficulty(team: int, level: String) -> void:
+    if diff_ctl == null or not diff_ctl.prematch_available(team):
+        refresh_difficulty()
+        return
+    Settings.bot_difficulty[team] = level
+    Settings.save()
+    diff_ctl.apply_prematch(team, level)
+    refresh_difficulty()
+
+## Applies the saved choice to GameConfig and syncs the picker (disabled rows say "Not available yet").
+func refresh_difficulty() -> void:
+    if diff_ctl == null:
+        diff_ctl = DifficultyControl.new()
+    var na := false
+    for t in [0, 1]:
+        var ok := diff_ctl.prematch_available(t)
+        na = na or not ok
+        if ok:
+            diff_ctl.apply_prematch(t, String(Settings.bot_difficulty[t]))
+        if diff_picker:
+            diff_picker.set_row(t, String(Settings.bot_difficulty[t]), ok)
+    if diff_picker:
+        diff_picker.note.text = ("Your team: " + MatchPage.NA + " (all bots use the Enemy team setting)") if na else ""
+    _refresh_info()
 
 var hero_detail: HeroDetail
 var hero_list: VBoxContainer
