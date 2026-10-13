@@ -20,6 +20,7 @@ enum { OFFLINE, HOST, CLIENT }
 signal welcomed(info: Dictionary)
 signal hero_spawned(info: Dictionary)
 signal hero_despawned(net_id: int)
+signal hero_despawning(net_id: int, node)   ## CLIENT: just before a despawned node is dropped (still valid)
 signal peer_count_changed(n: int)
 signal disconnected(reason: String)
 signal public_ip_ready(ip: String)
@@ -244,7 +245,8 @@ func _c_hello(hero_id: String, pname: String) -> void:
     for x in heroes():
         list.append(hero_info(x))
     var broken: Array = world.net_broken_cover() if world.has_method("net_broken_cover") else []
-    rpc_id(pid, "_s_welcome", {"map_id": GameConfig.map_id, "you": h.net_id, "tick": tick, "heroes": list, "broken_cover": broken, "props": _prop_sent.values()})
+    rpc_id(pid, "_s_welcome", {"map_id": GameConfig.map_id, "you": h.net_id, "tick": tick, "heroes": list, "broken_cover": broken, "props": _prop_sent.values(),
+        "bot_counts": world.match_bot_counts() if world.has_method("match_bot_counts") else {}})
     for other in peers:
         if other != pid:
             rpc_id(other, "_s_spawn", hero_info(h))
@@ -277,6 +279,8 @@ func _s_welcome(info: Dictionary) -> void:
     server_tick = int(info.tick)
     tick = server_tick
     GameConfig.map_id = String(info.map_id)
+    if world and world.has_method("net_bot_counts") and info.has("bot_counts"):
+        world.net_bot_counts(info.bot_counts)
     for pi in info.get("props", []):
         _prop_info[int(pi.id)] = pi
     welcomed.emit(info)
@@ -289,11 +293,101 @@ func _s_spawn(info: Dictionary) -> void:
 @rpc("authority", "reliable")
 func _s_despawn(id: int) -> void:
     var n = entities.get(id)
+    hero_despawning.emit(id, n)
     entities.erase(id)
     _interp.erase(id)
     if is_instance_valid(n):
         n.queue_free()
     hero_despawned.emit(id)
+
+# ---------------------------------------------------------------- in-match controls (§10; main.gd §8 owns the logic)
+## HOST: removes a net id on clients without freeing a node here (hero swap reuses the id).
+func send_despawn_id(id: int) -> void:
+    _interp.erase(id)
+    if mode == HOST:
+        _bcast("_s_despawn", [id])
+
+func send_bot_counts(c: Dictionary) -> void:
+    if mode == HOST:
+        _bcast("_bot_counts", [c])
+
+@rpc("authority", "call_remote", "reliable")
+func _bot_counts(c: Dictionary) -> void:
+    if mode == CLIENT and world and world.has_method("net_bot_counts"):
+        world.net_bot_counts(c)
+
+## CLIENT: asks the host for a hero change; true once sent.
+func request_hero(hero_id: String) -> bool:
+    if mode != CLIENT or my_net_id < 0:
+        return false
+    rpc_id(1, "_rq_hero", hero_id)
+    return true
+
+func request_team(team: int) -> bool:
+    if mode != CLIENT or my_net_id < 0:
+        return false
+    rpc_id(1, "_rq_team", team)
+    return true
+
+func _sender_hero():
+    var pid := multiplayer.get_remote_sender_id()
+    return peers[pid].hero if peers.has(pid) else null
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rq_hero(hero_id: String) -> void:
+    if mode == HOST and world and world.has_method("net_request_swap"):
+        var h = _sender_hero()
+        if h == null:
+            rpc_id(multiplayer.get_remote_sender_id(), "_swap_cancelled", -1, "no hero")
+            return
+        world.net_request_swap(h, hero_id.left(64), -1)
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rq_team(team: int) -> void:
+    if mode == HOST and world and world.has_method("net_request_swap"):
+        var h = _sender_hero()
+        if h == null:
+            rpc_id(multiplayer.get_remote_sender_id(), "_swap_cancelled", -1, "no hero")
+            return
+        world.net_request_swap(h, "", team)
+
+## HOST: reject to one client.
+func send_swap_cancelled(pid: int, net_id: int, reason: String) -> void:
+    if mode == HOST and peers.has(pid):
+        rpc_id(pid, "_swap_cancelled", net_id, reason)
+
+@rpc("authority", "call_remote", "reliable")
+func _swap_cancelled(net_id: int, reason: String) -> void:
+    if world and world.has_method("net_swap_cancelled"):
+        world.net_swap_cancelled(net_id, reason)
+
+## HOST: accepted swap, on every peer including the host.
+func send_swap_started(net_id: int, hero_id: String, delay: float) -> void:
+    _bcast("_swap_started", [net_id, hero_id, delay])
+    _swap_started(net_id, hero_id, delay)
+
+@rpc("authority", "call_local", "reliable")
+func _swap_started(net_id: int, hero_id: String, delay: float) -> void:
+    if world and world.has_method("net_swap_started"):
+        world.net_swap_started(net_id, hero_id, delay)
+
+## HOST: swap done (team >= 0: it was a team change -> also team_changed).
+func send_swap_finished(net_id: int, hero_id: String, team: int) -> void:
+    _bcast("_swap_finished", [net_id, hero_id])
+    _swap_finished(net_id, hero_id)
+    if team >= 0:
+        _bcast("_team_changed", [net_id, team])
+        _team_changed(net_id, team)
+
+@rpc("authority", "call_local", "reliable")
+func _swap_finished(net_id: int, hero_id: String) -> void:
+    if world and world.has_method("net_swap_finished"):
+        world.net_swap_finished(net_id, hero_id)
+
+@rpc("authority", "call_local", "reliable")
+func _team_changed(net_id: int, team: int) -> void:
+    if world and world.has_method("net_team_changed"):
+        world.net_team_changed(net_id, team)
 
 func send_input(pkt: Array) -> void:
     if mode == CLIENT:

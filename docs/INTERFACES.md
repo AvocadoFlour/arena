@@ -280,6 +280,27 @@ toggle (skip Props/fog) can come later via UI.
 A future hero-select UI sets these, then (re)loads `res://src/main.tscn`. Bots use a mixed roster:
 enemy *i* gets `hero_ids()[i % n]`; ally *i* gets the (i+1)-th hero after the player's in `hero_ids()`.
 
+### 8.1 In-match controls (main.gd composition root; UI adapter src/ui/match_control.gd)
+`const HERO_SWAP_DELAY := 3.0` (main.gd). The host (or offline game) runs every timer; UI only displays `delay`.
+- Queries (every side): `match_bot_counts() -> {0: int, 1: int}` (clients: last value from the host, also in the
+  welcome), `local_team() -> int`, `local_net_id() -> int`.
+- `set_bot_count(team, n) -> bool`: offline/host only (clients: false). team in {0,1}, n clamped 0..5. Spawns bots
+  live with the match roster at the team's next spawn slot, or despawns newest first; online through
+  `Net.broadcast_spawn` / despawn, plus `_bot_counts`. Emits `bot_counts_changed(counts)`.
+- `request_hero_change(hero_id) -> bool`, `request_team_change(team) -> bool`: offline/host validate at once (true =
+  accepted); clients send the request and return true once sent. Host validation: requester owns a hero, no change
+  already pending, match not ended; hero: known id and different from the current one; team: 0/1, different
+  from the current one, and no stacking (humans on the target team must stay below the other team before the move).
+  Rejects: `hero_swap_cancelled(net_id, reason)` to the requester only. Accept: `hero_swap_started(net_id, hero_id,
+  delay)` on every peer; after the delay the old hero is replaced by a fresh one (same net id, owner, input
+  stream and scoreboard row, full HP, `SpawnPicker.pick_for` at the team spawn), then `hero_swap_finished(net_id,
+  hero_id)`. Dying during the delay keeps it pending; the respawn is the new hero (at the normal respawn time).
+  The match ending cancels it ("match ended"). Team change: same flow with the current hero; one bot moves from the
+  target team to the old team (team sizes kept), then `team_changed(net_id, team)`. Offline hero swaps also call
+  `GameConfig.set_hero` so "Play again" keeps the new hero. The local hero is replaced: read `main.player` again (HUD,
+  kill feed and scoreboard are rebound by core).
+- Signals on main.gd: `hero_swap_started`, `hero_swap_finished`, `hero_swap_cancelled`, `bot_counts_changed`, `team_changed`.
+
 ## 9. Match modes & win condition (core: src/core/match_rules.gd, node "MatchRules" under main)
 | mode | when | rule |
 |---|---|---|
@@ -354,6 +375,13 @@ team with fewer humans). Modes: `OFFLINE` (single player, unchanged), `HOST`, `C
   (prints `NETDUMP` JSON, quits). `tools/net_test.sh` (build.sh step) runs headless host + client on localhost.
 - Not yet: rejoin/host migration, bot re-fill when a human leaves, ability-movement prediction (dash/leap are
   corrected by reconciliation), NAT traversal / relay.
+
+- **In-match control RPCs** (§8.1 logic lives in main.gd): client -> host `_rq_hero(hero_id)`, `_rq_team(team)`
+  (`Net.request_hero` / `request_team`); host -> requester `_swap_cancelled(net_id, reason)`; host -> all
+  `_swap_started(net_id, hero_id, delay)`, `_swap_finished(net_id, hero_id)`, `_team_changed(net_id, team)`,
+  `_bot_counts(counts)`. A swap is `_s_despawn(id)` + `_s_spawn(info)` with the same id (`Net.send_despawn_id`);
+  `Net.hero_despawning(net_id, node)` fires on clients just before the node is dropped. Welcome info has `bot_counts`.
+  tools/net_test.sh swaps the client's hero mid-match (`--net_swap=S --net_swap_hero=ID`) and checks both sides.
 
 ## 11. Player settings (`Settings` autoload, src/ui/settings.gd, owner UI)
 Persisted by UI (user://settings.cfg). Read-only for everything outside UI; only UI writes them.

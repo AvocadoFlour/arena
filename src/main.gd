@@ -415,6 +415,7 @@ func _start_client(info: Dictionary) -> void:
     for hi in info.heroes:
         _client_spawn(hi, map)
     Net.hero_spawned.connect(func(hi): _client_spawn(hi, map))
+    Net.hero_despawning.connect(_client_despawned)
     if player == null:
         push_error("NET welcome without our hero")
         return
@@ -436,9 +437,21 @@ func _start_client(info: Dictionary) -> void:
         Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
     _t0 = Time.get_ticks_msec()
 
+## CLIENT: remember what a swapping hero carries over (scoreboard row, our input stream).
+func _client_despawned(id: int, n) -> void:
+    if not _swap_ids.has(id):
+        return
+    var c := {}
+    if is_instance_valid(n):
+        if hud and hud.match_stats and hud.match_stats.rows.has(n):
+            c["row"] = hud.match_stats.rows[n]
+        if id == Net.my_net_id:
+            c["ci"] = n.input_source
+    _carry[id] = c
+
 func _client_spawn(hi: Dictionary, map: Node3D) -> void:
     var id := int(hi.id)
-    if Net.entities.has(id):
+    if Net.entities.has(id) and is_instance_valid(Net.entities[id]) and not Net.entities[id].is_queued_for_deletion():
         return
     var h := Hero.from_def(GameConfig.hero_path(String(hi.hero_id)))
     h.display_name = String(hi.name)
@@ -460,10 +473,29 @@ func _client_spawn(hi: Dictionary, map: Node3D) -> void:
             src = BotBrain.new({"difficulty": "hard", "use_abilities": true, "seek_cover": false, "escort_allies": false, "bounds": float(map.get_meta("bounds"))})
         else:
             h.aim_camera = rig.cam
-        h.input_source = ClientInput.new(src)
+        var carried: Dictionary = _carry.get(id, {})
+        if carried.get("ci") is ClientInput:   # hero swap: same input stream (seq/counters) so acks stay valid
+            var ci: ClientInput = carried.ci
+            ci.pending.clear()
+            ci.respawn_seq = ci.seq
+            h.input_source = ci
+        else:
+            h.input_source = ClientInput.new(src)
         stats["hero"] = String(hi.hero_id)
+        if hud:   # swapped in mid-match: rebind HUD to the new local hero
+            var old = hud.player
+            player = h
+            hud.player = h
+            for n in hud.find_children("*", "", true, false):
+                if n.get("player") == old:
+                    n.set("player", h)
     else:
         h.net_role = "puppet"
+    if _carry.has(id):
+        var c: Dictionary = _carry[id]
+        if c.has("row") and hud and hud.match_stats:
+            hud.match_stats.rows[h] = c.row
+        _carry.erase(id)
 
 # ---------------------------------------------------------------- net test dump (tools/net_test.sh)
 func _hook_net_dump() -> void:
@@ -479,6 +511,12 @@ func _hook_net_dump() -> void:
     Events.damage_dealt.connect(func(ev):
         if is_instance_valid(ev.source) and ev.source is Hero and ev.source.has_meta("peer"):
             _dump.remote_dmg += float(ev.amount))
+    for sg in ["hero_swap_started", "hero_swap_finished", "hero_swap_cancelled"]:
+        var nm: String = sg
+        connect(sg, func(id, x, _y = null): _dump.get_or_add("swaps", []).append([nm, int(id), str(x)]))
+    if args.has("net_swap") and Net.is_client():   # client hero swap mid-match (tools/net_test.sh)
+        get_tree().create_timer(float(args.net_swap), true, true).timeout.connect(func():
+            print("NET swap request ", args.get("net_swap_hero", "twin_tails"), " -> ", request_hero_change(String(args.get("net_swap_hero", "twin_tails")))))
     Events.match_ended.connect(func(ev):
         _dump_open = false
         _dump.match_ended = {"winner_team": ev.winner_team, "reason": ev.reason, "mode": ev.get("mode", "")})
@@ -499,6 +537,7 @@ func _net_dump() -> void:
         d["max_teleport"] = snappedf(Net.max_teleport, 0.01)
         d["big_corrections"] = Net.big_corrections
         d["deaths"] = stats.deaths
+        d["my_hero"] = String(player.def.get("id", "")) if is_instance_valid(player) else ""
         d["sent"] = player.input_source.sent if player and player.input_source is ClientInput else 0
     else:
         var log := {}
@@ -511,4 +550,239 @@ func _net_dump() -> void:
             if is_instance_valid(Net.peers[pid].hero):
                 recv += Net.peers[pid].hero.input_source.received
         d["inputs_received"] = recv
+        d["peer_heroes"] = Net.peers.values().map(func(p): return [int(p.hero.net_id), String(p.hero.def.get("id", ""))] if is_instance_valid(p.hero) else [-1, ""])
     print("NETDUMP ", JSON.stringify(d))
+
+# ---------------------------------------------------------------- in-match controls (INTERFACES §8, docs/requests/ui.md)
+const HERO_SWAP_DELAY := 3.0   ## s between an accepted hero/team change and the respawn as the new hero (host/offline timer)
+const MAX_BOTS_PER_TEAM := 5
+signal hero_swap_started(net_id: int, hero_id: String, delay: float)
+signal hero_swap_finished(net_id: int, hero_id: String)
+signal hero_swap_cancelled(net_id: int, reason: String)
+signal bot_counts_changed(counts: Dictionary)
+signal team_changed(net_id: int, team: int)
+var _swaps := {}          ## HOST/OFFLINE: net_id -> {hero_id, team, left}
+var _swap_ids := {}       ## every peer: net ids with a swap in flight (stats rows carried across the respawn)
+var _carry := {}          ## net_id -> {"row": MatchStats row, "ci": ClientInput} while the hero is being replaced
+var _client_bot_counts := {0: 0, 1: 0}
+
+func match_bot_counts() -> Dictionary:
+    if Net.is_client():
+        return _client_bot_counts.duplicate()
+    var out := {}
+    for t in [0, 1]:
+        _bots[t] = _bots[t].filter(func(b): return is_instance_valid(b) and not b.is_queued_for_deletion())
+        out[t] = _bots[t].size()
+    return out
+
+func local_team() -> int:
+    return player.team if is_instance_valid(player) else 0
+
+func local_net_id() -> int:
+    if Net.is_client():
+        return Net.my_net_id
+    return player.net_id if is_instance_valid(player) else -1
+
+func _match_over() -> bool:
+    return stats.get("match_ended", 0) > 0
+
+## OFFLINE/HOST: live bot count for a team (0..5). Spawns/despawns newest first; replicates online.
+func set_bot_count(team: int, n: int) -> bool:
+    if Net.is_client() or not (team in [0, 1]) or _map == null or _match_over():
+        return false
+    n = clampi(n, 0, MAX_BOTS_PER_TEAM)
+    var counts := match_bot_counts()
+    var roster: Array = GameConfig.hero_ids()
+    var pidx: int = maxi(0, roster.find(GameConfig.hero_id))
+    while counts[team] < n:
+        var i: int = counts[team]
+        var hid: String = roster[(pidx + 1 + i) % roster.size()] if team == 0 else roster[i % roster.size()]
+        var b := _spawn_bot(hid, team, i, _spawns, _map, GameConfig.difficulty(), "Ally %d (%s)" if team == 0 else "Bot %d (%s)", i + (1 if team == 0 else 0))
+        b.process_mode = Node.PROCESS_MODE_PAUSABLE
+        Net.broadcast_spawn(b)
+        counts[team] += 1
+    while counts[team] > n:
+        Net.despawn(_bots[team].pop_back())
+        counts[team] -= 1
+    _publish_bot_counts()
+    return true
+
+func _publish_bot_counts() -> void:
+    var c := match_bot_counts()
+    bot_counts_changed.emit(c)
+    if Net.is_host():
+        Net.send_bot_counts(c)
+
+## CLIENT: host -> all (Net._bot_counts).
+func net_bot_counts(c: Dictionary) -> void:
+    _client_bot_counts = {0: int(c.get(0, c.get("0", 0))), 1: int(c.get(1, c.get("1", 0)))}
+    bot_counts_changed.emit(_client_bot_counts.duplicate())
+
+func request_hero_change(hero_id: String) -> bool:
+    if Net.is_client():
+        return Net.request_hero(hero_id)
+    var r := net_request_swap(player, hero_id, -1)
+    if r == "" and not Net.is_online():
+        GameConfig.set_hero(hero_id)   # "Play again" keeps the new hero
+    return r == ""
+
+func request_team_change(team: int) -> bool:
+    if Net.is_client():
+        return Net.request_team(team)
+    return net_request_swap(player, "", team) == ""
+
+func _humans() -> Dictionary:
+    var out := {0: 0, 1: 0}
+    for h in Net.heroes():
+        if h == player or h.has_meta("peer"):
+            out[h.team] += 1
+    return out
+
+## HOST/OFFLINE: validates and starts a hero (hero_id != "") or team (team >= 0) change. Returns "" on accept,
+## else the reject reason (also sent as hero_swap_cancelled to the requester).
+func net_request_swap(h, hero_id: String, team: int) -> String:
+    var reason := ""
+    if not is_instance_valid(h) or not h is Hero:
+        reason = "no hero"
+    elif _match_over():
+        reason = "match ended"
+    elif _swaps.has(h.net_id):
+        reason = "change already pending"
+    elif team < 0 and not GameConfig.hero_ids().has(hero_id):
+        reason = "unknown hero"
+    elif team < 0 and hero_id == String(h.def.get("id", "")):
+        reason = "already playing that hero"
+    elif team >= 0 and not (team in [0, 1]):
+        reason = "invalid team"
+    elif team >= 0 and team == h.team:
+        reason = "already on that team"
+    elif team >= 0 and _humans()[team] > _humans()[1 - team] - 1:
+        reason = "teams would be uneven"
+    var id: int = h.net_id if is_instance_valid(h) else -1
+    if reason != "":
+        _cancel(id, reason, h)
+        return reason
+    var hid: String = hero_id if team < 0 else String(h.def.get("id", ""))
+    _swaps[id] = {"hero_id": hid, "team": team if team >= 0 else h.team, "team_change": team >= 0, "left": HERO_SWAP_DELAY}
+    if Net.is_host():
+        Net.send_swap_started(id, hid, HERO_SWAP_DELAY)
+    else:
+        net_swap_started(id, hid, HERO_SWAP_DELAY)
+    return ""
+
+func _cancel(id: int, reason: String, h = null) -> void:
+    if is_instance_valid(h) and h.has_meta("peer") and Net.is_host():
+        Net.send_swap_cancelled(int(h.get_meta("peer")), id, reason)
+    else:
+        hero_swap_cancelled.emit(id, reason)
+
+## Every peer (host: via call_local RPC or directly offline).
+func net_swap_started(id: int, hero_id: String, delay: float) -> void:
+    _swap_ids[id] = true
+    hero_swap_started.emit(id, hero_id, delay)
+
+func net_swap_finished(id: int, hero_id: String) -> void:
+    _swap_ids.erase(id)
+    hero_swap_finished.emit(id, hero_id)
+
+func net_team_changed(id: int, team: int) -> void:
+    team_changed.emit(id, team)
+
+func net_swap_cancelled(id: int, reason: String) -> void:
+    _swap_ids.erase(id)
+    hero_swap_cancelled.emit(id, reason)
+
+func _physics_process(dt: float) -> void:
+    if _swaps.is_empty() or Net.is_client():
+        return
+    for id in _swaps.keys():
+        var s: Dictionary = _swaps[id]
+        var h = Net.entities.get(id)
+        if not is_instance_valid(h):
+            _swaps.erase(id)
+            continue
+        if _match_over():
+            _swaps.erase(id)
+            _cancel(id, "match ended", h)
+            continue
+        s.left -= dt
+        if s.left > 0.0:
+            continue
+        if h.dead and h.respawn_left > dt:
+            continue   # died during the delay: still pending, the respawn uses the new hero
+        _swaps.erase(id)
+        _do_swap(h, s)
+
+## HOST/OFFLINE: replaces hero `old` with a fresh hero of s.hero_id on s.team, keeping net id, owner, input
+## source and stats; full HP at the team spawn. Clients see despawn + spawn of the same net id.
+func _do_swap(old: Hero, s: Dictionary) -> void:
+    var id := old.net_id
+    var team: int = s.team
+    var is_local := old == player
+    if s.team_change:   # move one bot from the target team to the old team (keeps per-team counts)
+        _bots[team] = _bots[team].filter(func(b): return is_instance_valid(b) and not b.is_queued_for_deletion())
+        if not _bots[team].is_empty():
+            var bot: Hero = _bots[team].pop_back()
+            var bid := String(bot.def.get("id", GameConfig.DEFAULT_HERO))
+            Net.despawn(bot)
+            var nb := _spawn_bot(bid, old.team, _bots[old.team].size(), _spawns, _map, GameConfig.difficulty(), "Ally %d (%s)" if old.team == 0 else "Bot %d (%s)", _bots[old.team].size() + 1)
+            nb.process_mode = Node.PROCESS_MODE_PAUSABLE
+            Net.broadcast_spawn(nb)
+    var h := Hero.from_def(GameConfig.hero_path(String(s.hero_id)))
+    var pname := String(old.get_meta("net_name", old.display_name))
+    pname = pname.substr(0, pname.rfind(" (")) if pname.rfind(" (") > 0 else pname
+    h.display_name = "%s (%s)" % [pname, h.def.get("name", s.hero_id)]
+    h.set_meta("net_name", h.display_name)
+    if old.has_meta("peer"):
+        h.set_meta("peer", old.get_meta("peer"))
+    h.set_team(team)
+    var src = old.input_source
+    var aim = old.aim_camera
+    var row = hud.match_stats.rows.get(old) if hud and hud.match_stats else null
+    old.remove_from_group("heroes")
+    old.set_meta("net_id", -1)   # Net.despawn of the old node must not touch the reused id's state
+    old.queue_free()
+    Net.send_despawn_id(id)
+    h.process_mode = Node.PROCESS_MODE_PAUSABLE
+    add_child(h)
+    h.spawn_point = SpawnPicker.pick_for(h, _spawns.get(team, [old.spawn_point]))
+    h.global_position = h.spawn_point
+    h.yaw = PI if team == 1 else 0.0
+    h.rotation.y = h.yaw
+    Net.register_as(h, id)
+    h.input_source = src
+    if row != null:
+        hud.match_stats.rows[h] = row
+    if old.has_meta("peer"):
+        var pid := int(old.get_meta("peer"))
+        if Net.peers.has(pid):
+            Net.peers[pid].hero = h
+    if is_local:
+        _adopt_local(h, aim != null)
+        stats["hero"] = String(s.hero_id)
+    _seed_for_smoke(h)
+    Net.broadcast_spawn(h)
+    if Net.is_host():
+        Net.send_swap_finished(id, String(s.hero_id), team if s.team_change else -1)
+    else:
+        net_swap_finished(id, String(s.hero_id))
+        if s.team_change:
+            net_team_changed(id, team)
+
+## The local player hero was replaced: camera rig, HUD/kill feed/scoreboard binding.
+func _adopt_local(h: Hero, with_aim: bool) -> void:
+    var old = player
+    player = h
+    h.display_name = "You (%s)" % h.def.get("name", "")
+    var rig := CameraRig.new()
+    h.add_child(rig)
+    rig.setup(h)
+    if with_aim or (h.input_source == Actions) or (h.input_source is ClientInput and h.input_source.inner == Actions):
+        h.aim_camera = rig.cam
+    if rig.get("cam") and rig.cam is Camera3D:
+        rig.cam.current = true
+    if hud:
+        hud.player = h
+        for n in hud.find_children("*", "", true, false) + [hud.kill_feed, hud.scoreboard]:
+            if is_instance_valid(n) and n.get("player") == old:
+                n.set("player", h)
