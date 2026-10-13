@@ -37,3 +37,11 @@ Test discovery, INTERFACES §5 params, GameConfig difficulty -> BotBrain.
    Input/ability interface unchanged: still `poll(hero) -> InputFrame` with the same fields.
 3. **INTERFACES §5 (lead)**: add `leap` and `team_buff` to the type-based policy list; note melee
    awareness (stand-off = 0.6 × melee range) and `BotBrain.resolve_difficulty(name)`.
+
+## Round 4 (stand-off fix)
+1. **INTERFACES §5 (lead, doc only)**: ranged bots hold `standoff` (10 m) with a range-proportional radial
+   term and a world-space tangential strafe (`BotBrain.standoff_dir`); when line of sight breaks they reverse
+   strafe and keep the stand-off for `LOS_GRACE` (1 s) before pathing in, and remember an out-of-sight target
+   for `TARGET_MEMORY` (2 s) instead of wandering or switching to a farther enemy.
+   No interface change (still `poll(hero) -> InputFrame`). tests/ai_melee_driver.gd threshold back to 8.0 m
+   (closest gap to the engaged target); bench: `godot --headless --path . -s tests/ai_standoff_run.gd -- --n=30`.
