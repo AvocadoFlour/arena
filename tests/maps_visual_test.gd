@@ -60,7 +60,12 @@ func test_props_never_collide() -> void:
         var props := m.get_node_or_null("Props")
         var n: int = d.get("props", []).size()
         if n > 0:
-            check(props != null and props.get_child_count() == n, "%s: %d props built" % [f, n])
+            var total := 0
+            if props != null:
+                for c in props.get_children():
+                    total += int(c.get_meta("prop_count", 0))
+            check(props != null and total == n, "%s: %d props built (batched %d)" % [f, n, total])
+            check(props.get_child_count() <= 40, "%s: props batched into few meshes (%d)" % [f, props.get_child_count()])
             check(props.find_children("*", "CollisionObject3D", true, false).is_empty(), "%s: props have no bodies" % f)
             check(props.find_children("*", "CollisionShape3D", true, false).is_empty(), "%s: props have no shapes" % f)
         m.free()
@@ -107,3 +112,53 @@ func test_unthemed_map_defaults() -> void:
     var we: WorldEnvironment = m.find_children("*", "WorldEnvironment", false, false)[0]
     check(not we.environment.fog_enabled, "no fog by default")
     m.free()
+
+func test_low_quality_skips_props_and_fog() -> void:
+    for f in ["arena01.json", "arena02.json"]:
+        var m := MapLoader.build("res://src/maps/" + f, {"low_quality": true})
+        check(m.get_node_or_null("Props") == null, "%s low_quality: no Props" % f)
+        var we: WorldEnvironment = m.find_children("*", "WorldEnvironment", false, false)[0]
+        check(not we.environment.fog_enabled, "%s low_quality: no fog" % f)
+        var g = JSON.parse_string(FileAccess.get_file_as_string("res://tests/maps_collision_golden.json"))
+        check(signature(m) == g[f], "%s low_quality: collision identical to golden" % f)
+        m.free()
+        var hq := MapLoader.build("res://src/maps/" + f, {"low_quality": false})
+        check(hq.get_node_or_null("Props") != null, "%s normal: Props present" % f)
+        hq.free()
+
+func test_low_quality_flag_default() -> void:
+    # No autoload exposes `low_quality` yet -> false; must never error.
+    var v = MapLoader.low_quality_flag()
+    check(v is bool, "flag is bool")
+    var ml := Engine.get_main_loop()
+    var has := false
+    if ml is SceneTree:
+        for n in ["Settings", "GameConfig"]:
+            var o = ml.root.get_node_or_null(n)
+            if o != null and "low_quality" in o:
+                has = true
+                check(v == bool(o.low_quality), "flag mirrors %s.low_quality" % n)
+                break
+    if not has:
+        check(v == false, "defaults to false")
+
+func test_low_quality_deterministic() -> void:
+    for f in ["arena01.json", "arena02.json"]:
+        var a := MapLoader.build("res://src/maps/" + f, {"low_quality": true})
+        var b := MapLoader.build("res://src/maps/" + f, {"low_quality": true})
+        check(signature(a) == signature(b) and a.get_child_count() == b.get_child_count(), "%s low_quality deterministic" % f)
+        a.free()
+        b.free()
+
+func test_batched_props_deterministic_geometry() -> void:
+    var a := MapLoader.build("res://src/maps/arena02.json", {"low_quality": false})
+    var b := MapLoader.build("res://src/maps/arena02.json", {"low_quality": false})
+    var pa: Array = []
+    var pb: Array = []
+    for c in a.get_node("Props").get_children():
+        pa.append([c.name, c.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]])
+    for c in b.get_node("Props").get_children():
+        pb.append([c.name, c.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]])
+    check(pa == pb, "batched prop vertices identical across builds")
+    a.free()
+    b.free()

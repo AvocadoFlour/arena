@@ -212,6 +212,6 @@
     {"shape": "sphere", "pos": [27, 0.2, -9], "radius": 2.0, "mat": "rock"},
     {"shape": "sphere", "pos": [6, 0.2, 28], "radius": 1.4, "mat": "rock"},
     {"shape": "sphere", "pos": [-9, 0.2, -28], "radius": 1.8, "mat": "rock"},
-    {"shape": "box", "pos": [0, -0.6, 0], "size": [140, 0.2, 140], "color": "#6f7a4a"}
+    {"shape": "box", "pos": [0, -0.6, 0], "size": [140, 0.2, 140], "color": "#6f7a4a", "no_shadow": true}
   ]
 }
