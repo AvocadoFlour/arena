@@ -45,6 +45,8 @@ func _setup() -> void:
     floor.material_override = fm
     world.add_child(floor)
     var hid := String(args.get("hero", "twin_tails"))
+    if args.has("primitive"):
+        load("res://src/heroes/hero.gd").use_primitive_models = true
     hero = load("res://src/heroes/hero.gd").from_def("res://src/heroes/%s.json" % hid)
     hero.net_role = "puppet"
     world.add_child(hero)
@@ -97,6 +99,15 @@ func _process(dt: float) -> bool:
         "heal":
             if t > 0.3 and hero.abilities.ability1.cooldown.remaining == 0.0:
                 hero.abilities.ability1.cooldown.remaining = hero.abilities.ability1.cooldown.duration
+        "hit":    # replicated hp drop --dmg=N, --lead s before the shot; --from=x replays a damage event from x
+            if t > shot_at - float(args.get("lead", "0.05")) and not _swung:
+                _swung = true
+                if args.has("from"):
+                    var src := Node3D.new()
+                    hero.get_parent().add_child(src)
+                    src.position = Vector3(float(args.from), 1, -2)
+                    root.get_node("/root/Events").damage_dealt.emit({"source": src, "target": hero, "amount": float(args.get("dmg", "40")), "pos": hero.global_position, "kind": "test", "killed": false, "ability_id": "", "crit": false})
+                hero.health.hp -= float(args.get("dmg", "40"))
         "death":
             if t > 0.3 and not hero.dead:
                 hero.dead = true

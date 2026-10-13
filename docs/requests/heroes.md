@@ -79,3 +79,9 @@ Test auto-discovery, hero API docs, damage kinds, mixed bot roster.
 ## R9 – ability VFX (requests to core)
 - **Net-prop visual hook:** on clients, projectiles and walls are recreated by core as plain sphere/box props. That means the Staccato Note glyph shows only on host/offline (hits still pop via the replayed damage event), and the Geode Wall box hides most of the toon crystals. Request: an optional `visual_scene`/`visual_id` field in net_props so hero code can supply the client-side visual.
 - **Test helper naming:** `abilities_sim::projectile_freed` treats any scene child that has a `vel` property as a projectile. The FX pieces now use `drift` to avoid this, but a group- or class-based check would be sturdier.
+
+## R10 – hit reactions (notes / requests)
+- The toon shader now has a per-instance `instance uniform float hit_flash`, which keeps meshes shared. GL Compatibility allows only a limited number of instance uniforms per material; this uses one.
+- `HeroModel` now keeps loaded model PackedScenes referenced. Previously a scene could unload between spawns, so the ToonKit bake was redone each time and its cache grew (found by the new sharing test).
+- Request (core): replicate a hit direction (attacker position or hit pos) in the hp snapshot, or always replay damage events to all clients. Then remote flinches could always be directional. Today a hit without a damage event gets a generic backward flinch.
+- FYI (not heroes): `ai_teamplay_driver::team_groups_up` fails on current master without this branch's changes too.
