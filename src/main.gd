@@ -21,6 +21,7 @@ var main_menu = null
 var rules: MatchRules
 var _bots := {0: [], 1: []}   ## team -> bot heroes (host replaces one per joining human)
 var _net_status: Label
+var _map: Node3D
 var _dump := {"ready": [], "kills": [], "remote_dmg": 0.0, "match_ended": null}
 var _dump_open := true        ## kills are recorded until match_ended
 var _dumped := false
@@ -78,6 +79,7 @@ func _start_match() -> void:
     var demo := args.has("demo") or args.has("smoke") or args.has("screenshot") or args.has("autopilot")
     var map := MapLoader.build(GameConfig.map_path())
     add_child(map)
+    _map = map
     var spawns: Dictionary = map.get_meta("spawns")
     var zones: Array = CaptureZone.from_map(map)
     for z in zones:
@@ -385,6 +387,11 @@ func net_spawn_human(pid: int, hero_id: String, pname: String) -> Hero:
     print("NET human joined: ", h.display_name, " team ", team, " id ", h.net_id)
     return h
 
+## HOST: block ids of breakable cover already destroyed (welcome info for late joiners).
+func net_broken_cover() -> Array:
+    var dest = _map.get_node_or_null("Destruction") if is_instance_valid(_map) else null
+    return dest.broken_ids() if dest else []
+
 func net_peer_left(_pid: int) -> void:
     pass   # the slot stays empty until the next match (bots are not re-filled mid-match)
 
@@ -395,6 +402,10 @@ func _start_client(info: Dictionary) -> void:
         main_menu = null
     var map := MapLoader.build(GameConfig.map_path())
     add_child(map)
+    _map = map
+    var dest := map.get_node_or_null("Destruction")
+    if dest:   # late join: cover the host already broke
+        dest.apply_broken(info.get("broken_cover", []))
     _spawns = map.get_meta("spawns")
     stats["map"] = GameConfig.map_id
     for z in CaptureZone.from_map(map):   # visual only: not wired to the bus; capture events come from the host

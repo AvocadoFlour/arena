@@ -220,11 +220,7 @@ static func _outlines(d: Dictionary, theme: Dictionary, lq: bool) -> MeshInstanc
     st.begin(Mesh.PRIMITIVE_TRIANGLES)
     var n := 0
     for b in d.get("blocks", []):
-<<<<<<< HEAD
-        if not _outlined(b, mdefs):
-=======
         if not _outlined(b, mdefs) or is_destructible(b):
->>>>>>> f6789be
             continue
         var sz := _v(b.size)
         if minf(sz.x, minf(sz.y, sz.z)) < 0.05:
@@ -267,8 +263,6 @@ static func _outlines(d: Dictionary, theme: Dictionary, lq: bool) -> MeshInstanc
     mi.set_meta("hull_count", n)
     return mi
 
-<<<<<<< HEAD
-=======
 ## Destructible = kind "cover" with "hp" > 0 (map JSON). Its hull is a child of the block, not in "Outlines".
 static func is_destructible(b: Dictionary) -> bool:
     return String(b.get("kind", "")) == "cover" and float(b.get("hp", 0.0)) > 0.0
@@ -290,7 +284,6 @@ static func _hull_instance(b: Dictionary, theme: Dictionary) -> MeshInstance3D:
     mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     return mi
 
->>>>>>> f6789be
 static func _outlined(e: Dictionary, mdefs: Dictionary) -> bool:
     if not e.get("outline", true):
         return false

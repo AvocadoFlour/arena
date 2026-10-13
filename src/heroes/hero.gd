@@ -337,6 +337,7 @@ func look_dir() -> Vector3:
     return Vector3(-sin(yaw) * cos(pitch), sin(pitch), -cos(yaw) * cos(pitch))
 
 func _physics_process(dt: float) -> void:
+    _flush_heals(dt)
     if net_role == "puppet":
         return
     if net_role == "predicted":
@@ -444,6 +445,8 @@ func _fire_shot() -> void:
         var c = hit.collider
         if c is Hero and c.team != team and not c.dead:
             c.take_damage(weapon.damage * damage_mult(), self, end, "primary")
+        elif c.is_in_group("destructible"):
+            c.take_damage(weapon.damage * damage_mult(), self, end, "primary")   # breakable cover (maps §6)
     var from := beam_origin()
     Fx.tracer(get_parent(), from, end, Color(1, 0.9, 0.4) if team == 0 else Color(1, 0.4, 0.3))
 
@@ -493,6 +496,9 @@ func melee_swing() -> int:
             if final_hit and h.has_method("knockback"):
                 h.knockback(fwd * float(p.get("finisher_knockback", 6.0)) + Vector3(0, 3, 0))
             n += 1
+    for c in get_tree().get_nodes_in_group("destructible"):   # breakable cover in the swing arc
+        if c.is_inside_tree() and MeleeMath.in_arc(global_position, fwd, c.global_position, rng + 0.5, arc):
+            c.take_damage(weapon.damage * mult * damage_mult(), self, c.global_position, "primary")
     var col := Color(1, 0.85, 0.4) if final_hit else Color(0.9, 0.9, 1.0)
     Fx.ring(get_parent(), global_position + Vector3(0, 1.1, 0) + fwd * rng * 0.5, rng * 0.5, col, 0.15)
     return n
@@ -562,9 +568,36 @@ func heal(amount: float, source = null, ability_id := "") -> float:
     var before := health.hp
     health.heal(amount)
     var got := health.hp - before
-    if got > 0.0:
-        Events.healed.emit({"source": source, "target": self, "amount": got, "ability_id": ability_id})
+    if got > 0.0:   # aggregated per (source, ability): Events.healed fires about every HEAL_EVENT_INTERVAL s
+        var key := "%d/%s" % [source.get_instance_id() if is_instance_valid(source) else 0, ability_id]
+        var e: Dictionary = _heal_acc.get(key, {"source": source, "amount": 0.0, "ability_id": ability_id, "age": 0.0})
+        e.amount += got
+        _heal_acc[key] = e
     return got
+
+const HEAL_EVENT_INTERVAL := 0.25
+var _heal_acc := {}   ## "source_iid/ability_id" -> {source, amount, ability_id, age}
+
+func _flush_heals(dt: float, force := false) -> void:
+    if _heal_acc.is_empty():
+        return
+    for key in _heal_acc.keys():
+        var e: Dictionary = _heal_acc[key]
+        e.age += dt
+        if force or e.age >= HEAL_EVENT_INTERVAL:
+            _heal_acc.erase(key)
+            Events.healed.emit({"source": e.source if is_instance_valid(e.source) else null, "target": self,
+                "amount": e.amount, "ability_id": e.ability_id})
+
+## Splash damage to breakable cover (maps §6, group "destructible"), HitMath falloff on distance to the block.
+## Host/offline only (cover.take_damage no-ops on clients). Does not charge ult.
+static func damage_destructibles(tree: SceneTree, center: Vector3, radius: float, dmg: float, source, kind: String, ability_id := "", exclude = null) -> void:
+    for c in tree.get_nodes_in_group("destructible"):
+        if not c.is_inside_tree() or c == exclude:
+            continue
+        var amt := HitMath.aoe_damage(center, radius, dmg, c.global_position)
+        if amt > 0.0:
+            c.take_damage(amt, source, c.global_position, kind, ability_id)
 
 ## Area damage to enemies (used by abilities). Returns number of heroes hit.
 func aoe(center: Vector3, radius: float, dmg: float, kind: String, ability_id := "") -> int:
@@ -576,6 +609,7 @@ func aoe(center: Vector3, radius: float, dmg: float, kind: String, ability_id :=
         if amt > 0.0:
             h.take_damage(amt * damage_mult(), self, h.global_position + Vector3(0, 1.2, 0), kind, ability_id)
             n += 1
+    Hero.damage_destructibles(get_tree(), center, radius, dmg * damage_mult(), self, kind, ability_id)
     return n
 
 ## Damage contract (INTERFACES.md section 3). Returns damage actually applied.
@@ -605,6 +639,7 @@ func on_damage_dealt(d: float) -> void:
 func _die(killer, kind: String, ability_id := "") -> void:
     if dead:
         return
+    _flush_heals(0.0, true)   # report healing received before the death
     dead = true
     health.hp = 0.0
     visible = keep_body_when_dead

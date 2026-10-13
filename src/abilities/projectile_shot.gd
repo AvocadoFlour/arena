@@ -58,6 +58,8 @@ func _physics_process(dt: float) -> void:
         hit_pos = hit.position
         if hit.collider is Hero:
             target = hit.collider
+        elif hit.collider.is_in_group("destructible"):
+            _cover_hit = hit.collider
     # Generous hit radius: also catch enemies passing near the segment.
     if target == null:
         var hr := float(def.get("hit_radius", 0.3))
@@ -79,6 +81,8 @@ func _physics_process(dt: float) -> void:
     elif life <= 0.0:
         queue_free()
 
+var _cover_hit = null   ## breakable cover hit directly (maps §6)
+
 func _impact(pos: Vector3, target) -> void:
     exploded = true
     var src = owner_hero if is_instance_valid(owner_hero) else null
@@ -91,7 +95,10 @@ func _impact(pos: Vector3, target) -> void:
         victims.append(target)
         if dmg > 0.0:
             target.take_damage(dmg * scale, src, pos, kind, String(def.get("id", def.get("type", ""))))
+    if is_instance_valid(_cover_hit) and dmg > 0.0:
+        _cover_hit.take_damage(dmg * scale, src, pos, kind, String(def.get("id", def.get("type", ""))))
     if splash > 0.0 and src:
+        Hero.damage_destructibles(get_tree(), pos, splash, dmg * scale, src, kind, String(def.get("id", def.get("type", ""))), _cover_hit)
         for h in get_tree().get_nodes_in_group("heroes"):
             if h == src or h.dead or h.team == src.team or victims.has(h):
                 continue

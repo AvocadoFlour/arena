@@ -7,6 +7,8 @@ signal damage_dealt(ev: Dictionary)
 ## ev = {killer: Hero|null, victim: Hero, kind: String}
 signal killed(ev: Dictionary)
 signal respawned(hero)
+## Host/offline: breakable cover destroyed: {block_id: int, pos: Vector3, map: Node} (maps §6). Clients apply it via MapDestruction.
+signal cover_broken(ev: Dictionary)
 ## Host/offline: {source: Hero|null, target: Hero, amount: float (HP actually restored, > 0), ability_id: String}
 signal healed(ev: Dictionary)
 ## Host/offline: an ability's cooldown just ran out (not fired by direct resets such as respawn or test hooks).

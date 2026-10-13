@@ -127,7 +127,9 @@ FOV animation (zoom/sprint) must be relative to `Settings.fov`. Audio buses `Mas
 ## 4. Event bus (`Events` autoload)
 `damage_dealt({source, target, amount, pos, kind, killed, ability_id, crit})`, `killed({killer, victim, kind, ability_id})`
 (`ability_id` "" = primary/fall; `crit` always false for now; see §3), `respawned(hero)`, `healed({source, target, amount, ability_id})` (host/offline, from `hero.heal(amount, source, ability_id)`;
-`amount` = HP actually restored, only emitted when > 0; channelled beams emit per physics tick; replicated reliably), `ability_ready(hero, slot)` (host/offline: fired when a cooldown runs out while the hero
+`amount` = HP actually restored; aggregated per target × (source, ability_id) and emitted about every 0.25 s
+(`Hero.HEAL_EVENT_INTERVAL`), flushed early on the target's death; replicated reliably), `cover_broken({block_id, pos, map})`
+(host/offline; replicated, clients apply it through `MapDestruction`), `ability_ready(hero, slot)` (host/offline: fired when a cooldown runs out while the hero
 ticks; NOT on direct resets such as respawn or test hooks; replicated reliably to clients), `ability_used(hero, slot, ability_id)`,
 `capture_progress({zone_id, team, progress 0..1, contested, owner})` (≤ 10 Hz, immediate when `contested` flips;
 `team` = capturing team, or the owner when nobody is capturing), `capture_completed({zone_id, team, previous})`,
@@ -240,6 +242,14 @@ drops prop hulls. `MapLoader.mat_color(mat)` returns the base colour of either m
 Destructible cover (if ever added): it must stay a solid StaticBody3D block with meta `kind = "cover"` (name prefix
 `cover_`), and breaking it frees the node (`queue_free`); bots then re-pick cover automatically (§5). Online, a
 destructible block must be removed on clients too (replicate the break; maps are otherwise not replicated, §10).
+Destructible cover (v0.8, maps queue 2): a `cover` block with `"hp": N` becomes a `DestructibleCover`
+(StaticBody3D, meta kind `cover`, name `cover_NN`, group `destructible`, own outline hull). `block_id` = index in the
+JSON `blocks` array (identical everywhere). Manager: map-root child `Destruction` (`MapDestruction`): host/offline
+decides — `cover.take_damage(amount, source, pos, kind, ability_id)` (same signature as Hero; 0 on clients), at 0 HP
+emits `Events.cover_broken` and frees the node. Core routes hitscan, melee arcs, projectile direct hits + splash and
+`Hero.aoe()` to the `destructible` group (`Hero.damage_destructibles(...)`, HitMath falloff; no ult charge). Clients:
+`Destruction.apply_break(block_id)` via the replicated event; late join: welcome info `broken_cover` =
+`Destruction.broken_ids()` on the host → `Destruction.apply_broken(ids)` right after the client builds the map.
 Build options (approved v0.4, maps round 4): `MapLoader.build(path, opts := {})`; `opts.low_quality` overrides
 `MapLoader.low_quality_flag()` (= `Settings.low_quality` OR `GameConfig.low_quality`). Low quality skips `Props`
 and fog and disables sun shadows; collision is identical. Props are batched: `Props` children are one merged

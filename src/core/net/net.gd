@@ -11,7 +11,7 @@ const SNAP_EVERY := 3            ## physics ticks between snapshots (60 / 3 = 20
 const INTERP_DELAY := 0.1        ## s, remote heroes are rendered this far in the past
 const HISTORY := 60              ## ticks of position history for lag compensation (1 s)
 const RECONCILE_EPS := 0.15      ## m, prediction error tolerated before replaying inputs
-const EVENT_SIGNALS := {"damage_dealt": 1, "killed": 1, "respawned": 1, "healed": 1, "ability_used": 3, "ability_ready": 2,
+const EVENT_SIGNALS := {"damage_dealt": 1, "killed": 1, "respawned": 1, "cover_broken": 1, "healed": 1, "ability_used": 3, "ability_ready": 2,
     "capture_progress": 1, "capture_completed": 1, "match_score": 1, "match_ended": 1}
 const UNRELIABLE_EVENTS := ["capture_progress", "match_score"]
 const SLOTS := ["ability1", "ability2", "ultimate"]
@@ -211,7 +211,8 @@ func _c_hello(hero_id: String, pname: String) -> void:
     var list: Array = []
     for x in heroes():
         list.append(hero_info(x))
-    rpc_id(pid, "_s_welcome", {"map_id": GameConfig.map_id, "you": h.net_id, "tick": tick, "heroes": list})
+    var broken: Array = world.net_broken_cover() if world.has_method("net_broken_cover") else []
+    rpc_id(pid, "_s_welcome", {"map_id": GameConfig.map_id, "you": h.net_id, "tick": tick, "heroes": list, "broken_cover": broken})
     for other in peers:
         if other != pid:
             rpc_id(other, "_s_spawn", hero_info(h))
