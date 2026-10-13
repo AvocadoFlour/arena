@@ -115,6 +115,7 @@ func setup(p) -> void:
     Events.damage_dealt.connect(_on_damage)
     Events.killed.connect(_on_kill)
     _setup_round2()
+    bind_ready_event(Events)
     Settings.apply_fov(get_viewport().get_camera_3d())   # player camera exists (rig set up before HUD)
 
 var match_stats: MatchStats
@@ -179,13 +180,8 @@ func _process(dt: float) -> void:
         else:
             ready = ab.cooldown.is_ready()
             status = "READY" if ready else "%.1fs" % ab.cooldown.remaining
-        if ready_edge(slot, ready):
-            Settings.sfx.play("ready")
-            var pc: Control = l.get_parent()
-            pc.pivot_offset = pc.size * 0.5
-            var tw := pc.create_tween()
-            tw.tween_property(pc, "scale", Vector2.ONE * 1.12, 0.08)
-            tw.tween_property(pc, "scale", Vector2.ONE, 0.15)
+        if not ready_event and ready_edge(slot, ready):
+            ready_cue(slot)
         l.text = "[%s] %s\n%s" % [key_label(slot), ab.def.get("name", ab.id), status]
         sb.bg_color = Color(0.1, 0.45, 0.8, 0.8) if ready else Color(0.05, 0.07, 0.12, 0.7)
     center_label.text = ("RESPAWNING IN %.1f" % player.respawn_left) if player.dead else ""
@@ -247,6 +243,26 @@ func _on_kill(ev: Dictionary) -> void:
     if player != null and ev.get("killer") == player and ev.get("victim") != player:
         crosshair.flash(true)
         Settings.sfx.play("kill")
+
+## Ability-ready cue (sound + panel pulse). Source: `Events.ability_ready(hero, slot)` when core
+## provides it; otherwise the polling fallback below.
+var ready_event := false
+func bind_ready_event(bus: Object) -> bool:
+    if not bus.has_signal("ability_ready"):
+        return false
+    bus.connect("ability_ready", func(h, slot): if h == player: ready_cue(str(slot)))
+    ready_event = true
+    return true
+
+func ready_cue(slot: String) -> void:
+    Settings.sfx.play("ready")
+    if not ab_labels.has(slot):
+        return
+    var pc: Control = ab_labels[slot][0].get_parent()
+    pc.pivot_offset = pc.size * 0.5
+    var tw := pc.create_tween()
+    tw.tween_property(pc, "scale", Vector2.ONE * 1.12, 0.08)
+    tw.tween_property(pc, "scale", Vector2.ONE, 0.15)
 
 ## Ability-ready edge detection (no ability_ready event exists; polls the cooldown/ult queries the
 ## HUD already reads). Returns true on a not-ready -> ready transition; the first sample never fires.

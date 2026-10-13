@@ -57,3 +57,12 @@ colour; no art), player name, K / D / Damage / Healing; player row highlighted; 
 ("Most kills", "Top damage", "Top healing"), the same table, and per-team totals.
 Healing: no event yet → column shows "-"; `MatchStats` auto-binds `Events.healed({source, target, amount})`
 if core adds it. Tests: `tests/ui_round8_test.gd`.
+
+Queue 3: `pause_menu.gd` is now the in-match Esc overlay: Resume / Settings / Leave match (72 px buttons).
+Settings reuses MainMenu's Settings, Audio and Controls screens (`MainMenu.options_only`, emits
+`options_closed` on Back). Offline it pauses the tree; online (`Net.is_online()`) it never pauses, only
+blocks gameplay input (`Actions.gameplay_enabled = false`). Esc goes back one level (Controls/Audio →
+Settings → overlay → closed); the rebind screen's Esc-cancel is consumed first. Leave match emits
+`leave_requested` (for main.gd) and falls back to the documented `hud.match_end.main_menu` route.
+HUD ability-ready cue uses `Events.ability_ready(hero, slot)` when present, else polls cooldowns.
+Tests: `tests/ui_round9_test.gd`.

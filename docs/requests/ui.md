@@ -63,3 +63,14 @@ Round 5 requests 1–2 done by core (ability_id, crit). UI now uses them.
 1. **Healing event** (INTERFACES §3/§4): `Events.healed({source: Hero|null, target: Hero, amount: float, ability_id})`,
    emitted from `hero.heal()` with the amount actually restored (and optionally overheal granted). The healing
    column shows "-" and "Top healing" is hidden until this exists; UI picks it up automatically (`has_signal`).
+
+## Queue 3 (pause overlay)
+1. **Leave-match hook in main.gd**: there is no documented "leave match" entry point. Please connect
+   `menu.leave_requested.connect(func(): _restart(false))` (both offline and client setup paths) and document it
+   in INTERFACES (§9 or a new pause/overlay note). Until then `PauseMenu.leave()` falls back to emitting
+   `hud.match_end.main_menu`, the documented route that reloads into the main menu (and closes Net online).
+2. main.gd's `_unhandled_input` online branch (`get_tree().paused = false` after `menu.open()`) is now redundant:
+   PauseMenu never pauses when `Net.is_online()`. Harmless; can be removed.
+3. `Net.is_online()` is used by main.gd but INTERFACES §10 only lists the modes; please list `is_online()` /
+   `is_host()` / `is_client()` there, since UI depends on `is_online()`.
+4. `Events.ability_ready(hero, slot)` still not on master; the HUD binds it automatically when added.
