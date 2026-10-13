@@ -7,10 +7,11 @@ uniform vec4 albedo : source_color = vec4(1.0);
 uniform float shade_strength : hint_range(0.0, 0.5) = 0.12;   // darkening of the shadow tone
 uniform float step_at : hint_range(-1.0, 1.0) = -0.05;          // N.L threshold of the tone step
 uniform vec3 light_dir_view = vec3(0.45, 0.65, 0.6);
-uniform vec4 tint : source_color = vec4(1.0);                   // runtime tint (hit flash etc.)
+uniform vec4 tint : source_color = vec4(1.0);                   // runtime tint
+instance uniform float hit_flash = 0.0;                         // per-instance white flash (shared meshes stay shared)
 
 void fragment() {
 	float ndl = dot(normalize(NORMAL), normalize(light_dir_view));
 	float tone = ndl > step_at ? 1.0 : 1.0 - shade_strength;
-	ALBEDO = albedo.rgb * tone * tint.rgb;
+	ALBEDO = mix(albedo.rgb * tone * tint.rgb, vec3(1.0), clamp(hit_flash, 0.0, 1.0));
 }

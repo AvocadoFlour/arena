@@ -48,6 +48,9 @@ var _muzzle: Node3D
 ## Skinned GLB model (hero JSON "model_scene"); null = primitive model. `--primitive_models` forces primitives.
 static var use_primitive_models := OS.get_cmdline_user_args().has("--primitive_models")
 var model: HeroModel
+## Hit reaction (visual only): flinch pivot under _vis + white flash. Created with the visual.
+var hit: HitReact
+var _flinch: Node3D
 var _was_dead := false
 var fx: HeroFx                       ## client-side toon ability/weapon effects (visual only)
 var _anim_casts := 0                 ## cumulative ability casts seen (from replicated cooldown jumps)
@@ -95,6 +98,7 @@ func _build() -> void:
     floor_max_angle = deg_to_rad(50)
     _build_model(def.get("model", []))
     _build_scene_model()
+    _build_flinch()
     add_to_group("heroes")
     set_team(team)
 
@@ -139,7 +143,18 @@ func beam_origin() -> Vector3:
 
 ## Procedural animation, render-rate, read-only on existing state (velocity, on-floor, weapon
 ## cooldown, dash/leap timers). Changes only _vis transforms, so it is safe for networking.
+## Inserts the additive flinch pivot between _vis (lean/bob) and the model parts.
+func _build_flinch() -> void:
+    _flinch = Node3D.new()
+    _flinch.name = "Flinch"
+    for c in _vis.get_children():
+        c.reparent(_flinch, false)
+    _vis.add_child(_flinch)
+    hit = HitReact.new(self, _flinch)
+
 func _process(dt: float) -> void:
+    if hit:
+        hit.process(dt)
     for ab in abilities.values():
         if ab.has_method("visual_process"):
             ab.visual_process(dt)   # ability visuals (e.g. heal ribbon fade-out also runs while dead)
@@ -277,8 +292,11 @@ func _update_streak() -> void:
     (_streak.material_override as StandardMaterial3D).albedo_color = Color(c.r, c.g, c.b, 0.35 * _anim_dash)
 
 func _notification(what: int) -> void:
-    if what == NOTIFICATION_PREDELETE and fx:
-        fx.disconnect_events()
+    if what == NOTIFICATION_PREDELETE:
+        if fx:
+            fx.disconnect_events()
+        if hit:
+            hit.disconnect_events()
 
 func _exit_tree() -> void:
     for ab in abilities.values():

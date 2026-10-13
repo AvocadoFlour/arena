@@ -26,10 +26,18 @@ const ARM_R := ["upper_arm.R", "forearm.R", "hand.R", "shoulder.R"]
 const ARM_L_HEAD := ["upper_arm.L", "forearm.L", "hand.L", "shoulder.L", "head", "neck"]
 const UPPER := ["spine", "chest", "neck", "head", "shoulder.", "upper_arm.", "forearm.", "hand."]
 
+## Loaded model scenes stay referenced, so their meshes (and the ToonKit baked copies keyed on them)
+## are reused by later instances instead of being reloaded and re-baked.
+static var _scenes: Dictionary = {}
+
 static func create(cfg: Dictionary) -> HeroModel:
-    var ps: PackedScene = load(String(cfg.get("path", "")))
-    if ps == null:
-        return null
+    var path := String(cfg.get("path", ""))
+    if not _scenes.has(path):
+        var loaded: PackedScene = load(path)
+        if loaded == null:
+            return null
+        _scenes[path] = loaded
+    var ps: PackedScene = _scenes[path]
     var m := HeroModel.new()
     m.name = "HeroModel"
     m.scene = ps.instantiate()
