@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 GODOT="${GODOT:-$HOME/godot/godot}"
-VER=0.6
+VER=0.7
 LOG=build/build.log
 mkdir -p build dist/windows dist/linux
 : > "$LOG"
