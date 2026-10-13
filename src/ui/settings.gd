@@ -19,6 +19,16 @@ var fov := 75.0
 ## (today only "Master"); otherwise just persisted for when audio arrives.
 const AUDIO_BUSES := ["Master", "Music", "SFX"]
 var volumes := {"Master": 1.0, "Music": 0.8, "SFX": 1.0}
+## Low-quality mode for other modules (Maps: fewer decorations/shadows, etc.). Read
+## `Settings.low_quality`; connect `low_quality_changed(on)` to react live. Emitted only on change.
+signal low_quality_changed(on: bool)
+var low_quality := false
+
+func set_low_quality(on: bool) -> void:
+    if on == low_quality:
+        return
+    low_quality = on
+    low_quality_changed.emit(on)
 
 func _ready() -> void:
     load_from(PATH)
@@ -37,6 +47,7 @@ func load_from(path: String) -> bool:
     resolution = cfg.get_value("video", "resolution", resolution)
     sensitivity = cfg.get_value("input", "sensitivity", sensitivity)
     fov = clampf(float(cfg.get_value("video", "fov", fov)), FOV_MIN, FOV_MAX)
+    set_low_quality(bool(cfg.get_value("video", "low_quality", low_quality)))
     for b in AUDIO_BUSES:
         volumes[b] = clampf(float(cfg.get_value("audio", b, volumes[b])), 0.0, 1.0)
     return true
@@ -47,6 +58,7 @@ func save(path := PATH) -> void:
     cfg.set_value("video", "resolution", resolution)
     cfg.set_value("input", "sensitivity", sensitivity)
     cfg.set_value("video", "fov", fov)
+    cfg.set_value("video", "low_quality", low_quality)
     for b in AUDIO_BUSES:
         cfg.set_value("audio", b, volumes[b])
     cfg.save(path)

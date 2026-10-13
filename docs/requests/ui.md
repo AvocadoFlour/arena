@@ -27,3 +27,16 @@ Round 1 requests 1–3 done on master (bbd8445). Round 1 #4 (live HUD key labels
 3. **Audio buses**: only `Master` exists. Volumes for `Music`/`SFX` are persisted and applied automatically
    once buses with those names exist (e.g. a default_bus_layout.tres, core-owned project setting).
 4. Roles: every current def has `role`; no request. Hero select shows "Unknown role" if one is missing.
+
+## Round 4
+1. **INTERFACES: low-quality setting.** Please document (e.g. new §10 "Player settings"):
+   `Settings.low_quality: bool` (read-only for non-UI), `Settings.low_quality_changed(on: bool)` signal,
+   persisted by UI. Maps/FX read it; only UI sets it (`Settings.set_low_quality`).
+2. **NetPanel polish** is done UI-side: `MainMenu.add_screen` runs `MenuStyle.polish(c)` (touch sizes,
+   styles, layout spacing). No core file edited. Optional cleanup in core-owned `net_panel.gd`: build its
+   LineEdits with a UI helper (`MenuStyle.style_line_edit`) instead of the 48 px `_edit()`, so the polish pass
+   isn't needed.
+3. **Testability of NetPanel("host")**: `_ready` calls `Net.fetch_public_ip()` (HTTP to api.ipify.org).
+   UI tests avoid instantiating the host panel for that reason. A flag (e.g. `Net.offline` / skip under
+   headless tests) would let UI test the real host screen.
+4. Core's edit to `tests/ui_round3_test.gd` (Music now applied) matches UI behaviour; kept as is.
