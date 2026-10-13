@@ -30,7 +30,9 @@ var aim_jitter := 0.05        ## rad, random aim offset refreshed twice a second
 var ability_delay := 0.6      ## mean s before an ability whose conditions hold is used
 var low_hp_frac := 0.35
 var cover_time := 3.0
-var escort_allies := true    ## idle bots roam near the nearest teammate
+var escort_allies := true
+var support_radius := 35.0    ## heal-beam bots look this far for hurt allies (then walk into beam range)
+var heal_below := 0.8         ## ally HP fraction under which a support bot heals it    ## idle bots roam near the nearest teammate
 var state := "wander"
 var heal_target = null
 var target = null
@@ -261,30 +263,41 @@ func _do_support(h, f: InputFrame, dt: float) -> bool:
     if not chan and not ab.can_activate():
         heal_target = null
         return false
+    if not chan and target != null and h.health.hp < h.health.max_hp * low_hp_frac:
+        heal_target = null   # self in danger: cover / self-heal policy first
+        return false
     if heal_target == null or not is_instance_valid(heal_target) or heal_target.dead or (not chan and _think > 0.19):
-        heal_target = pick_heal_target(h, rng * 0.9)
+        heal_target = pick_heal_target(h, maxf(rng * 2.5, support_radius))
     if heal_target == null:
         return false
     state = "support"
     var to: Vector3 = (heal_target.global_position + Vector3(0, 1.0, 0)) - h.eye_position()
     var err := _aim(h, f, to, dt, false)
-    f.move = _follow(h, heal_target.global_position) if to.length() > rng * 0.6 else Vector2.ZERO
-    if not chan and err < deg_to_rad(float(ab.def.get("cone_deg", 15.0))) * 0.7:
+    var los: bool = _visible(h, heal_target)
+    var d := to.length()
+    # walk (navmesh) to the ally until in beam range with line of sight, then hold
+    f.move = _follow(h, heal_target.global_position) if d > rng * 0.6 or not los else Vector2.ZERO
+    if not chan and los and d < rng * 0.9 and err < deg_to_rad(float(ab.def.get("cone_deg", 15.0))) * 0.7:
         f.set(slot, true)
     return true
 
-## Most hurt living ally (not self) under 80 % HP, within range and line of sight.
-func pick_heal_target(h, rng: float):
+## Most hurt living ally (not self) under `heal_below` HP, within `radius` (path-reachable; line of
+## sight is not required to pick, the bot walks over). Score = HP fraction + distance / 100.
+func pick_heal_target(h, radius: float):
     var best = null
-    var best_frac := 0.8
+    var best_s := INF
     for o in h.get_tree().get_nodes_in_group("heroes"):
-        if o == h or o.dead or o.team != h.team:
+        if o == h or o.dead or o.team != h.team or o.get_world_3d() != h.get_world_3d():
             continue
-        if h.global_position.distance_to(o.global_position) > rng:
+        var dist: float = h.global_position.distance_to(o.global_position)
+        if dist > radius:
             continue
         var frac: float = o.health.hp / o.health.max_hp
-        if frac < best_frac and _visible(h, o):
-            best_frac = frac
+        if frac >= heal_below:
+            continue
+        var sc := frac + dist / 100.0
+        if sc < best_s:
+            best_s = sc
             best = o
     return best
 
@@ -293,6 +306,8 @@ func nearest_ally(h):
     var best = null
     var best_d := INF
     for o in h.get_tree().get_nodes_in_group("heroes"):
+        if o.get_world_3d() != h.get_world_3d():
+            continue   # other worlds (test SubViewports) share the 'heroes' group
         if o == h or o.dead or o.team != h.team:
             continue
         var d: float = h.global_position.distance_to(o.global_position)
@@ -387,6 +402,8 @@ func _ult_ready(h) -> bool:
 func _allies_hurt_within(h, r: float) -> int:
     var n := 0
     for o in h.get_tree().get_nodes_in_group("heroes"):
+        if o.get_world_3d() != h.get_world_3d():
+            continue   # other worlds (test SubViewports) share the 'heroes' group
         if o != h and not o.dead and o.team == h.team and o.health.hp < o.health.max_hp * 0.6 and h.global_position.distance_to(o.global_position) < r:
             n += 1
     return n
@@ -394,6 +411,8 @@ func _allies_hurt_within(h, r: float) -> int:
 func _enemies_within(h, r: float) -> int:
     var n := 0
     for o in h.get_tree().get_nodes_in_group("heroes"):
+        if o.get_world_3d() != h.get_world_3d():
+            continue   # other worlds (test SubViewports) share the 'heroes' group
         if o != h and not o.dead and o.team != h.team and h.global_position.distance_to(o.global_position) < r:
             n += 1
     return n
@@ -466,6 +485,8 @@ func _find_target(h):
     var best = null
     var best_d := sight
     for o in h.get_tree().get_nodes_in_group("heroes"):
+        if o.get_world_3d() != h.get_world_3d():
+            continue   # other worlds (test SubViewports) share the 'heroes' group
         if o == h or o.dead or o.team == h.team:
             continue
         var d: float = h.global_position.distance_to(o.global_position)

@@ -26,8 +26,16 @@ func _hero(path: String, team: int, pos: Vector3) -> Hero:
     h.global_position = pos
     return h
 
+var _map: Node3D
+
 func _ready() -> void:
-    add_child(MapLoader.build(MAP))
+    _map = MapLoader.build(MAP)
+    add_child(_map)
+    BotNav.ensure_region(_map)
+
+## Heroes spawn once the navigation map has synced the baked region, so every run starts from the
+## same nav state (a fresh world needs a couple of frames; a reused one is ready at once).
+func _spawn() -> void:
     melee = _hero("res://src/heroes/the_best.json", 0, Vector3(-12, 0.2, -12))
     var mb := BotBrain.new({"difficulty": "hard", "use_abilities": false, "seek_cover": false, "escort_allies": false})
     melee.input_source = mb
@@ -38,8 +46,9 @@ func _ready() -> void:
     ranged.input_source = BotBrain.new({"difficulty": "hard", "use_abilities": false, "seek_cover": false, "escort_allies": false, "sight": 15.0})
     dummy2 = _hero("res://src/heroes/cob.json", 1, Vector3(4, 0.2, 0))   # open lane z=0, x 4..17 (no blocks)
     if run_seed >= 0:
-        for h in [melee, dummy, ranged, dummy2]:
-            h._rng.seed = hash([run_seed, h.get_instance_id() % 7])
+        var heroes := [melee, dummy, ranged, dummy2]
+        for k in heroes.size():   # fixed per-slot seeds (no instance ids): fully deterministic
+            heroes[k]._rng.seed = hash([run_seed, k])
         mb._rng.seed = hash([run_seed, "m"])
         ranged.input_source._rng.seed = hash([run_seed, "r"])
     Events.damage_dealt.connect(_on_dmg)
@@ -53,6 +62,13 @@ func _flat(a: Node3D, b: Node3D) -> float:
 
 func _physics_process(_dt: float) -> void:
     if done:
+        return
+    if melee == null:
+        var m := get_world_3d().navigation_map
+        var rid: RID = _map.get_node(BotNav.REGION_NAME).get_rid()
+        if NavigationServer3D.map_get_regions(m) != [rid] or NavigationServer3D.map_get_path(m, Vector3(-12, 0, -12), Vector3(12, 0, 12), true).is_empty():
+            return   # wait: only our region synced (no stale one from a previous run) and pathable
+        _spawn()
         return
     frame += 1
     min_gap = minf(min_gap, _flat(melee, dummy))

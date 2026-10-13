@@ -3,6 +3,7 @@ extends Node3D
 ## (support bot heals a hurt ally; a player-team heal beam targets an allied bot).
 const MAP := "res://src/maps/arena01.json"
 var results: Array = []
+var run_seed := -1             ## >= 0: seed every hero/brain RNG by spawn order (set by tests/run_tests.gd)
 var done := false
 var frame := 0
 var map: Node3D
@@ -74,6 +75,8 @@ func _ready() -> void:
     var picked = player_support.abilities["ability1"].pick_target()
     _rec("player_heal_beam_targets_allied_bot", picked == ally_bot, "picked=%s" % [picked.display_name if picked else "null"])
 
+    _seed_all()
+
 func _crosses_wall(p: PackedVector3Array) -> bool:
     # wall: centre (-3.5, z~11.4), 4 m wide along x, thin along z
     for i in range(p.size() - 1):
@@ -105,3 +108,16 @@ func _physics_process(_dt: float) -> void:
         var v := int(map.get_node(BotNav.REGION_NAME).get_meta("version"))
         _rec("wall_expiry_restores_navmesh", not wall_ab.active() and v >= 2, "version=%d active=%s" % [v, wall_ab.active()])
         done = true
+
+func _seed_all() -> void:
+    if run_seed < 0:
+        return
+    var k := 0
+    for c in get_children():
+        if c is Hero:
+            c._rng.seed = hash([run_seed, k, "h"])
+            var src = c.input_source
+            var b = src.brain if src != null and "brain" in src else src
+            if b is BotBrain:
+                b._rng.seed = hash([run_seed, k, "b"])
+            k += 1
