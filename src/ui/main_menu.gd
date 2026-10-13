@@ -60,6 +60,8 @@ func show_screen(n: String) -> void:
     if options_only:
         visible = true
     current = n
+    if n == "heroes":
+        _refresh_hero_detail.call_deferred()
     for k in screens:
         screens[k].visible = k == n
     _refresh_info()
@@ -154,15 +156,55 @@ func _list_screen(title: String, list: Array, fmt: Callable, kind: String) -> Co
     col.add_theme_constant_override("separation", 10)
     scroll.add_child(col)
     for e in list:
-        var b := MenuStyle.button(fmt.call(e), func(): select(kind, e.path); show_screen("main"))
+        var cb := (func(): select(kind, e.path)) if kind == "hero" else (func(): select(kind, e.path); show_screen("main"))
+        var b := MenuStyle.button(fmt.call(e), cb)
         b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        b.toggle_mode = kind == "hero"
+        b.set_meta("path", e.path)
         col.add_child(b)
+    if kind == "hero":
+        # Hero select: list | detail (3D preview + role + abilities). Picking a hero updates the detail
+        # and stays here; Back returns. The split stacks vertically on narrow screens.
+        v.remove_child(scroll)
+        var split := HeroSplit.new()
+        split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+        v.add_child(split)
+        scroll.custom_minimum_size.x = 360
+        split.add_child(scroll)
+        hero_detail = HeroDetail.new()
+        split.add_child(hero_detail)
+        hero_list = col
     v.add_child(MenuStyle.button("Back", func(): show_screen("main")))
     return rv[0]
+
+var hero_detail: HeroDetail
+var hero_list: VBoxContainer
+
+## List + detail container: side by side when wide, stacked when narrow (detail first = preview on top).
+class HeroSplit extends BoxContainer:
+    func _ready() -> void:
+        add_theme_constant_override("separation", 16)
+        resized.connect(func(): set_narrow(size.x < HeroDetail.NARROW))
+    func set_narrow(n: bool) -> void:
+        vertical = n
+        if get_child_count() == 2:
+            var detail := get_child(0) if get_child(0) is HeroDetail else get_child(1)
+            move_child(detail, 0 if n else 1)
+
+func _refresh_hero_detail() -> void:
+    if hero_detail == null or not hero_detail.is_inside_tree():
+        return
+    if hero_detail.preview == null:
+        return
+    hero_detail.show_path(UiCatalog.selected_hero)
+    for b in hero_list.get_children():
+        if b is Button:
+            b.set_pressed_no_signal(b.get_meta("path", "") == UiCatalog.selected_hero)
 
 func select(kind: String, path: String) -> void:
     if kind == "hero":
         UiCatalog.selected_hero = path
+        _refresh_hero_detail()
     else:
         UiCatalog.selected_map = path
     _refresh_info()

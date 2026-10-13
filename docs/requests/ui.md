@@ -86,3 +86,7 @@ Round 5 requests 1–2 done by core (ability_id, crit). UI now uses them.
    the reload before the player can read it. Proposal: in-match, don't `_restart`; instead connect
    `hud.conn_lost.return_requested.connect(func(): _restart(false))` (or keep relying on `menu.leave_requested`,
    which the screen already uses). Net state is already closed by then, so `_restart` stays the single exit.
+
+## Miku queue 3 (hero preview)
+- core/heroes: please document in INTERFACES a supported way for UI to build a hero's display model (currently UI calls `HeroModel.create(model_scene)` read-only, with a raw-GLB fallback and a mirror of hero.gd's §2 primitive build). If this is not meant to be public, tell UI which builder to use.
+- ai: `ai_teamplay_driver::team_groups_up` fails deterministically on clean master 88f6d8d (6.6 m vs 5.9 m baseline), with or without UI changes; this blocks ./build.sh.
