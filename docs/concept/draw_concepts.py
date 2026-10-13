@@ -1,5 +1,5 @@
 """Flat doodle concept sheets for Tomo and Nido (PIL, drawn by hand from the reference photos).
-python3 docs/concept/draw_concepts.py OUTDIR  -> tomo_v1.png, nidjo_v1.png, nidjo_v2.png (1024x576, ~8 heads tall)."""
+python3 docs/concept/draw_concepts.py OUTDIR  -> tomo_v1.png, nidjo_v1.png, nidjo_v2.png, nidjo_v3.png (1024x576, ~8 heads tall)."""
 import sys, os
 from PIL import Image, ImageDraw
 S = 2                      # supersample
@@ -71,7 +71,10 @@ def tomo(out):
     ell(d, -83, 290, 6, 6, RED)
     im.resize((1024, 576), Image.LANCZOS).save(out)
 
-def nidjo(out, v2=False):
+def nidjo(out, v2=False, jacket=None, bald=None):
+    """v1: jacket=v1 + hair. v2: open tartan jacket + bald. v3 = nidjo(out, jacket=True, bald=False)."""
+    jacket = v2 if jacket is None else jacket
+    bald = v2 if bald is None else bald
     im = Image.new("RGB", (W, H), WH); d = ImageDraw.Draw(im)
     GREEN = (40, 120, 70); RED = (190, 35, 40); NAVY = (28, 36, 70)
     # black trousers (sturdy), black sneakers
@@ -91,7 +94,7 @@ def nidjo(out, v2=False):
     # green Harrington jacket, open, red tartan lining visible at the front edges
     for s in (1, -1):
         poly(d, [(s * 28, 128), (s * 62, 134), (s * 74, 200), (s * 66, 300), (s * 32, 304), (s * 38, 160)], GREEN)
-        if v2:   # wide open front: red tartan lining panels with whitish crossing lines
+        if jacket:   # wide open front: red tartan lining panels with whitish crossing lines
             poly(d, [(s * 18, 140), (s * 44, 150), (s * 40, 304), (s * 20, 304)], RED, w=3 * S)
             for yy in range(160, 300, 18):
                 line(d, [(s * 20, yy), (s * 42, yy - 2)], w=2 * S, c=(245, 235, 225))
@@ -109,12 +112,12 @@ def nidjo(out, v2=False):
         poly(d, [(s * 62, 134), (s * 80, 150), (s * 86, 290), (s * 66, 292), (s * 66, 180)], GREEN)
         poly(d, [(s * 66, 288), (s * 86, 286), (s * 86, 298), (s * 66, 300)], GREEN)
         ell(d, s * 77, 310, 11, 13, WH)
-        if not v2:
+        if not jacket:
             poly(d, [(s * 12, 124), (s * 30, 122), (s * 40, 146), (s * 26, 150)], GREEN)            # collar
     # neck + head + short hair
     poly(d, [(-11, 100), (11, 100), (13, 128), (-13, 128)], WH)
     face(d, beard=False, goatee=True)
-    if v2:   # mostly bald: very short grey buzz low on the sides/back only, high receding (M-shaped) hairline
+    if bald:   # mostly bald: very short grey buzz low on the sides/back only, high receding (M-shaped) hairline
         BUZZ = (190, 190, 190)
         for s in (1, -1):
             d.polygon(P([(s * 26, 84), (s * 26, 66), (s * 23, 58), (s * 19, 52), (s * 15, 58), (s * 18, 68), (s * 20, 84)], 512, 0), fill=BUZZ)
@@ -130,3 +133,4 @@ def nidjo(out, v2=False):
 if __name__ == "__main__":
     o = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__))
     tomo(os.path.join(o, "tomo_v1.png")); nidjo(os.path.join(o, "nidjo_v1.png")); nidjo(os.path.join(o, "nidjo_v2.png"), v2=True)
+    nidjo(os.path.join(o, "nidjo_v3.png"), jacket=True, bald=False)   # v1 head/hair + v2 jacket
