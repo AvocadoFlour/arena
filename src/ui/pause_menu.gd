@@ -1,84 +1,130 @@
 class_name PauseMenu
 extends CanvasLayer
-## Esc menu: resume, window mode, resolution, mouse sensitivity, quit.
+## In-match Esc overlay: Resume, Settings (reuses MainMenu's Settings / Audio / Controls screens in
+## options-only mode), Leave match. main.gd opens it on the "pause" action (INTERFACES §1).
+## Offline: pauses the tree. Online (`Net.is_online()`, §10): never pauses the simulation; only shows
+## the overlay and blocks gameplay input (`Actions.gameplay_enabled = false`).
+## Esc while open: closes the settings sub-screen first, then the overlay. The key-rebinding screen
+## consumes its own Esc in _input (capture cancel), so it never reaches here.
+signal leave_requested
+signal resumed
 var panel: PanelContainer
-var mode_opt: OptionButton
-var res_opt: OptionButton
-var sens: HSlider
+var options: MainMenu
+var paused_tree := false   ## whether *we* paused the tree (offline only)
+var _match_end_hook = null ## fallback leave route: the HUD match-end screen's documented main_menu signal
 
 func _ready() -> void:
     layer = 10
     process_mode = Node.PROCESS_MODE_ALWAYS
     var dim := ColorRect.new()
-    dim.color = Color(0, 0, 0, 0.55)
+    dim.name = "Dim"
+    dim.color = Color(0, 0, 0, 0.6)
     dim.set_anchors_preset(Control.PRESET_FULL_RECT)
     add_child(dim)
     var center := CenterContainer.new()
     center.set_anchors_preset(Control.PRESET_FULL_RECT)
     dim.add_child(center)
     panel = PanelContainer.new()
-    panel.custom_minimum_size = Vector2(440, 0)
+    var sb := StyleBoxFlat.new()
+    sb.bg_color = MenuStyle.PANEL
+    sb.set_corner_radius_all(14)
+    sb.set_content_margin_all(28)
+    panel.add_theme_stylebox_override("panel", sb)
     center.add_child(panel)
     var v := VBoxContainer.new()
-    v.add_theme_constant_override("separation", 12)
+    v.add_theme_constant_override("separation", 16)
     panel.add_child(v)
-    var title := Label.new()
-    title.text = "PAUSED  -  Settings"
-    title.add_theme_font_size_override("font_size", 28)
-    title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    v.add_child(title)
-    mode_opt = OptionButton.new()
-    for m in Settings.MODES:
-        mode_opt.add_item(m)
-    mode_opt.selected = max(0, Settings.MODES.find(Settings.window_mode))
-    mode_opt.item_selected.connect(func(i): Settings.window_mode = Settings.MODES[i]; _changed())
-    v.add_child(_row("Window mode", mode_opt))
-    res_opt = OptionButton.new()
-    for r in Settings.RESOLUTIONS:
-        res_opt.add_item("%d x %d" % [r.x, r.y])
-    res_opt.selected = max(0, Settings.RESOLUTIONS.find(Settings.resolution))
-    res_opt.item_selected.connect(func(i): Settings.resolution = Settings.RESOLUTIONS[i]; _changed())
-    v.add_child(_row("Resolution", res_opt))
-    sens = HSlider.new()
-    sens.min_value = 0.2
-    sens.max_value = 3.0
-    sens.step = 0.05
-    sens.value = Settings.sensitivity
-    sens.custom_minimum_size = Vector2(200, 0)
-    sens.value_changed.connect(func(x): Settings.sensitivity = x; _changed())
-    v.add_child(_row("Mouse sensitivity", sens))
-    var resume := Button.new()
-    resume.text = "Resume"
-    resume.pressed.connect(close)
-    v.add_child(resume)
-    var quit := Button.new()
-    quit.text = "Quit to desktop"
-    quit.pressed.connect(func(): get_tree().quit())
-    v.add_child(quit)
+    v.add_child(MenuStyle.title("PAUSED"))
+    var note := MenuStyle.label("", 18)
+    note.name = "OnlineNote"
+    note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    v.add_child(note)
+    for item in [["Resume", close], ["Settings", open_settings], ["Leave match", leave]]:
+        var b := MenuStyle.button(item[0], item[1])
+        b.name = item[0].replace(" ", "")
+        b.custom_minimum_size = Vector2(360, 72)
+        v.add_child(b)
+    options = MainMenu.new()
+    options.options_only = true
+    options.options_closed.connect(_on_options_closed)
+    add_child(options)
     visible = false
 
-func _row(label: String, c: Control) -> HBoxContainer:
-    var h := HBoxContainer.new()
-    var l := Label.new()
-    l.text = label
-    l.custom_minimum_size = Vector2(180, 0)
-    h.add_child(l)
-    c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    h.add_child(c)
-    return h
-
-func _changed() -> void:
-    Settings.apply()
-    Settings.save()
+static func online() -> bool:
+    return Net.is_online()
 
 func open() -> void:
     visible = true
-    get_tree().paused = true
+    panel.visible = true
+    var on := online()
+    (panel.find_child("OnlineNote", true, false) as Label).text = "Online match - the game keeps running" if on else ""
+    paused_tree = not on
+    if paused_tree:
+        get_tree().paused = true
     Actions.gameplay_enabled = false
-    Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+    if DisplayServer.get_name() != "headless":
+        Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 func close() -> void:
+    if options and options.visible:
+        options.visible = false
     visible = false
-    get_tree().paused = false
+    if paused_tree:
+        get_tree().paused = false
+    paused_tree = false
     Actions.gameplay_enabled = true
-    Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+    if DisplayServer.get_name() != "headless":
+        Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+    resumed.emit()
+
+func open_settings() -> void:
+    panel.visible = false
+    options.show_screen("settings")
+
+func _on_options_closed() -> void:
+    panel.visible = true
+
+func settings_open() -> bool:
+    return options != null and options.visible
+
+## Esc while open: one level back. Returns true if consumed.
+func handle_escape() -> bool:
+    if not visible:
+        return false
+    if settings_open():
+        if options.current == "settings":
+            options.show_screen("main")    # -> options_closed -> back to the pause panel
+        elif options.current == "keybinds":
+            options.show_screen("settings")
+        else:
+            options.show_screen("settings")  # audio etc.
+        return true
+    close()
+    return true
+
+func _unhandled_input(event: InputEvent) -> void:
+    # Children receive input before main.gd, so while open we own Esc; closed, main.gd opens us.
+    if visible and event.is_action_pressed("pause"):
+        handle_escape()
+        get_viewport().set_input_as_handled()
+
+## Leave match -> main menu. Preferred: main.gd connects `leave_requested` (requested in
+## docs/requests/ui.md). Until then, fall back to the documented match-end route
+## (`hud.match_end.main_menu`, INTERFACES §9: main.gd reloads into the main menu, closing Net online).
+func leave() -> void:
+    if leave_requested.get_connections().size() > 0:
+        leave_requested.emit()
+        return
+    var hook = _find_match_end()
+    if hook:
+        hook.main_menu.emit()
+    else:
+        push_warning("PauseMenu.leave: no leave hook connected")
+
+func _find_match_end():
+    if _match_end_hook != null:
+        return _match_end_hook
+    var p := get_parent()
+    if p != null and "hud" in p and p.hud != null and "match_end" in p.hud:
+        return p.hud.match_end
+    return null
