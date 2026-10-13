@@ -45,10 +45,33 @@ echo "[3b/5] network: 2 headless instances (host + client) on localhost"
 OUT=build/net ./tools/net_test.sh | tee build/net_test.log; grep -q "NET TEST PASS" build/net_test.log
 echo "[4/5] export";   rm -rf dist/windows/* dist/linux/*
 "$GODOT" --headless --path . --export-release "Linux" dist/linux/arena.x86_64 >build/export_linux.log 2>&1; fail_on_errors build/export_linux.log
+# Slim Windows template (tools/win_template/build.sh, ~42 MB vs 109 MB stock); falls back to the stock template.
+WIN_TPL=${ARENA_WIN_TEMPLATE:-$HOME/godot-tpl/arena-windows-release.exe}
+if [ -f "$WIN_TPL" ]; then
+  cp export_presets.cfg build/export_presets.cfg.bak
+  trap 'cp build/export_presets.cfg.bak export_presets.cfg' EXIT
+  python3 - "$WIN_TPL" <<'PY'
+import sys,re
+s=open('export_presets.cfg').read()
+a=s.index('[preset.0.options]'); b=s.index('[preset.1]')
+s=s[:a]+s[a:b].replace('custom_template/release=""','custom_template/release="%s"'%sys.argv[1])+s[b:]
+open('export_presets.cfg','w').write(s)
+PY
+  echo "    windows template: $WIN_TPL"
+else
+  echo "    windows template: STOCK (run tools/win_template/build.sh for the slim one)"
+fi
 "$GODOT" --headless --path . --export-release "Windows Desktop" dist/windows/Arena.exe >build/export_win.log 2>&1; fail_on_errors build/export_win.log
+[ -f "$WIN_TPL" ] && cp build/export_presets.cfg.bak export_presets.cfg && trap - EXIT
 test -s dist/windows/Arena.exe && test -s dist/windows/Arena.pck
 echo "[5/5] zip"
 rm -f dist/arena-$VER-windows.zip
 python3 -c "import zipfile,sys;z=zipfile.ZipFile(sys.argv[1],'w',zipfile.ZIP_DEFLATED,compresslevel=9);[z.write('dist/windows/'+f,'Arena/'+f) for f in ('Arena.exe','Arena.pck')]" dist/arena-$VER-windows.zip
 ls -la dist/arena-$VER-windows.zip
+rm -f dist/arena-$VER-windows.7z
+if command -v 7z >/dev/null; then
+  (cd dist/windows && 7z a -mx=9 ../arena-$VER-windows.7z Arena.exe Arena.pck >/dev/null)
+  SZ=$(stat -c %s dist/arena-$VER-windows.7z); echo "    7z: $SZ bytes"
+  [ "$SZ" -lt 23000000 ] || echo "!! WARNING: Windows 7z package >= 23 MB"
+fi
 echo "BUILD OK"
