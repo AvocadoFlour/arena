@@ -2,7 +2,7 @@ extends SceneTree
 ## Heroes/abilities test runner (until these suites are registered in tests/run_tests.gd):
 ## godot --headless --path . -s tests/heroes_run.gd
 const SUITES := ["res://tests/heroes_test_defs.gd", "res://tests/abilities_test_projectile.gd"]
-const SIMS := ["res://tests/abilities_sim.gd", "res://tests/heroes_kits_sim.gd"]
+const SIMS := ["res://tests/abilities_sim.gd", "res://tests/heroes_kits_sim.gd", "res://tests/heroes_beam_sim.gd"]
 var passed := 0
 var failed := 0
 var sim

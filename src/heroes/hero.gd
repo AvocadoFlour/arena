@@ -151,6 +151,9 @@ func _build_model(parts: Array) -> void:
 ## Procedural animation, render-rate, read-only on existing state (velocity, on-floor, weapon
 ## cooldown, dash/leap timers). Changes only _vis transforms, so it is safe for networking.
 func _process(dt: float) -> void:
+    for ab in abilities.values():
+        if ab.has_method("visual_process"):
+            ab.visual_process(dt)   # ability visuals (e.g. heal ribbon fade-out also runs while dead)
     if _vis == null or dead:
         return
     _anim_t += dt
@@ -262,6 +265,11 @@ func _update_streak() -> void:
     _streak.position = Vector3(0, 0.95, 0.35 + len * 0.5)   # trails behind the hero (+z is back)
     var c: Color = TEAM_COLORS[team % TEAM_COLORS.size()]
     (_streak.material_override as StandardMaterial3D).albedo_color = Color(c.r, c.g, c.b, 0.35 * _anim_dash)
+
+func _exit_tree() -> void:
+    for ab in abilities.values():
+        if ab.has_method("free_visuals"):
+            ab.free_visuals()
 
 func set_team(t: int) -> void:
     team = t

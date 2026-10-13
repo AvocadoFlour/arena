@@ -1,5 +1,18 @@
 # Requests from heroes
 
+## Round 6 (open, optional; nothing blocks heroes)
+The Encore Beam ribbon is driven from replicated state only:
+- **Channel active:** derived from the replicated ability1 cooldown (`duration - remaining < channel duration`).
+- **Target:** clients re-run `heal_beam.pick_target()` on replicated positions, yaw, pitch, team and dead.
+
+The healed target itself is NOT replicated. Because remote heroes are interpolated 0.1 s behind, the client's
+pick can differ from the host's when two allies sit at the cone edge.
+1. **Optional:** add `beam_target` (net_id or -1) to the hero snapshot, e.g. `abilities.ability1.target`, for the
+   exact target. A cheaper alternative is to replicate the host's `heal_beam.target` via a reliable
+   `Events.ability_target(hero, slot, target)`. If added, heroes switches `visual_process` to prefer it (one line).
+2. **Removed the per-tick `Fx.tracer` from heal_beam.** It sent ~60 unreliable `_s_fx` RPCs/s per healer and was
+   invisible. No core change needed.
+
 ## Round 5 (open, non-heroes)
 1. **AI test flake (ai owner):** `ai_melee_driver::ranged_keeps_standoff` failed once in ./build.sh (min gap 7.24 m < 8.0)
    and passed on the next 3 runs. It runs unseeded by default (`run_seed := -1`); suggest seeding it in the gate.
