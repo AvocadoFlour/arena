@@ -1,6 +1,10 @@
 # Requests from heroes
 
-## Round 4 (open, optional; nothing blocks heroes)
+## Round 5 (open, non-heroes)
+1. **AI test flake (ai owner):** `ai_melee_driver::ranged_keeps_standoff` failed once in ./build.sh (min gap 7.24 m < 8.0)
+   and passed on the next 3 runs. It runs unseeded by default (`run_seed := -1`); suggest seeding it in the gate.
+
+## Round 4 (resolved in v0.5: combo_step + dash_time replicated)
 Attack visuals are now driven only by replicated snapshot fields: a drop in `weapon.ammo` = shot or swing
 (melee also spends 1 of 999 per swing). That drives sword swing, gun recoil, and the side alternation
 (from shot-count parity). `reloading` drives the weapon dip, and a jump in ability `cds` drives the cast

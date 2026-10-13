@@ -235,3 +235,67 @@ func test_puppet_ability_cast_from_replicated_cooldown() -> void:
     h._process(0.02)
     check(h._anim_cast > 0.5, "cast flourish from cooldown jump")
     h.free()
+
+## Snapshot fields only (Net._apply_state): ammo, combo_step, dash_time.
+func _swing_puppet(h: Hero, step: int) -> void:
+    h.combo_step = step
+    h.weapon.ammo -= 1
+    h._process(0.1)
+
+func test_puppet_finisher_from_replicated_combo_step() -> void:
+    var h := _puppet("the_best")
+    var w := _weapon_node(h)
+    var rest := w.rotation
+    _swing_puppet(h, 1)
+    check(not h._anim_finisher, "hit 1 is not the finisher")
+    var normal := w.rotation
+    check(absf(normal.y - rest.y) > 0.3, "normal swing sweeps sideways")
+    for i in 60:
+        h._process(1.0 / 60.0)
+    _swing_puppet(h, 2)
+    check(not h._anim_finisher, "hit 2 is not the finisher")
+    for i in 60:
+        h._process(1.0 / 60.0)
+    _swing_puppet(h, 3)
+    check(h._anim_finisher, "hit 3 (combo_step 3) is the finisher")
+    check(w.rotation.x < normal.x - 0.3, "finisher swings bigger overhead (%.2f vs %.2f)" % [w.rotation.x, normal.x])
+    check(absf(w.rotation.y - rest.y) < 0.01, "finisher has no side sweep")
+    for i in 60:
+        h._process(1.0 / 60.0)
+    _swing_puppet(h, 4)   # combo continues past 3 -> hit 1 of next cycle
+    check(not h._anim_finisher, "step 4 is not a finisher")
+    _swing_puppet(h, 6)
+    check(h._anim_finisher, "step 6 is a finisher")
+    h.free()
+
+func test_finisher_matches_damage_finisher() -> void:
+    # The visual rule must agree with melee_swing's damage rule for every step.
+    var h := Hero.from_def("res://src/heroes/the_best.json")
+    var n: int = h.def.primary.combo.size()
+    for pre in 9:
+        var dmg_final := pre % n == n - 1
+        check(h.is_finisher_step(pre + 1) == dmg_final, "step %d" % (pre + 1))
+    var g := Hero.from_def("res://src/heroes/cob.json")
+    check(not g.is_finisher_step(3), "guns have no finisher")
+    h.free()
+    g.free()
+
+func test_puppet_dash_visuals_from_replicated_dash_time() -> void:
+    for id in ["the_best", "twin_tails", "cob"]:
+        var h := _puppet(id)
+        for i in 10:
+            h._process(1.0 / 60.0)
+        var lean0 := h._vis.rotation.x
+        check(h._streak == null or not h._streak.visible, id + ": no streak at rest")
+        h.dash_time = 0.16          # snapshot: dashing
+        for i in 6:
+            h._process(1.0 / 60.0)
+        check(h._streak != null and h._streak.visible, id + ": streak while dashing")
+        check(h._vis.rotation.x < lean0 - 0.1, id + ": dash lean")
+        check(h._streak.get_parent() == h._vis, id + ": streak is visual-only")
+        h.dash_time = 0.0           # snapshot: dash over
+        for i in 30:
+            h._process(1.0 / 60.0)
+        check(not h._streak.visible, id + ": streak fades out")
+        check(h.velocity == Vector3.ZERO and h.position == Vector3.ZERO, id + ": no gameplay state touched")
+        h.free()

@@ -51,6 +51,9 @@ var _anim_atk := 0.0                 ## 1 right after a shot/swing -> 0
 var _anim_shots := 0                 ## shots seen (parity alternates the sword swing side)
 var _anim_cds: Dictionary = {}       ## slot -> last seen cooldown.remaining
 var _anim_cast := 0.0                ## 1 right after an ability/ult was used -> 0
+var _anim_finisher := false          ## current swing is the combo finisher (from replicated combo_step)
+var _anim_dash := 0.0                ## 0..1 dash visual weight (from replicated dash_time)
+var _streak: MeshInstance3D          ## dash streak (client-side visual)
 var _team_mats: Array = []
 
 static func from_def(path: String) -> Hero:
@@ -162,12 +165,13 @@ func _process(dt: float) -> void:
     # body: idle breathing bob, run bounce, lean into motion, tilt when dashing
     var bob := sin(_anim_t * 2.2) * 0.025 + (absf(sin(stride)) * 0.06 * run if grounded else 0.0)
     _vis.position.y = lerpf(_vis.position.y, bob, minf(1.0, dt * 20.0))
-    var lean_x := -fwd * 0.16 - (0.25 if dash_time > 0.0 else 0.0)
+    _track_attack_state(dt)
+    _update_streak()
+    var lean_x := -fwd * 0.16 - 0.3 * _anim_dash - (0.2 * sin(_anim_atk * PI) if _anim_finisher else 0.0)
     var lean_z := side * 0.12
     _vis.rotation.x = lerpf(_vis.rotation.x, lean_x, minf(1.0, dt * 10.0))
     _vis.rotation.z = lerpf(_vis.rotation.z, lean_z, minf(1.0, dt * 10.0))
     # attack: 1 right after a shot/swing -> 0 when the next is allowed
-    _track_attack_state(dt)
     var atk := _anim_atk
     var melee := String(def.get("primary", {}).get("type", "hitscan")) == "melee"
     var combo_side := 1.0 if _anim_shots % 2 == 1 else -1.0
@@ -185,8 +189,12 @@ func _process(dt: float) -> void:
             "weapon":
                 if melee:
                     var sw := sin(atk * PI)   # 0 -> 1 -> 0 over the swing
-                    r.x = base.x - sw * 1.4 + (atk - 0.5) * 0.4 * sw
-                    r.y = base.y + sw * 0.9 * combo_side
+                    if _anim_finisher:   # overhead two-handed slam, no side sweep
+                        r.x = base.x - sw * 2.3
+                        r.z = base.z + sw * 0.25
+                    else:
+                        r.x = base.x - sw * 1.4 + (atk - 0.5) * 0.4 * sw
+                        r.y = base.y + sw * 0.9 * combo_side
                 else:
                     r.x = base.x + atk * 0.18 + reload_droop   # recoil kick; dips while reloading
             "leg_l":
@@ -209,6 +217,7 @@ func _track_attack_state(dt: float) -> void:
         if _anim_ammo >= 0 and a < _anim_ammo:
             _anim_shots += _anim_ammo - a
             _anim_atk = 1.0
+            _anim_finisher = is_finisher_step(combo_step)
         _anim_ammo = a
         var dur := maxf(minf(weapon.fire_interval, 0.5), 0.1)
         _anim_atk = maxf(0.0, _anim_atk - dt / dur)
@@ -218,6 +227,41 @@ func _track_attack_state(dt: float) -> void:
             _anim_cast = 1.0
         _anim_cds[slot] = rem
     _anim_cast = maxf(0.0, _anim_cast - dt / 0.35)
+    var target := 1.0 if dash_time > 0.0 else 0.0
+    _anim_dash = move_toward(_anim_dash, target, dt / (0.05 if target > 0.0 else 0.2))
+
+## True if the swing that left `step` (post-increment combo_step, as replicated) was the melee finisher.
+func is_finisher_step(step: int) -> bool:
+    var p: Dictionary = def.get("primary", {})
+    if String(p.get("type", "")) != "melee":
+        return false
+    var n: int = p.get("combo", [1.0]).size()
+    return n > 1 and step > 0 and step % n == 0
+
+func _update_streak() -> void:
+    if _anim_dash <= 0.01:
+        if _streak:
+            _streak.visible = false
+        return
+    if _streak == null:
+        _streak = MeshInstance3D.new()
+        _streak.name = "DashStreak"
+        var bm := BoxMesh.new()
+        bm.size = Vector3(0.7, 1.3, 1.0)
+        _streak.mesh = bm
+        var m := StandardMaterial3D.new()
+        m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+        m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+        m.albedo_color = Color(1, 1, 1, 0.3)
+        _streak.material_override = m
+        _streak.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        _vis.add_child(_streak)
+    _streak.visible = true
+    var len := 0.4 + 1.6 * _anim_dash
+    _streak.scale = Vector3(1, 1, len)
+    _streak.position = Vector3(0, 0.95, 0.35 + len * 0.5)   # trails behind the hero (+z is back)
+    var c: Color = TEAM_COLORS[team % TEAM_COLORS.size()]
+    (_streak.material_override as StandardMaterial3D).albedo_color = Color(c.r, c.g, c.b, 0.35 * _anim_dash)
 
 func set_team(t: int) -> void:
     team = t
