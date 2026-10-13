@@ -549,12 +549,16 @@ func apply_slow(mult: float, dur: float) -> void:
     slow_left = maxf(slow_left, dur)
 
 ## Restore health. Returns amount actually healed.
-func heal(amount: float) -> float:
-    if dead or amount <= 0.0:
+## Heals up to max HP; returns the HP actually restored. Emits Events.healed (host/offline only) when > 0.
+func heal(amount: float, source = null, ability_id := "") -> float:
+    if dead or amount <= 0.0 or not Net.is_authority():
         return 0.0
     var before := health.hp
     health.heal(amount)
-    return health.hp - before
+    var got := health.hp - before
+    if got > 0.0:
+        Events.healed.emit({"source": source, "target": self, "amount": got, "ability_id": ability_id})
+    return got
 
 ## Area damage to enemies (used by abilities). Returns number of heroes hit.
 func aoe(center: Vector3, radius: float, dmg: float, kind: String, ability_id := "") -> int:

@@ -40,7 +40,7 @@ func tick(dt: float) -> void:
         left = 0.0
         return
     target = pick_target()
-    target.heal(float(def.get("hps", 60.0)) * dt)
+    target.heal(float(def.get("hps", 60.0)) * dt, hero, id)
 
 # ---------------------------------------------------------------------------------------------
 # Visual ribbon (client-side only, never replicated). Driven from REPLICATED state so remote

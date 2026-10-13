@@ -12,6 +12,6 @@ func _do() -> bool:
         if h.dead or h.team != hero.team:
             continue
         if h.global_position.distance_to(hero.global_position) <= r:
-            h.heal(amt)
+            h.heal(amt, hero, id)
     Fx.ring(hero.get_parent(), hero.global_position + Vector3(0, 1, 0), r, Color(0.3, 1.0, 0.5), 0.7)
     return true

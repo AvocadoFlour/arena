@@ -122,7 +122,8 @@ FOV animation (zoom/sprint) must be relative to `Settings.fov`. Audio buses `Mas
 
 ## 4. Event bus (`Events` autoload)
 `damage_dealt({source, target, amount, pos, kind, killed, ability_id, crit})`, `killed({killer, victim, kind, ability_id})`
-(`ability_id` "" = primary/fall; `crit` always false for now; see §3), `respawned(hero)`, `ability_ready(hero, slot)` (host/offline: fired when a cooldown runs out while the hero
+(`ability_id` "" = primary/fall; `crit` always false for now; see §3), `respawned(hero)`, `healed({source, target, amount, ability_id})` (host/offline, from `hero.heal(amount, source, ability_id)`;
+`amount` = HP actually restored, only emitted when > 0; channelled beams emit per physics tick; replicated reliably), `ability_ready(hero, slot)` (host/offline: fired when a cooldown runs out while the hero
 ticks; NOT on direct resets such as respawn or test hooks; replicated reliably to clients), `ability_used(hero, slot, ability_id)`,
 `capture_progress({zone_id, team, progress 0..1, contested, owner})` (≤ 10 Hz, immediate when `contested` flips;
 `team` = capturing team, or the owner when nobody is capturing), `capture_completed({zone_id, team, previous})`,
@@ -217,6 +218,13 @@ Visual keys (approved v0.4, maps round 3; no gameplay effect, collision unchange
 - `"props"`: `[{shape: box|cylinder|cone|sphere, pos, size | radius+height, rot_deg?, mat|color, no_shadow?}]`
   → MeshInstance3D children of a `Props` Node3D under the map root, **no collision**. Props are stored in the
   JSON, so host and client build identical maps; nothing about maps is replicated.
+Toon restyle (v0.7, maps queue 1; visual only, collision unchanged): theme `toon` (bool: palette materials use
+`src/maps/toon/map_toon.gdshader`, flat 2-tone with sun shadows, no ambient/specular), `tonemap` (`"filmic"` default |
+`"linear"`; map scenes use linear so unshaded toon heroes render at their authored colours), `outline_width` (m; > 0
+enables merged inverted-hull outlines: one `Outlines` MeshInstance3D under the map root, front-culled, unshaded, no
+shadow/collision, meta `hull_count`), `outline_color`. Per material: `shade` (shadow tone multiplier, default 0.74)
+and `outline` (false = no hull, e.g. floors/decals); per block/prop `outline: false`. Low quality keeps block hulls and
+drops prop hulls. `MapLoader.mat_color(mat)` returns the base colour of either material type.
 Destructible cover (if ever added): it must stay a solid StaticBody3D block with meta `kind = "cover"` (name prefix
 `cover_`), and breaking it frees the node (`queue_free`); bots then re-pick cover automatically (§5). Online, a
 destructible block must be removed on clients too (replicate the break; maps are otherwise not replicated, §10).
