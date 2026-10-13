@@ -11,7 +11,12 @@ var d := 0
 var fails := 0
 var acc := {"conc": [], "conc0": [], "grp": [], "grp0": [], "tank": [], "tank0": []}
 
+var seed0 := 0
+
 func _initialize() -> void:
+    for a in OS.get_cmdline_user_args():
+        if a.begins_with("--seed0="):
+            seed0 = int(a.substr(8))
     for a in OS.get_cmdline_user_args():
         if a.begins_with("--n="):
             n = int(a.substr(4))
@@ -39,7 +44,7 @@ func _process(_dt: float) -> bool:
         var bad: Array = driver.results.filter(func(r): return not r[1])
         if not bad.is_empty():
             fails += 1
-        print("seed %2d side %d  zone %3.0f s vs %3.0f s  kills %d vs %d  conc %.2f/%.2f  group %.1f/%.1f m  tank %3.0f%%/%3.0f%%  -> %s  %s" % [i - 1, t, driver.score[t], driver.score[1 - t], driver.kills[t], driver.kills[1 - t], acc.conc[-1], acc.conc0[-1], acc.grp[-1], acc.grp0[-1], acc.tank[-1] * 100, acc.tank0[-1] * 100, ["LOSS", "DRAW", "WIN"][o + 1], "" if bad.is_empty() else str(bad)])
+        print("seed %2d side %d  zone %3.0f s vs %3.0f s  kills %d vs %d  conc %.2f/%.2f  group %.1f/%.1f m  tank %3.0f%%/%3.0f%%  -> %s  %s" % [seed0 + i - 1, t, driver.score[t], driver.score[1 - t], driver.kills[t], driver.kills[1 - t], acc.conc[-1], acc.conc0[-1], acc.grp[-1], acc.grp0[-1], acc.tank[-1] * 100, acc.tank0[-1] * 100, ["LOSS", "DRAW", "WIN"][o + 1], "" if bad.is_empty() else str(bad)])
         driver.queue_free()
         driver = null
         if i >= n:
@@ -52,7 +57,7 @@ func _process(_dt: float) -> bool:
         quit(2)
         return false
     driver = sc.new()
-    driver.run_seed = i
+    driver.run_seed = seed0 + i
     driver.frames = frames
     driver.tp_team = i % 2
     i += 1

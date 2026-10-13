@@ -128,7 +128,7 @@ func poll(h) -> InputFrame:
         var holding: bool = team_play and BotTeam.is_tank(h) and objective_zone(h) != null
         var hurt_ranged: bool = opportunistic_cover and not holding and melee_range(h) == 0.0 and h.health.hp < h.health.max_hp * 0.7
         if low or hurt_ranged:
-            _enter_cover(h, target, INF if low else 6.0)
+            _enter_cover(h, target, 6.0 if holding or not low else INF)   # point-holding tank: only cover next to the point
     if _do_support(h, f, dt):
         pass
     elif state == "cover":
@@ -463,15 +463,16 @@ func rally_point(h):
         c += m.global_position
     return c / mates.size()
 
-## Adds a pull toward `rally` when farther than 8 m (pure; unit-tested). Keeps |dir| <= 1.
+## Adds a pull toward `rally` when farther than COHESION_R (pure; unit-tested). Keeps |dir| <= 1.
+const COHESION_R := 4.5   ## m from the rally point before the group pull starts
 static func cohesion(dir: Vector3, pos: Vector3, rally) -> Vector3:
     if rally == null:
         return dir
     var to := Vector3(rally.x - pos.x, 0, rally.z - pos.z)
     var d := to.length()
-    if d <= 8.0:
+    if d <= COHESION_R:
         return dir
-    var w := clampf((d - 8.0) / 6.0, 0.0, 0.8)
+    var w := clampf((d - COHESION_R) / 4.0, 0.0, 0.9)
     return (dir * (1.0 - w * 0.5) + to / d * w).limit_length(1.0)
 
 ## True when `p` is inside zone `z`'s footprint shrunk by `margin` (XZ only).
