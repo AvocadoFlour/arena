@@ -202,6 +202,10 @@ func _settings_screen() -> Control:
         func(on): Settings.set_low_quality(on); Settings.save())
     lq.name = "LowQualityToggle"
     v.add_child(lq)
+    var dn := MenuStyle.toggle("Damage numbers", Settings.damage_numbers,
+        func(on): Settings.damage_numbers = on; Settings.save())
+    dn.name = "DamageNumbersToggle"
+    v.add_child(dn)
     v.add_child(MenuStyle.button("Audio", func(): show_screen("audio")))
     v.add_child(MenuStyle.button("Controls / key bindings", func(): show_screen("keybinds")))
     v.add_child(MenuStyle.button("Back", func(): show_screen("main")))

@@ -77,7 +77,8 @@ func setup(p) -> void:
     _place(fps_label, 0, 0, 0, 0, 16, 10, 300, 40)
     kill_feed = KillFeed.new()
     kill_feed.player = p
-    _place(kill_feed, 1, 0, 1, 0, -420, 10, -16, 260)
+    _place(kill_feed, 1, 0, 1, 0, -560, 10, -16, 260)   # top-right, grows down
+    kill_feed.alignment = BoxContainer.ALIGNMENT_BEGIN
     hp_label = _label(20)
     _place(hp_label, 0, 1, 0, 1, 24, -100, 360, -72)
     hp_bar = ProgressBar.new()
@@ -233,6 +234,8 @@ func _on_damage(ev: Dictionary) -> void:
         crosshair.flash(bool(ev.get("killed", false)))
         if not ev.get("killed", false):
             Settings.sfx.play("hit")   # kill sound comes from Events.killed
+        if not Settings.damage_numbers:
+            return   # "Damage numbers" setting off: spawn none (hit marker + sound stay)
         var l := DamageNumber.from_event(ev)
         player.get_parent().add_child(l)
         l.global_position = ev.pos + Vector3(randf_range(-0.3, 0.3), 0.3, randf_range(-0.3, 0.3))
