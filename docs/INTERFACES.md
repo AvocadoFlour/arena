@@ -45,6 +45,10 @@ Model parts (optional visual keys, approved v0.4, heroes round 3): `"rot"` [x,y,
 client-side**: never replicated; on online clients puppets get a velocity derived from interpolation so run/lean
 animates, while weapon/combo/dash state is not synced (swing/recoil may not animate on remote heroes).
 
+Camera (optional, v0.7): `"camera": {"back": m, "up": m, "side": m}` offsets CameraRig's over-the-shoulder
+camera for big models (added to the 3.2 m spring length, the 1.55 m pivot height and the 0.7 m shoulder offset).
+Cob uses `{"back": 0.6, "up": 0.3}`.
+
 ### 2.1 Primary types
 - `hitscan` (default): `damage, fire_rate, mag, reload_time, spread_deg, range` — core `Weapon`.
 - `melee` (v0.3): `{"type":"melee","damage","fire_rate","mag" (999 = no ammo),"reload_time","range","arc_deg",

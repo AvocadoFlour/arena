@@ -2,6 +2,7 @@
   "id": "cob",
   "name": "Cob",
   "role": "tank",
+  "camera": {"back": 0.6, "up": 0.3},
   "max_hp": 550,
   "movement": {"speed": 5.8, "accel_ground": 50, "accel_air": 10, "jump_velocity": 7.0, "gravity": 22},
   "collider": {"radius": 0.65, "height": 1.5},

@@ -17,6 +17,11 @@ func setup(h) -> void:
     s.radius = 0.25
     arm.shape = s
     arm.position = Vector3(0.7, 0.15, 0)
+    # per-hero offset (hero JSON "camera": {"back": m, "up": m, "side": m}, all optional, default 0)
+    var c: Dictionary = h.def.get("camera", {}) if "def" in h and h.def is Dictionary else {}
+    arm.spring_length += float(c.get("back", 0.0))
+    position.y += float(c.get("up", 0.0))
+    arm.position.x += float(c.get("side", 0.0))
     add_child(arm)
     arm.add_excluded_object(h.get_rid())
     cam = Camera3D.new()
