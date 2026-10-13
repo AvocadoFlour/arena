@@ -49,6 +49,7 @@ var _muzzle: Node3D
 static var use_primitive_models := OS.get_cmdline_user_args().has("--primitive_models")
 var model: HeroModel
 var _was_dead := false
+var fx: HeroFx                       ## client-side toon ability/weapon effects (visual only)
 var _anim_casts := 0                 ## cumulative ability casts seen (from replicated cooldown jumps)
 var _vis: Node3D                     ## visual root (animated); never affects collision/gameplay
 var _anim_parts: Array = []          ## [node, kind, base_rotation, phase]
@@ -214,6 +215,10 @@ func _process(dt: float) -> void:
         bob = 0.0   # the skeletal idle/run animations carry the body motion
     _vis.position.y = lerpf(_vis.position.y, bob, minf(1.0, dt * 20.0))
     _track_attack_state(dt)
+    if fx == null and is_inside_tree():
+        fx = HeroFx.new(self)
+    if fx:
+        fx.process(dt)
     _update_streak()
     if model:
         var healing := false
@@ -319,6 +324,10 @@ func _update_streak() -> void:
     _streak.position = Vector3(0, 0.95, 0.35 + len * 0.5)   # trails behind the hero (+z is back)
     var c: Color = TEAM_COLORS[team % TEAM_COLORS.size()]
     (_streak.material_override as StandardMaterial3D).albedo_color = Color(c.r, c.g, c.b, 0.35 * _anim_dash)
+
+func _notification(what: int) -> void:
+    if what == NOTIFICATION_PREDELETE and fx:
+        fx.disconnect_events()
 
 func _exit_tree() -> void:
     for ab in abilities.values():

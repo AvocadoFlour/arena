@@ -6,11 +6,17 @@ var def: Dictionary
 var vel := Vector3.ZERO
 var life := 0.0
 var exploded := false
+var glyph: Node3D = null   ## toon visual for named projectiles (spins; no gameplay effect)
 
 func _init(h, d: Dictionary) -> void:
     owner_hero = h
     def = d
     life = float(d.get("lifetime", 3.0))
+    if String(d.get("id", "")) == "staccato_note":   # toon eighth-note glyph (visual only)
+        glyph = ToonFx.note_node(Color(String(d.get("color", "#d8ecff"))))
+        glyph.scale = Vector3.ONE * 1.3
+        add_child(glyph)
+        return
     var mi := MeshInstance3D.new()
     var sm := SphereMesh.new()
     var r := float(d.get("size", 0.15))
@@ -32,6 +38,10 @@ func launch(pos: Vector3, dir: Vector3) -> void:
 static func step(pos: Vector3, v: Vector3, gravity: float, dt: float) -> Array:
     var nv := v + Vector3(0, -gravity, 0) * dt
     return [pos + nv * dt, nv]
+
+func _process(dt: float) -> void:
+    if glyph:
+        glyph.rotation.y += dt * 9.0
 
 func _physics_process(dt: float) -> void:
     if exploded:
@@ -107,6 +117,9 @@ func _impact(pos: Vector3, target) -> void:
                 victims.append(h)
                 h.take_damage(amt * scale, src, h.global_position + Vector3(0, 1.2, 0), kind, String(def.get("id", def.get("type", ""))))
         Fx.ring(get_parent(), pos, splash, Color(String(def.get("color", "#ffd040"))), 0.3)
+    if glyph:   # toon pop: flat ring + white star burst (visual only)
+        ToonFx.ring(get_parent(), pos, maxf(splash, 1.0), Color(String(def.get("color", "#d8ecff"))), 0.35, 0.12)
+        ToonFx.burst(get_parent(), pos, Color("#9ecff5"), 8, 0.8, 0.3, Vector3.UP, 0.22)
     var slow: Dictionary = def.get("slow", {})
     if not slow.is_empty():
         for v in victims:
