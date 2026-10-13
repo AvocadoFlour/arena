@@ -12,9 +12,9 @@ func _init(h, d: Dictionary) -> void:
     owner_hero = h
     def = d
     life = float(d.get("lifetime", 3.0))
-    if String(d.get("id", "")) == "staccato_note":   # toon eighth-note glyph (visual only)
-        glyph = ToonFx.note_node(Color(String(d.get("color", "#d8ecff"))))
-        glyph.scale = Vector3.ONE * 1.3
+    var vis_path := String(d.get("visual", ""))
+    if vis_path != "" and ResourceLoader.exists(vis_path):   # same toon prop visual as remote clients (visual only)
+        glyph = load(vis_path).build_prop("shot", Vector3.ONE * float(d.get("size", 0.15)), Color(String(d.get("color", "#d8ecff"))))
         add_child(glyph)
         return
     var mi := MeshInstance3D.new()
@@ -38,10 +38,6 @@ func launch(pos: Vector3, dir: Vector3) -> void:
 static func step(pos: Vector3, v: Vector3, gravity: float, dt: float) -> Array:
     var nv := v + Vector3(0, -gravity, 0) * dt
     return [pos + nv * dt, nv]
-
-func _process(dt: float) -> void:
-    if glyph:
-        glyph.rotation.y += dt * 9.0
 
 func _physics_process(dt: float) -> void:
     if exploded:
