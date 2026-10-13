@@ -153,7 +153,11 @@ Ability policy is type-based: `BotBrain.want_ability(type, ctx)` for dash, charg
 shield_wall, projectile, heal_beam, leap, team_buff. Melee awareness (v0.4): for heroes with `primary.type ==
 "melee"` BotBrain closes to ~0.6 × `primary.range` and only swings in reach (the old core MeleeCloser shim is
 removed); ranged bots keep their ~10 m stand-off. `BotBrain.resolve_difficulty(name) -> Dictionary` is the pure
-preset lookup (unknown names → `normal` with a runtime warning). Team-0 bots are the player's allies (never target team 0).
+preset lookup (unknown names → `normal` with a runtime warning).
+Stand-off (v0.5, AI round 4): ranged bots hold `standoff` (10 m) using a range-proportional radial term plus a
+world-space tangential strafe (`BotBrain.standoff_dir`). When line of sight breaks they reverse the strafe and keep
+the stand-off for `LOS_GRACE` (1 s) before pathing in, and remember an out-of-sight target for `TARGET_MEMORY`
+(2 s) instead of wandering or switching to a farther enemy. Bench: `godot --headless --path . -s tests/ai_standoff_run.gd -- --n=30`. Team-0 bots are the player's allies (never target team 0).
 Core sets difficulty from `GameConfig.bot_difficulty` (`-- --difficulty=` or `--bots=`) and scales bot damage
 by `GameConfig.difficulty().damage_scale`. Heroes are found via group `"heroes"` (`team`, `dead`, `eye_position()`).
 
