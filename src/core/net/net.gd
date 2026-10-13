@@ -44,6 +44,9 @@ var big_corrections: Array = []  ## CLIENT: [tick, err] for errors > 2 m (diagno
 var public_ip := ""
 ## Skip all internet lookups (api.ipify.org). Set by tests, or `-- --net_offline`; headless runs default to it.
 var offline := DisplayServer.get_name() == "headless" or OS.get_cmdline_user_args().has("--net_offline")
+var _rtt_ms := -1.0              ## CLIENT: smoothed round-trip time
+var _last_rx_ms := 0             ## CLIENT: Time.get_ticks_msec() of the last packet from the host
+var _ping_left := 0.0
 var _clock_offset := 0.0
 var _clock_init := false
 var _interp := {}                ## CLIENT: net_id -> [[t, pos, yaw, pitch]]
@@ -110,6 +113,8 @@ func close() -> void:
     _props.clear()
     my_net_id = -1
     server_tick = 0
+    _rtt_ms = -1.0
+    _last_rx_ms = 0
     _clock_init = false
 
 func _fail(reason: String) -> void:
@@ -138,6 +143,29 @@ static func lan_addresses() -> Array:
         if a.count(".") == 3 and not a.begins_with("127.") and not a.begins_with("169.254."):
             out.append(a)
     return out
+
+## CLIENT: smoothed round-trip time to the host in ms (-1 until measured; -1 on host/offline).
+func ping_ms() -> int:
+    return int(round(_rtt_ms)) if mode == CLIENT and _rtt_ms >= 0.0 else -1
+
+## CLIENT: seconds since the last packet from the host (0 on host/offline).
+func last_packet_age() -> float:
+    if mode != CLIENT or _last_rx_ms == 0:
+        return 0.0
+    return (Time.get_ticks_msec() - _last_rx_ms) / 1000.0
+
+@rpc("any_peer", "unreliable", "call_remote", 3)
+func _c_ping(t: int) -> void:
+    if mode == HOST:
+        rpc_id(multiplayer.get_remote_sender_id(), "_s_pong", t)
+
+@rpc("authority", "unreliable", "call_remote", 3)
+func _s_pong(t: int) -> void:
+    if mode != CLIENT:
+        return
+    _last_rx_ms = Time.get_ticks_msec()
+    var rtt := float(Time.get_ticks_msec() - t)
+    _rtt_ms = rtt if _rtt_ms < 0.0 else lerpf(_rtt_ms, rtt, 0.25)
 
 # ---------------------------------------------------------------- registry
 ## HOST/OFFLINE: assigns a network id to a hero or prop.
@@ -402,7 +430,10 @@ func _send_snapshot() -> void:
 
 @rpc("authority", "unreliable_ordered", "call_remote", 1)
 func _s_snap(t: int, hs: Array, props: Array) -> void:
-    if mode != CLIENT or t <= server_tick:
+    if mode != CLIENT:
+        return
+    _last_rx_ms = Time.get_ticks_msec()
+    if t <= server_tick:
         return
     server_tick = t
     var now := Time.get_ticks_msec() / 1000.0
@@ -541,6 +572,11 @@ static func _make_prop(kind: String, size: Vector3, color: Color) -> Node3D:
     return mi
 
 func _process(_dt: float) -> void:
+    if mode == CLIENT and my_net_id >= 0:
+        _ping_left -= _dt
+        if _ping_left <= 0.0:
+            _ping_left = 1.0
+            rpc_id(1, "_c_ping", Time.get_ticks_msec())
     if mode != CLIENT or not _clock_init:
         return
     var rt := Time.get_ticks_msec() / 1000.0 - _clock_offset - INTERP_DELAY

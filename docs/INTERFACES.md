@@ -301,6 +301,11 @@ up to `Net.MAX_HUMANS` = 6 humans; bots fill the other GameConfig slots (a joini
 team with fewer humans). Modes: `OFFLINE` (single player, unchanged), `HOST`, `CLIENT`.
 - **Mode queries**: `Net.is_online()` (HOST or CLIENT), `Net.is_host()`, `Net.is_client()`, `Net.is_authority()`
   (= not CLIENT; OFFLINE or HOST). UI uses `is_online()` (e.g. the pause overlay never pauses the tree online).
+- **Link status**: `Net.ping_ms() -> int` (client round-trip ms, smoothed, 1 ping/s; -1 until measured and on
+  host/offline), `Net.last_packet_age() -> float` (client: s since the last packet from the host; 0 on host/offline).
+  Signal `Net.disconnected(reason: String)` (client: "could not connect", "host closed the connection", "server full").
+  In a match the HUD's `ConnectionLostScreen` stays up; it returns to the menu through `hud.conn_lost.return_requested`
+  (main.gd → `_restart(false)`) or the pause overlay's `leave_requested`. Before a match the Join screen shows it.
 - **Authority**: `Net.is_authority()` (= not CLIENT). The single gate is `Hero.take_damage` (returns 0 on a
   client). Clients build no MatchRules, no zone wiring, no bot brains and never pick spawns.
 - **Hero roles** `hero.net_role`: `auth` (full sim, host/offline), `predicted` (client's own hero: look +

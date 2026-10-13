@@ -340,6 +340,8 @@ func _on_net_lost(reason: String) -> void:
     print("NET lost: ", reason)
     if player == null and main_menu != null:
         return   # still in the menu: the panel shows the failure
+    if hud != null and hud.get("conn_lost") != null:
+        return   # in a match: HUD's connection-lost screen stays up; it returns via return_requested / leave_requested
     _restart(false)
 
 func _show_net_status() -> void:
@@ -421,6 +423,8 @@ func _start_client(info: Dictionary) -> void:
     hud.setup(player)
     hud.match_end.play_again.connect(func(): _restart(false))
     hud.match_end.main_menu.connect(func(): _restart(false))
+    if hud.get("conn_lost") != null:
+        hud.conn_lost.return_requested.connect(func(): _restart(false))   # connection-lost screen -> main menu
     menu = PauseMenu.new()
     add_child(menu)
     menu.leave_requested.connect(func(): _restart(false))   # Esc overlay "Leave match" -> main menu (closes Net online)
