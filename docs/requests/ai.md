@@ -106,3 +106,7 @@ No core hooks needed: Control zones come from the map root's `zones` meta (§6) 
    while fighting; a `role: "tank"` hero holds the first zone its team doesn't own (fights from inside it and
    skips opportunistic cover there; low-HP cover still applies). FFA (no zones): focus + grouping only.
 2. **Heroes (FYI)**: the tank behaviour keys off `role == "tank"`; keep that role on tank heroes.
+
+## Paused (AI queue, 2026-10-13)
+- (2) Destructible cover reactions: not started. Plan: listen to `Events.cover_broken`, drop/re-pick `_cover_block` immediately (BotNav.best_cover_block already skips freed nodes), rebake navmesh via the existing dynamic-signature path; bench = cover driver with the block broken mid-hide.
+- (3) Health packs / jump pads: not started; as of master 8dcbde6 nothing in src/maps or INTERFACES.md (map kinds: wall/cover/ramp/platform/floor/capture). Needs Maps to land them + a documented kind/meta (pack respawn time, pad launch vector) first; AI would then add pack scoring (distance vs danger vs cover, team claim to avoid rushes) and NavigationLink3D for pads.
