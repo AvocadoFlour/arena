@@ -7,6 +7,7 @@ var args := {}
 var hero
 var ally
 var _ready_done := false
+var _swung := false
 var cam: Camera3D
 var t := 0.0
 var shot_at := 1.2
@@ -66,6 +67,8 @@ func _setup() -> void:
             cam.position = Vector3(0.7, 2.1, 3.4)
             tgt = Vector3(0.3, 1.3, -4)
         _: cam.position = Vector3(3.4, 1.3, -3.9)
+    var dk := float(args.get("dist", "1.0"))
+    cam.position = tgt + (cam.position - tgt) * dk
     cam.look_at(tgt)
 
 func _process(dt: float) -> bool:
@@ -82,16 +85,22 @@ func _process(dt: float) -> bool:
         "shoot":
             if fmod(t, 0.3) < dt:
                 hero.weapon.ammo -= 1                # replicated ammo drop = shot
-        "cast":
-            if t > shot_at - 0.25 and hero.abilities.ability2.cooldown.remaining == 0.0:
-                hero.abilities.ability2.cooldown.remaining = 5.0
+        "cast":   # --slot=ability1|ability2|ultimate, --lead=seconds before the shot
+            var ab = hero.abilities[String(args.get("slot", "ability2"))]
+            if t > shot_at - float(args.get("lead", "0.25")) and ab.cooldown.remaining == 0.0:
+                ab.cooldown.remaining = maxf(ab.cooldown.duration, 1.0)
+        "swing":  # one replicated swing; --combo=N is the replicated post-swing combo_step (3 = finisher)
+            if t > shot_at - float(args.get("lead", "0.15")) and not _swung:
+                _swung = true
+                hero.combo_step = int(args.get("combo", "1"))
+                hero.weapon.ammo -= 1
         "heal":
             if t > 0.3 and hero.abilities.ability1.cooldown.remaining == 0.0:
                 hero.abilities.ability1.cooldown.remaining = hero.abilities.ability1.cooldown.duration
         "death":
             if t > 0.3 and not hero.dead:
                 hero.dead = true
-                hero.visible = false
+                pass   # body stays visible (keep_body_when_dead), death plays on the live model
     if t >= shot_at:
         root.get_texture().get_image().save_png(String(args.get("out", "/tmp/preview.png")))
         print("PREVIEW ", args.get("out"))

@@ -67,6 +67,11 @@ flourish. Not replicated, so not used for visuals:
 Test auto-discovery, hero API docs, damage kinds, mixed bot roster.
 
 ## R7 (Twin Tails 3D model)
-- Optional, not blocking: the live hero is hidden on death by core, so the death animation is played on a client-side corpse copy (HeroModel.spawn_corpse). If core ever adds a "keep body visible while dead" hook, the corpse copy can be dropped.
+- DONE (core a36e935+): death now uses `hero.keep_body_when_dead`; the corpse copy was removed.
 - Optional: the import step needs `godot --headless --import` after the GLB changes. If build.sh does not already reimport, consider adding that so fresh checkouts never show a stale model.
 - Info: `--primitive_models` user arg / `Hero.use_primitive_models` keeps the old primitive look (fallback, tests).
+
+## R8 (The Best + Cob 3D)
+- No blocking requests.
+- Info: Cob's model (legs ~1.95 m wide at scale 0.85) is wider than its 1.3 m capsule and sits low; the core third-person camera frames it from very close (shell fills the lower screen). If core ever adds a per-hero camera offset/distance, Cob would benefit (e.g. +0.6 m back, +0.3 m up).
+- Info: engine quirk (4.7.2): freeing a MeshInstance3D with per-surface override materials while another instance of the same mesh is alive logs `Parameter "material" is null`. ToonKit now bakes the toon materials into a shared mesh copy instead (no overrides), which avoids it.

@@ -60,6 +60,7 @@ var _anim_atk := 0.0                 ## 1 right after a shot/swing -> 0
 var _anim_shots := 0                 ## shots seen (parity alternates the sword swing side)
 var _anim_cds: Dictionary = {}       ## slot -> last seen cooldown.remaining
 var _anim_cast := 0.0                ## 1 right after an ability/ult was used -> 0
+var _anim_cast_slot := ""            ## slot of the latest cast seen (replicated cooldown jump)
 var _anim_finisher := false          ## current swing is the combo finisher (from replicated combo_step)
 var _anim_dash := 0.0                ## 0..1 dash visual weight (from replicated dash_time)
 var _streak: MeshInstance3D          ## dash streak (client-side visual)
@@ -174,6 +175,7 @@ func _build_scene_model() -> void:
     _streak = null
     model = m
     _vis.add_child(model)
+    keep_body_when_dead = true   # core hook (INTERFACES §3): body stays visible, collision off, while "death" plays
 
 ## Where beams/tracers leave the hero: the animated mic-wand tip on the 3D model, else the muzzle.
 func beam_origin() -> Vector3:
@@ -189,8 +191,11 @@ func _process(dt: float) -> void:
     for ab in abilities.values():
         if ab.has_method("visual_process"):
             ab.visual_process(dt)   # ability visuals (e.g. heal ribbon fade-out also runs while dead)
-    if model and dead and not _was_dead and is_inside_tree():
-        model.spawn_corpse(get_parent(), global_transform, def.model_scene)   # replicated `dead` edge
+    if model and dead != _was_dead:   # replicated `dead` edges: death anim on the live body (core keeps it visible)
+        if dead:
+            model.play_death()
+        else:
+            model.revive()
     _was_dead = dead
     if _vis == null or dead:
         return
@@ -216,7 +221,7 @@ func _process(dt: float) -> void:
             if ab.has_method("channel_visible") and ab.channel_visible():
                 healing = true
         model.drive({"run": run, "fwd": fwd, "side": side, "air": air, "shots": _anim_shots,
-            "casts": _anim_casts, "healing": healing}, dt)
+            "finisher": _anim_finisher, "casts": _anim_casts, "cast_slot": _anim_cast_slot, "healing": healing}, dt)
     var lean_x := -fwd * 0.16 - 0.3 * _anim_dash - (0.2 * sin(_anim_atk * PI) if _anim_finisher else 0.0)
     var lean_z := side * 0.12
     _vis.rotation.x = lerpf(_vis.rotation.x, lean_x, minf(1.0, dt * 10.0))
@@ -276,6 +281,7 @@ func _track_attack_state(dt: float) -> void:
         if _anim_cds.has(slot) and rem > float(_anim_cds[slot]) + 0.05:
             _anim_cast = 1.0
             _anim_casts += 1
+            _anim_cast_slot = String(slot)
         _anim_cds[slot] = rem
     _anim_cast = maxf(0.0, _anim_cast - dt / 0.35)
     var target := 1.0 if dash_time > 0.0 else 0.0

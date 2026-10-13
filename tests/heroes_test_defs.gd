@@ -179,8 +179,12 @@ func _weapon_node(h: Hero) -> Node3D:
     return null
 
 ## Puppet = what a client sees: only snapshot fields are written (as Net._apply_state does), no physics.
+## Primitive fallback model (these check the procedural part animation; GLB models: heroes_test_model.gd).
 func _puppet(id: String) -> Hero:
+    var prev := Hero.use_primitive_models
+    Hero.use_primitive_models = true
     var h := Hero.from_def("res://src/heroes/%s.json" % id)
+    Hero.use_primitive_models = prev
     h.net_role = "puppet"
     h._process(1.0 / 60.0)   # first frame records the baseline
     return h
