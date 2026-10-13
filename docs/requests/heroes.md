@@ -85,3 +85,7 @@ Test auto-discovery, hero API docs, damage kinds, mixed bot roster.
 - `HeroModel` now keeps loaded model PackedScenes referenced. Previously a scene could unload between spawns, so the ToonKit bake was redone each time and its cache grew (found by the new sharing test).
 - Request (core): replicate a hit direction (attacker position or hit pos) in the hp snapshot, or always replay damage events to all clients. Then remote flinches could always be directional. Today a hit without a damage event gets a generic backward flinch.
 - FYI (not heroes): `ai_teamplay_driver::team_groups_up` fails on current master without this branch's changes too.
+
+## Queue notes (Oct 13)
+- PAUSED (not cancelled): Cob shell polish; Twin Tails face/wing polish.
+- Tomo and Niđo: concept step 1 only (docs/concept/tomo_v1.png, nidjo_v1.png, tomo_nidjo_proposal.md). No 3D, nothing in-game yet.

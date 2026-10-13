@@ -191,3 +191,52 @@ func test_primitive_fallback_flag() -> void:
         check(h.model == null and h._anim_parts.size() >= 3, id + ": fallback primitive model")
         h.free()
     Hero.use_primitive_models = false
+
+## Poses the skeleton from `anim` at time `t` by sampling the rotation/position tracks (no tree needed).
+func _pose(h: Hero, anim: String, t: float) -> Skeleton3D:
+    var sk: Skeleton3D = h.model.skeleton
+    sk.reset_bone_poses()
+    var a: Animation = h.model.anim_player.get_animation(anim)
+    for ti in a.get_track_count():
+        var bn := String(a.track_get_path(ti).get_concatenated_subnames())
+        var bi := sk.find_bone(bn)
+        if bi < 0:
+            continue
+        match a.track_get_type(ti):
+            Animation.TYPE_ROTATION_3D:
+                sk.set_bone_pose_rotation(bi, a.rotation_track_interpolate(ti, t))
+            Animation.TYPE_POSITION_3D:
+                sk.set_bone_pose_position(bi, a.position_track_interpolate(ti, t))
+    return sk
+
+func _gp(sk: Skeleton3D, bone: String) -> Transform3D:   # composed by hand (works outside the tree)
+    var bi := sk.find_bone(bone)
+    var xf := Transform3D.IDENTITY
+    while bi >= 0:
+        xf = sk.get_bone_pose(bi) * xf
+        bi = sk.get_bone_parent(bi)
+    return xf
+
+func test_the_best_v2_poses() -> void:
+    var h := Hero.from_def(_def("the_best"))
+    for b in ["fingers.L", "fingers.R", "index.L", "index.R"]:
+        check(h.model.skeleton.find_bone(b) >= 0, "the_best: hand bone %s" % b)
+    # idle: sword hand up at the RIGHT shoulder (model right = -X), not across the chest
+    var sk := _pose(h, "idle", 0.0)
+    var hand := _gp(sk, "hand.R").origin
+    check(hand.y > 1.3 and hand.x < -0.12, "idle: right hand at the shoulder %s" % hand)
+    # ult: left index finger straight forward (+Z), other fingers curled
+    sk = _pose(h, "ult", 0.5)
+    var idx_dir := _gp(sk, "index.L").basis.y.normalized()
+    var fng_dir := _gp(sk, "fingers.L").basis.y.normalized()
+    check(idx_dir.z > 0.6 and fng_dir.z < idx_dir.z - 0.5, "ult: pointing index %s vs fingers %s" % [idx_dir, fng_dir])
+    # swings + finisher: wind-up -> hit -> follow-through keep travelling the same way (sweep / chop)
+    for spec in [["swing_a", 3.0, 7.0, 10.0, Vector3.RIGHT], ["swing_b", 3.0, 7.0, 10.0, Vector3.LEFT], ["finisher", 7.0, 10.0, 13.0, Vector3.DOWN]]:
+        var a: Animation = h.model.anim_player.get_animation(spec[0])
+        var ax: Vector3 = spec[4]
+        var p_ant := _gp(_pose(h, spec[0], spec[1] / 24.0), "hand.R").origin.dot(ax)
+        var p_hit := _gp(_pose(h, spec[0], spec[2] / 24.0), "hand.R").origin.dot(ax)
+        var p_fol := _gp(_pose(h, spec[0], spec[3] / 24.0), "hand.R").origin.dot(ax)
+        check(p_ant < p_hit - 0.1 and p_fol > p_hit + 0.03, "%s: wind-up %.2f -> hit %.2f -> follow-through %.2f" % [spec[0], p_ant, p_hit, p_fol])
+        check(a.length <= (0.9 if spec[0] != "finisher" else 1.2), "%s: length %.2f s" % [spec[0], a.length])
+    h.free()

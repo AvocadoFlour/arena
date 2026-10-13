@@ -102,8 +102,13 @@ for s, nm in ((1, "L"), (-1, "R")):
         r = 0.058 - (1.16 - z) * 0.08 + (0.005 if k % 2 == 0 else 0.0)
         rings.append((arm_pt(s, z), r, r)); z -= 0.028; k += 1
     B.loft("wrap_" + nm, rings, "bandage", ["forearm." + nm], n=12)
-    B.ellipsoid("fist_" + nm, arm_pt(s, WRIST - 0.06), (0.05, 0.055, 0.062), "skin", ["hand." + nm], seg=10, rings=7)
-    B.ellipsoid("knuckle_" + nm, arm_pt(s, WRIST - 0.075) + Vector((0, -0.035, 0)), (0.042, 0.03, 0.04), "skin", ["hand." + nm], seg=8, rings=6)
+    # simple hand: palm block + thumb + 3-finger mitt + separate index finger (own bones, so the ult can point)
+    hp = arm_pt(s, WRIST)
+    B.box("palm_" + nm, hp + Vector((0, 0, -0.045)), (0.042, 0.09, 0.075), "skin", ["hand." + nm], bevel=0.012)
+    B.loft("thumb_" + nm, [(hp + Vector((-s * 0.012, -0.04, -0.03)), 0.017, 0.017), (hp + Vector((-s * 0.022, -0.07, -0.06)), 0.014, 0.014),
+                           (hp + Vector((-s * 0.024, -0.082, -0.085)), 0.011, 0.011)], "skin", ["hand." + nm], n=8)
+    B.box("mitt_" + nm, hp + Vector((0, 0.012, -0.112)), (0.036, 0.062, 0.07), "skin", ["fingers." + nm], bevel=0.012)
+    B.box("index_" + nm, hp + Vector((0, -0.034, -0.118)), (0.034, 0.028, 0.088), "skin", ["index." + nm], bevel=0.01)
 
 # ------------------------------------------------------------- head: grin, pointed shades, spiky black hair
 B.ellipsoid("head", HEAD_C, HEAD_R, "skin", ["head"], seg=18, rings=12)
@@ -150,8 +155,8 @@ NU, NV = 18, 9
 rnd = random.Random(11)
 hem = [rnd.uniform(0.0, 0.22) * (1.0 if k % 2 else 0.35) for k in range(NU + 1)]
 def cape_pt(u, v, inner):
-    phi = math.radians(-84 + 168 * u)
-    rx = 0.235 + 0.36 * v
+    phi = math.radians(-78 + 156 * u)
+    rx = 0.235 + 0.36 * v + 0.075 * math.sin(math.pi * min(1.0, v / 0.7))   # clear the arms
     ry = 0.13 + 0.26 * v
     yoff = 0.03 + 0.08 * v
     z = 1.565 - 1.12 * v
@@ -205,7 +210,9 @@ for s, nm in ((1, "L"), (-1, "R")):
     B.bone("shoulder." + nm, (s * 0.04, 0, 1.52), arm_pt(s, SH_Z) - Vector((s * 0.03, 0, 0)), "chest")
     B.bone("upper_arm." + nm, arm_pt(s, SH_Z), arm_pt(s, ELB), "shoulder." + nm)
     B.bone("forearm." + nm, arm_pt(s, ELB), arm_pt(s, WRIST), "upper_arm." + nm, connect=True)
-    B.bone("hand." + nm, arm_pt(s, WRIST), arm_pt(s, WRIST - 0.12), "forearm." + nm, connect=True)
+    B.bone("hand." + nm, arm_pt(s, WRIST), arm_pt(s, WRIST - 0.08), "forearm." + nm, connect=True)
+    B.bone("fingers." + nm, arm_pt(s, WRIST - 0.08) + Vector((0, 0.012, 0)), arm_pt(s, WRIST - 0.15) + Vector((0, 0.012, 0)), "hand." + nm)
+    B.bone("index." + nm, arm_pt(s, WRIST - 0.08) + Vector((0, -0.034, 0)), arm_pt(s, WRIST - 0.16) + Vector((0, -0.034, 0)), "hand." + nm)
     B.bone("thigh." + nm, leg_pt(s, HIP_Z), leg_pt(s, KNEE_Z), "hips")
     B.bone("shin." + nm, leg_pt(s, KNEE_Z), leg_pt(s, ANK_Z), "thigh." + nm, connect=True)
     B.bone("foot." + nm, leg_pt(s, ANK_Z), leg_pt(s, ANK_Z) + Vector((0, -0.16, -0.07)), "shin." + nm, connect=True)
@@ -217,12 +224,17 @@ tris = B.skin_and_join("TheBestMesh")
 B.marker("SwordTip", "hand.R", SWORD_TIP)
 
 # ------------------------------------------------------------- animations (24 fps)
+CURL = float(arg("--curl", "-90"))
 B.begin_anim()
 # idle: sword resting on the right shoulder (concept pose), left fist on hip, chest breathing
-CARRY = {"upper_arm.R": (-25, 0, -72), "forearm.R": (-118, 0, 0), "hand.R": (0, 0, -70)}
+FIST = {"fingers.L": (CURL, 0, 0), "index.L": (CURL, 0, 0), "fingers.R": (CURL, 0, 0), "index.R": (CURL, 0, 0)}
+_c = [float(v) for v in arg("--carry", "20,0,10,-150,-35,0,0").split(",")]
+CARRY = {"upper_arm.R": (_c[0], _c[1], _c[2]), "forearm.R": (_c[3], 0, 0), "hand.R": (_c[4], _c[5], _c[6])}
+CARRY.update(FIST)   # fists by default (right hand wraps the grip); the ult opens the left index to point
 def idle(br):
     p = {"chest": (br, 0, 0), "neck": (-br * 0.5, 0, 0), "upper_arm.L": (0, 0, 25), "forearm.L": (-40, 0, 0), "hand.L": (0, 0, 0)}
     p.update(CARRY)
+    p.update(FIST)
     return p
 B.action("idle_loop", [(1, idle(0)), (25, idle(2.5)), (49, idle(0))])
 
@@ -233,7 +245,7 @@ def run_pose(ph):
          "shin.L": (max(0.0, c) * 60 + 10, 0, 0), "shin.R": (max(0.0, -c) * 60 + 10, 0, 0),
          "upper_arm.L": (s * 40, 0, 8), "forearm.L": (-45, 0, 0)}
     p.update(CARRY)
-    p["upper_arm.R"] = (-25 + s * 6, 0, -72)
+    p["upper_arm.R"] = (20 + s * 5, 0, 10)
     return p
 run = []
 for k in range(5):
@@ -242,19 +254,37 @@ for k in range(5):
 B.action("run_loop", run)
 
 # combo swings (upper body; ~0.42 s): A = forehand sweep right->left, B = backhand left->right
+def _mix(a, b, t):
+    out = {}
+    for k in set(a) | set(b):
+        va, vb = a.get(k, (0, 0, 0)), b.get(k, (0, 0, 0))
+        out[k] = tuple(x + (y - x) * t for x, y in zip(va, vb))
+    return out
+def _fist(p):
+    q = dict(p); q.update(FIST); return q
+# anticipation (deeper wind-up) -> fast hit (frame 8, ~0.29 s) -> follow-through overshoot -> settle -> carry
 WIND_A = {"chest": (0, -35, 0), "spine": (0, -10, 0), "upper_arm.R": (-95, 60, 0), "forearm.R": (-30, 0, 0), "hand.R": (70, 0, 0)}
 HIT_A = {"chest": (8, 40, 0), "spine": (4, 12, 0), "upper_arm.R": (-80, -65, 0), "forearm.R": (-5, 0, 0), "hand.R": (70, 0, 0)}
-B.action("swing_a", [(1, CARRY), (4, WIND_A), (7, HIT_A), (11, HIT_A), (16, CARRY)])
+ANT_A = _mix(WIND_A, {"chest": (-6, -50, 0), "spine": (0, -16, 0), "upper_arm.R": (-105, 78, 0), "forearm.R": (-45, 0, 0), "hand.R": (70, 0, 0)}, 1.0)
+FOL_A = {"chest": (14, 55, 0), "spine": (8, 18, 0), "upper_arm.R": (-62, -92, 0), "forearm.R": (-12, 0, 0), "hand.R": (78, 0, 0)}
+B.action("swing_a", [(1, _fist(CARRY)), (4, _fist(ANT_A)), (6, _fist(WIND_A)), (8, _fist(HIT_A)), (11, _fist(FOL_A)), (15, _fist(_mix(FOL_A, HIT_A, 0.5))), (21, _fist(CARRY))])
 WIND_B = {"chest": (0, 35, 0), "spine": (0, 10, 0), "upper_arm.R": (-90, -70, 0), "forearm.R": (-40, 0, 0), "hand.R": (70, 0, 0)}
 HIT_B = {"chest": (8, -40, 0), "spine": (4, -12, 0), "upper_arm.R": (-85, 55, 0), "forearm.R": (-5, 0, 0), "hand.R": (70, 0, 0)}
-B.action("swing_b", [(1, CARRY), (4, WIND_B), (7, HIT_B), (11, HIT_B), (16, CARRY)])
+ANT_B = {"chest": (-6, 50, 0), "spine": (0, 16, 0), "upper_arm.R": (-98, -85, 0), "forearm.R": (-55, 0, 0), "hand.R": (70, 0, 0)}
+FOL_B = {"chest": (14, -55, 0), "spine": (8, -18, 0), "upper_arm.R": (-70, 80, 0), "forearm.R": (-12, 0, 0), "hand.R": (62, 0, 0)}
+B.action("swing_b", [(1, _fist(CARRY)), (4, _fist(ANT_B)), (6, _fist(WIND_B)), (8, _fist(HIT_B)), (11, _fist(FOL_B)), (15, _fist(_mix(FOL_B, HIT_B, 0.5))), (21, _fist(CARRY))])
 # finisher: two-handed overhead slam with a crouch (full body)
 UP = {"spine": (-12, 0, 0), "chest": (-10, 0, 0), "upper_arm.R": (-170, 0, 15), "upper_arm.L": (-170, 0, -15),
       "forearm.R": (-30, 0, 0), "forearm.L": (-30, 0, 0), "thigh.L": (-10, 0, 0), "thigh.R": (10, 0, 0)}
 SLAM = {"spine": (30, 0, 0), "chest": (20, 0, 0), "head": (-20, 0, 0), "upper_arm.R": (-60, 0, 20), "upper_arm.L": (-60, 0, -20),
         "forearm.R": (-10, 0, 0), "forearm.L": (-10, 0, 0), "thigh.L": (-55, 0, 0), "thigh.R": (-20, 0, 0),
         "shin.L": (70, 0, 0), "shin.R": (60, 0, 0), "foot.L": (-15, 0, 0)}
-B.action("finisher", [(1, CARRY), (6, UP), (10, SLAM, {"hips": (0, 0, -0.0)}), (16, SLAM), (24, CARRY)])
+ANT_F = {"spine": (14, 0, 0), "chest": (8, 0, 0), "upper_arm.R": (-30, 0, 25), "upper_arm.L": (-30, 0, -25), "forearm.R": (-70, 0, 0),
+         "forearm.L": (-70, 0, 0), "thigh.L": (-35, 0, 0), "thigh.R": (-30, 0, 0), "shin.L": (55, 0, 0), "shin.R": (50, 0, 0)}
+UP2 = dict(UP); UP2.update({"spine": (-18, 0, 0), "chest": (-14, 0, 0), "head": (-8, 0, 0)})
+FOL_F = dict(SLAM); FOL_F.update({"spine": (40, 0, 0), "chest": (26, 0, 0), "upper_arm.R": (-40, 0, 22), "upper_arm.L": (-40, 0, -22)})
+B.action("finisher", [(1, _fist(CARRY)), (4, _fist(ANT_F), {"hips": (0, -0.08, 0)}), (8, _fist(UP2)), (11, _fist(SLAM)),
+                      (14, _fist(FOL_F), {"hips": (0, -0.06, 0)}), (20, _fist(FOL_F), {"hips": (0, -0.06, 0)}), (28, _fist(CARRY))])
 # leap (Fearless Leap, ~0.75 s airborne): crouch, launch, tuck with sword overhead, slam on landing
 CROUCH = {"thigh.L": (-50, 0, 0), "thigh.R": (-50, 0, 0), "shin.L": (80, 0, 0), "shin.R": (80, 0, 0), "spine": (25, 0, 0)}
 CROUCH.update(CARRY)
@@ -267,7 +297,7 @@ DASH = {"spine": (30, 0, 0), "chest": (10, 0, 0), "head": (-25, 0, 0), "upper_ar
 B.action("dash", [(1, CARRY), (3, DASH), (8, DASH), (14, CARRY)])
 # ult (No Limits): point forward with the left hand (concept pose), sword raised high, chest out
 ULT = {"chest": (-12, 0, 0), "head": (-10, 0, 0), "upper_arm.L": (-85, 0, 0), "forearm.L": (-10, 0, 0),
-       "upper_arm.R": (-170, 0, -10), "forearm.R": (-20, 0, 0)}
+       "upper_arm.R": (-170, 0, -10), "forearm.R": (-20, 0, 0), "fingers.L": (CURL, 0, 0), "index.L": (0, 0, 0)}
 B.action("ult", [(1, CARRY), (6, ULT), (26, ULT), (34, CARRY)])
 # death: drop to the knees and fall forward
 KNEEL = {"thigh.L": (-90, 0, 0), "thigh.R": (-20, 0, 0), "shin.L": (100, 0, 0), "shin.R": (110, 0, 0), "spine": (20, 0, 0), "head": (20, 0, 0),
@@ -284,5 +314,6 @@ PO = arg("--poses")
 if PO:
     B.shots(PO, 0.95, 2.4, views=())
     B.pose_shots(PO, [(a, f, y, "%s_%d_%d.png" % (a, f, y)) for a, f, y in
-                      [("idle_loop", 1, 0), ("idle_loop", 1, 90), ("swing_a", 4, 0), ("swing_a", 7, 0), ("finisher", 6, 90), ("finisher", 12, 90),
-                       ("leap", 12, 90), ("dash", 5, 90), ("ult", 12, 0), ("death", 18, 90), ("run_loop", 6, 90)]], 0.95, 2.6)
+                      [("idle_loop", 1, 0), ("idle_loop", 1, 90), ("swing_a", 4, 0), ("swing_a", 7, 0), 
+                       ("leap", 12, 90), ("dash", 5, 90), ("ult", 12, 0), ("death", 18, 90), ("run_loop", 6, 90),
+                       ("swing_a", 11, 0), ("finisher", 4, 90), ("finisher", 8, 90), ("finisher", 11, 90), ("finisher", 14, 90), ("ult", 12, 90)]], 0.95, 2.6)
