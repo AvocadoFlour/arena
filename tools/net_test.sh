@@ -4,8 +4,10 @@
 set -u
 cd "$(dirname "$0")/.."
 GODOT=${GODOT:-$HOME/godot/godot}
-PORT=${NET_TEST_PORT:-24599}
-OUT=${OUT:-/tmp/arena_net}
+# Free UDP port per run (parallel worktree builds must not collide); override with NET_TEST_PORT.
+PORT=${NET_TEST_PORT:-$(python3 -c "import socket;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind(('127.0.0.1',0));print(s.getsockname()[1])")}
+echo "net test port $PORT/udp"
+OUT=${OUT:-$(mktemp -d /tmp/arena_net.XXXXXX)}
 mkdir -p "$OUT"
 "$GODOT" --headless --path . -- --net_host=$PORT --hero=cob --map=arena01 --autopilot --force_end=45 --net_test=51 >"$OUT/host.log" 2>&1 &
 HP=$!
