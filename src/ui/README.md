@@ -40,3 +40,12 @@ Round 6: kill feed and damage numbers use `ability_id` / `crit` (INTERFACES §3/
 kind-based inference. `DamageNumber.from_event(ev)`: colour = kill > crit > ultimate (ability_id is the
 source's ultimate slot) > ability > primary; size = big hit (>= 50) / kill; crit adds "CRIT", punch, shake.
 Tests: `tests/ui_round6_test.gd`.
+
+Round 7 (queue 1): `ui_sfx.gd` (`UiSfx`, owned by the Settings autoload as `Settings.sfx`): hit / kill /
+click / ready sounds synthesised at runtime as 16-bit AudioStreamWAV (no audio files, nothing to license),
+6-voice pool on the **SFX** bus, per-sound rate limit so rapid fire doesn't stack. Wiring: player
+`damage_dealt` (non-lethal) → hit; `killed` with killer = player → kill; every `MenuStyle.button` / toggle
+and buttons passed through `MenuStyle.polish` → click; HUD ability panels → ready (edge-detected from
+`cooldown.is_ready()` / `ult.is_full()`, plus a scale pulse). Crosshair `flash(kill)`: hit = short white X;
+kill = longer, larger, thicker red X with crosshair tint, never downgraded by a following hit.
+Tests: `tests/ui_round7_test.gd`.

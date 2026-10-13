@@ -52,3 +52,9 @@ Round 1 requests 1–3 done on master (bbd8445). Round 1 #4 (live HUD key labels
 Round 5 requests 1–2 done by core (ability_id, crit). UI now uses them.
 1. Optional: a `"name"` on hero `primary` defs (e.g. "Pebble Gun"); the kill feed shows it when present,
    otherwise "Primary" / "Melee". Creative names need user approval (TEAM rule 8), so this is a heroes/user call.
+
+## Round 7 (UI sounds)
+1. Optional: an `Events.ability_ready(hero, slot)` signal (cooldown finished / ult full). UI currently
+   edge-detects from `ability.cooldown.is_ready()` and `hero.ult.is_full()` in the HUD each frame, which works
+   but would also fire on respawn cooldown resets.
+2. No assets added: all SFX are synthesised in `src/ui/ui_sfx.gd`; no licence entries needed.

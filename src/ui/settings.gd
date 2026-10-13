@@ -30,7 +30,11 @@ func set_low_quality(on: bool) -> void:
     low_quality = on
     low_quality_changed.emit(on)
 
+var sfx: UiSfx   ## shared UI sound player (hit / kill / click / ready), SFX bus
+
 func _ready() -> void:
+    sfx = UiSfx.new()
+    add_child(sfx)
     load_from(PATH)
     for a in OS.get_cmdline_user_args():
         if a.begins_with("--screenshot") or a.begins_with("--smoke") or a.begins_with("--demo"):
