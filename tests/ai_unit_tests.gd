@@ -243,7 +243,7 @@ func test_focus_pick_lowest_hp() -> void:
 func test_cohesion_pull() -> void:
     var d := Vector3(1, 0, 0)
     check(BotBrain.cohesion(d, Vector3.ZERO, null) == d, "no rally -> unchanged")
-    check(BotBrain.cohesion(d, Vector3.ZERO, Vector3(0, 0, 5)) == d, "inside 8 m -> unchanged")
+    check(BotBrain.cohesion(d, Vector3.ZERO, Vector3(0, 0, 4)) == d, "inside COHESION_R -> unchanged")
     var c := BotBrain.cohesion(d, Vector3.ZERO, Vector3(0, 0, 20))
     check(c.z > 0.5 and c.length() <= 1.0001, "far -> pulled toward the group (%s)" % c)
 
