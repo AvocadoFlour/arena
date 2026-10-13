@@ -175,3 +175,24 @@ func test_team_buff_policy() -> void:
     check(BotBrain.decide_abilities(_typed(t, {"dist": 12.0, "engage_range": 6.4, "hurt": true})).ultimate, "buff when hurt in a fight")
     check(not BotBrain.decide_abilities(_typed(t, {"dist": 3.0, "los": false})).ultimate, "no buff without enemy in sight")
     check(not BotBrain.decide_abilities(_typed(t, {"dist": 3.0, "fleeing": true})).ultimate, "no buff while fleeing")
+
+func test_standoff_dir_restores_range() -> void:
+    var tgt := Vector3.ZERO
+    var far := BotBrain.standoff_dir(Vector3(0, 0, 12), tgt, 10.0, 1.0)
+    check(far.dot(Vector3(0, 0, -1)) > 0.5, "too far -> moves in (%s)" % far)
+    var close := BotBrain.standoff_dir(Vector3(0, 0, 7), tgt, 10.0, 1.0)
+    check(close.dot(Vector3(0, 0, 1)) > 0.5, "too close -> backs off (%s)" % close)
+    var at := BotBrain.standoff_dir(Vector3(0, 0, 10), tgt, 10.0, 1.0)
+    near(at.z, 0.0, 0.001, "at range -> no radial component")
+    check(absf(at.x) > 0.5, "at range -> pure tangential strafe (%s)" % at)
+    var other := BotBrain.standoff_dir(Vector3(0, 0, 10), tgt, 10.0, -1.0)
+    check(at.x * other.x < 0.0, "strafe sign flips direction")
+    # orbit simulation: 6 s of integration at 7 m/s with strafing never leaves the 10 m band
+    var p := Vector3(0, 0, 10)
+    var lo := INF
+    var hi := 0.0
+    for i in 360:
+        p += BotBrain.standoff_dir(p, tgt, 10.0, 1.0 if (i / 90) % 2 == 0 else -1.0) * 7.0 / 60.0
+        lo = minf(lo, p.length())
+        hi = maxf(hi, p.length())
+    check(lo > 9.0 and hi < 11.0, "orbit stays in band (%.2f..%.2f)" % [lo, hi])

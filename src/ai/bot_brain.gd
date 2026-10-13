@@ -13,6 +13,8 @@ const DIFFICULTY := {
 const ULT_RANGE := 8.0        ## Nova radius is 10; stay inside with margin
 const SLAM_RANGE := 4.5       ## grounded slam radius is 5
 const DASH_MIN_DIST := 11.0
+const LOS_GRACE := 1.0        ## s a ranged bot keeps its stand-off after losing sight before pathing in
+const TARGET_MEMORY := 2.0    ## s a target that went out of sight is still remembered
 
 var difficulty := "normal"
 var spread_deg := 6.0         ## applied by the spawner to hero.extra_spread_deg
@@ -52,6 +54,7 @@ var _cover_left := 0.0
 var _cover_cd := 0.0
 var _map_root: Node3D = null
 var _nav_ver := 0
+var _lost := 0.0              ## s since the chase target was last in line of sight
 var _repath_soon := 0.0
 
 func _init(p: Dictionary = {}) -> void:
@@ -94,6 +97,11 @@ func poll(h) -> InputFrame:
         var t = _find_target(h)
         if t != target and t != null:
             _react_left = reaction_time
+        if target != null and _lost > 0.0 and _lost < TARGET_MEMORY and \
+                (t == null or h.global_position.distance_to(t.global_position) > h.global_position.distance_to(target.global_position)):
+            t = target   # briefly out of sight: stick with it instead of wandering off or switching to a farther enemy
+        if t != target:
+            _lost = 0.0
         target = t
     var low: bool = h.health.hp < h.health.max_hp * low_hp_frac
     if target and seek_cover and low and _cover_cd <= 0.0 and state != "cover":
@@ -138,11 +146,17 @@ func _do_chase(h, f: InputFrame, dt: float, low: bool) -> void:
             f.move = Vector2(_strafe * 0.3, 0.6 if flat > keep else 0.0)
         f.fire = los and flat <= mrange and err < maxf(fire_cone, 0.35) and _react_left <= 0.0
     else:
-        if dist > keep + 2.0 or not los:
+        if los:
+            _lost = 0.0
+        else:
+            if _lost == 0.0:
+                _strafe = -_strafe   # LOS just broke (strafed behind cover): orbit back the way we came
+                _strafe_left = 1.5
+            _lost += dt
+        if flat > keep + 2.0 or _lost > LOS_GRACE:
             f.move = _follow(h, target.global_position)
         else:
-            var fwd := 1.0 if dist > keep else (-0.6 if dist < minf(5.0, keep - 1.0) else 0.0)
-            f.move = Vector2(_strafe * 0.7, fwd).limit_length(1.0)
+            f.move = world_to_move(h.global_transform.basis, standoff_dir(h.global_position, target.global_position, keep, _strafe))
         f.fire = los and err < fire_cone and _react_left <= 0.0
     if use_abilities:
         var ctx := _ctx(h, low, false)
@@ -163,6 +177,22 @@ static func standoff(mrange: float, slam_ready: bool) -> float:
     if mrange > 0.0:
         return mrange * 0.6
     return 3.0 if slam_ready else 10.0   # close in to use the slam
+
+## World-space move for holding `keep` m (flat) from `target` while strafing (pure; unit-tested).
+## Radial term is proportional to the range error (pushes back in when far, out when close);
+## the strafe term is the true tangent around the target, computed in world space, so it does
+## not depend on where the (turn-rate-limited, jittered) aim currently points.
+static func standoff_dir(pos: Vector3, target_pos: Vector3, keep: float, strafe: float) -> Vector3:
+    var to := Vector3(target_pos.x - pos.x, 0, target_pos.z - pos.z)
+    var d := to.length()
+    if d < 0.01:
+        return Vector3.ZERO
+    var radial := to / d
+    var tangent := Vector3(-radial.z, 0, radial.x) * strafe
+    var err := clampf((d - keep) / 2.0, -1.0, 1.0)   # >0: too far -> close in; <0: back off
+    var tw := 0.7 * (1.0 - absf(err) * 0.6)
+    # orbiting along a straight tangent drifts outward by keep*(sec-1); the err term cancels it
+    return (radial * err + tangent * tw).limit_length(1.0)
 
 ## Ability context shared by chase/cover. Slot types come from the hero def (type-aware policy).
 func _ctx(h, low: bool, fleeing: bool) -> Dictionary:
