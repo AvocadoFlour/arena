@@ -6,9 +6,9 @@ extends RefCounted
 ## spawner from spread_deg) plus difficulty-dependent aim jitter and reaction delay.
 
 const DIFFICULTY := {
-    "easy":   {"spread_deg": 10.0, "turn_rate": 2.5, "fire_cone": 0.20, "reaction_time": 0.60, "aim_jitter": 0.12, "ability_delay": 1.2, "low_hp_frac": 0.20, "cover_time": 2.0, "peek_time": 1.4, "hide_min": 1.6, "hide_max": 2.4, "peek_side_mode": "same"},
-    "normal": {"spread_deg": 6.0,  "turn_rate": 4.0, "fire_cone": 0.15, "reaction_time": 0.35, "aim_jitter": 0.05, "ability_delay": 0.6, "low_hp_frac": 0.35, "cover_time": 3.0, "peek_time": 1.0, "hide_min": 1.0, "hide_max": 1.8, "peek_side_mode": "random"},
-    "hard":   {"spread_deg": 3.0,  "turn_rate": 7.0, "fire_cone": 0.10, "reaction_time": 0.18, "aim_jitter": 0.015, "ability_delay": 0.2, "low_hp_frac": 0.40, "cover_time": 3.5, "peek_time": 0.7, "hide_min": 0.5, "hide_max": 1.3, "peek_side_mode": "mixed"},
+    "easy":   {"spread_deg": 10.0, "turn_rate": 2.5, "fire_cone": 0.20, "reaction_time": 0.60, "aim_jitter": 0.12, "ability_delay": 2.0, "focus_slack": 0.0, "low_hp_frac": 0.20, "cover_time": 2.0, "peek_time": 1.4, "hide_min": 1.6, "hide_max": 2.4, "peek_side_mode": "same"},
+    "normal": {"spread_deg": 6.0,  "turn_rate": 4.0, "fire_cone": 0.15, "reaction_time": 0.35, "aim_jitter": 0.05, "ability_delay": 0.6, "focus_slack": 8.0, "low_hp_frac": 0.35, "cover_time": 3.0, "peek_time": 1.0, "hide_min": 1.0, "hide_max": 1.8, "peek_side_mode": "random"},
+    "hard":   {"spread_deg": 3.0,  "turn_rate": 7.0, "fire_cone": 0.10, "reaction_time": 0.15, "aim_jitter": 0.015, "ability_delay": 0.2, "focus_slack": 12.0, "low_hp_frac": 0.30, "cover_time": 3.5, "peek_time": 0.7, "hide_min": 0.5, "hide_max": 1.3, "peek_side_mode": "mixed"},
 }
 const ULT_RANGE := 8.0        ## Nova radius is 10; stay inside with margin
 const SLAM_RANGE := 4.5       ## grounded slam radius is 5
@@ -37,6 +37,7 @@ var hide_max := 1.8
 var peek_side_mode := "random"   ## "same" (predictable), "random", "mixed" (alternate, sometimes repeat)
 var opportunistic_cover := true  ## ranged bots under 70 % HP use cover within 6 m too
 var escort_allies := true
+var focus_slack := 8.0       ## m: how much farther a shared focus target may be than the nearest (easy 0 = ignores calls)
 var team_play := true         ## shared focus target, grouping, tank holds the control point
 var _seen_now: Array = []
 var support_radius := 35.0    ## heal-beam bots look this far for hurt allies (then walk into beam range)
@@ -677,7 +678,7 @@ func _find_target(h):
         var fo = BotTeam.focus(h)
         # focus fire: the team's lowest-HP enemy, if we see it too and it is not much farther than
         # our own nearest target (melee: must be nearly as close; never leave an enemy in reach)
-        var slack := 3.0 if melee_range(h) > 0.0 else 8.0
+        var slack := minf(3.0, focus_slack) if melee_range(h) > 0.0 else focus_slack
         if fo != null and fo in _seen_now and h.global_position.distance_to(fo.global_position) <= best_d + slack:
             best = fo
     return best
