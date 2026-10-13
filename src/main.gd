@@ -153,6 +153,8 @@ func _start_match() -> void:
     _t0 = Time.get_ticks_msec()
 
 func _on_dmg(ev: Dictionary) -> void:
+    if is_instance_valid(ev.target) and ev.target.team == 0 and is_instance_valid(ev.source) and ev.source is Hero and ev.source.team == 1:
+        stats["team_dmg_taken"] = stats.get("team_dmg_taken", 0.0) + float(ev.amount)   # enemy pressure on the whole team
     if ev.source == player:
         stats.player_dmg += ev.amount
         stats["hits_" + ev.kind] = stats.get("hits_" + ev.kind, 0) + 1
@@ -285,7 +287,9 @@ func _finish() -> void:
     stats["fps_min"] = s.min() if s.size() > 0 else 0
     print("STATS ", JSON.stringify(stats))
     # kills are reported but not required: a 35 s window on big maps can legitimately end 0 kills
-    var ok: bool = stats.player_dmg > 0 and stats.bot_dmg > 0 and stats.get("match_ended", 0) == 1 and stats.ability1 > 0 and stats.ability2 > 0 and stats.ultimate > 0
+    # team maps: allies soak fire, so enemy pressure is measured on the whole team (team_dmg_taken), not the player
+    var taken: float = stats.get("team_dmg_taken", 0.0) if stats.get("allies", []).size() > 0 else stats.bot_dmg
+    var ok: bool = stats.player_dmg > 0 and taken > 0 and stats.get("match_ended", 0) == 1 and stats.ability1 > 0 and stats.ability2 > 0 and stats.ultimate > 0
     if args.has("smoke"):
         print("SMOKE ", "PASS" if ok else "FAIL")
     get_tree().quit(0 if ok or not args.has("smoke") else 1)

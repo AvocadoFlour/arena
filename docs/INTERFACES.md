@@ -160,7 +160,13 @@ preset lookup (unknown names → `normal` with a runtime warning).
 Stand-off (v0.5, AI round 4): ranged bots hold `standoff` (10 m) using a range-proportional radial term plus a
 world-space tangential strafe (`BotBrain.standoff_dir`). When line of sight breaks they reverse the strafe and keep
 the stand-off for `LOS_GRACE` (1 s) before pathing in, and remember an out-of-sight target for `TARGET_MEMORY`
-(2 s) instead of wandering or switching to a farther enemy. Bench: `godot --headless --path . -s tests/ai_standoff_run.gd -- --n=30`. Team-0 bots are the player's allies (never target team 0).
+(2 s) instead of wandering or switching to a farther enemy. Bench: `godot --headless --path . -s tests/ai_standoff_run.gd -- --n=30`.
+Support (v0.6, AI round 5): support bots look for hurt allies within `support_radius` (default 35 m, no line of
+sight needed), walk to them on the navmesh and channel the heal beam once in range with line of sight, healing
+allies below `heal_below` (0.8 of max HP) and themselves when hurt. Bots only consider heroes in their own World3D
+(test SubViewports share the `"heroes"` group), so tests in separate worlds don't interfere.
+Smoke STATS: `bot_dmg` = damage to the player; `team_dmg_taken` = damage dealt by team 1 to any team-0 hero. On
+maps with allies the smoke gate uses `team_dmg_taken` (allies soak fire) instead of `bot_dmg`. Team-0 bots are the player's allies (never target team 0).
 Core sets difficulty from `GameConfig.bot_difficulty` (`-- --difficulty=` or `--bots=`) and scales bot damage
 by `GameConfig.difficulty().damage_scale`. Heroes are found via group `"heroes"` (`team`, `dead`, `eye_position()`).
 

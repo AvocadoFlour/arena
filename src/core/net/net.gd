@@ -455,7 +455,7 @@ func _reconcile(h, s: Array) -> void:
     if h.dead:
         h.global_position = server_pos
         return
-    if int(s[14]) <= ci.respawn_seq:
+    if ci.respawn_seq >= 0 and int(s[14]) <= ci.respawn_seq:
         # host is still acking pre-death inputs: the server position is the respawn point, not a prediction miss
         if predicted != null:
             max_teleport = maxf(max_teleport, (predicted as Vector3).distance_to(server_pos))
