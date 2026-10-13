@@ -5,8 +5,10 @@ extends RefCounted
 static func load_def(path: String) -> Dictionary:
     return JSON.parse_string(FileAccess.get_file_as_string(path))
 
-static func build(path: String) -> Node3D:
+## opts: {"low_quality": bool} overrides the Settings/GameConfig flag (see low_quality_flag()).
+static func build(path: String, opts: Dictionary = {}) -> Node3D:
     var d := load_def(path)
+    var lq: bool = bool(opts.get("low_quality", low_quality_flag()))
     var root := Node3D.new()
     root.name = "Map"
     var grid := _grid_tex()
@@ -19,10 +21,11 @@ static func build(path: String) -> Node3D:
         body.set_meta("kind", String(b.get("kind", "block")))
         root.add_child(body)
         i += 1
-    var props := _props(d.get("props", []), mats)
-    if props.get_child_count() > 0:
-        root.add_child(props)
-    root.add_child(_environment(theme))
+    if not lq:
+        var props := _props(d.get("props", []), mats)
+        if props.get_child_count() > 0:
+            root.add_child(props)
+    root.add_child(_environment(theme, lq))
     root.add_child(_sun(theme))
     var spawns := {}
     var sp: Dictionary = d.get("spawns", {})
@@ -78,6 +81,8 @@ static func _box(b: Dictionary, grid: Texture2D, mats: Dictionary = {}) -> Stati
             mat.uv1_scale = Vector3(0.5, 0.5, 0.5)
             mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
         mi.material_override = mat
+    if String(b.get("kind", "")) == "floor":
+        mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF   # receives only; nothing below it
     body.add_child(mi)
     body.position = _v(b.pos)
     if b.has("rot_deg"):
@@ -85,7 +90,7 @@ static func _box(b: Dictionary, grid: Texture2D, mats: Dictionary = {}) -> Stati
     return body
 
 ## Visual-only theme (optional "theme" key). Defaults reproduce the v0.1 look.
-static func _environment(t: Dictionary) -> WorldEnvironment:
+static func _environment(t: Dictionary, low_quality := false) -> WorldEnvironment:
     var env := WorldEnvironment.new()
     var e := Environment.new()
     var sky := Sky.new()
@@ -102,7 +107,7 @@ static func _environment(t: Dictionary) -> WorldEnvironment:
     e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
     e.ambient_light_energy = float(t.get("ambient_energy", 0.8))
     e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-    if t.has("fog_density"):
+    if t.has("fog_density") and not low_quality:
         e.fog_enabled = true
         e.fog_light_color = Color(String(t.get("fog_color", "#a8b8c8")))
         e.fog_density = float(t.fog_density)
@@ -115,6 +120,9 @@ static func _sun(t: Dictionary) -> DirectionalLight3D:
     var r: Array = t.get("sun_rot", [-55, -35, 0])
     sun.rotation_degrees = _v(r)
     sun.shadow_enabled = true
+    # Cheaper shadows (biggest cost in software/mobile GL): 2 PSSM splits, distance capped to the play area.
+    sun.directional_shadow_mode = int(t.get("shadow_mode", DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS))
+    sun.directional_shadow_max_distance = float(t.get("shadow_distance", 60.0))
     sun.light_energy = float(t.get("sun_energy", 1.1))
     sun.light_color = Color(String(t.get("sun_color", "#ffffff")))
     return sun
@@ -177,50 +185,81 @@ static func _pattern_tex(pat: String, tint: float) -> Texture2D:
     img.generate_mipmaps()
     return ImageTexture.create_from_image(img)
 
+## Low-quality flag, read defensively: Settings.low_quality, then GameConfig.low_quality, default false.
+static func low_quality_flag() -> bool:
+    var ml := Engine.get_main_loop()
+    if not (ml is SceneTree):
+        return false
+    for n in ["Settings", "GameConfig"]:
+        var o: Node = (ml as SceneTree).root.get_node_or_null(n)
+        if o != null and "low_quality" in o:
+            return bool(o.get("low_quality"))
+    return false
+
 ## Decorative props (optional "props" key): visual meshes only, no collision bodies.
-## {"shape":"box|cylinder|sphere|cone","pos","size"? | "radius"?,"height"?,"rot_deg"?,"mat"|"color"}
+## {"shape":"box|cylinder|sphere|cone","pos","size"? | "radius"?,"height"?,"rot_deg"?,"mat"|"color","no_shadow"?}
+## Batched at build time: one merged ArrayMesh per (material, shadow) group, in data order (deterministic).
+static func _prop_mesh(p: Dictionary) -> PrimitiveMesh:
+    var shape := String(p.get("shape", "box"))
+    match shape:
+        "cylinder", "cone":
+            var cm := CylinderMesh.new()
+            cm.top_radius = 0.0 if shape == "cone" else float(p.get("radius", 0.5))
+            cm.bottom_radius = float(p.get("radius", 0.5))
+            cm.height = float(p.get("height", 1.0))
+            cm.radial_segments = int(p.get("segments", 8))
+            cm.rings = 1
+            return cm
+        "sphere":
+            var sm := SphereMesh.new()
+            sm.radius = float(p.get("radius", 0.5))
+            sm.height = sm.radius * 2.0
+            sm.radial_segments = 8
+            sm.rings = 4
+            return sm
+    var bm := BoxMesh.new()
+    bm.size = _v(p.get("size", [1, 1, 1]))
+    return bm
+
 static func _props(defs: Array, mats: Dictionary) -> Node3D:
     var root := Node3D.new()
     root.name = "Props"
-    var i := 0
+    var groups := {}     # key -> {st, mat, shadow}
+    var order: Array = []
+    var color_mats := {}
     for p in defs:
-        var mi := MeshInstance3D.new()
-        mi.name = "prop_%02d" % i
-        i += 1
-        var shape := String(p.get("shape", "box"))
-        match shape:
-            "cylinder", "cone":
-                var cm := CylinderMesh.new()
-                cm.top_radius = 0.0 if shape == "cone" else float(p.get("radius", 0.5))
-                cm.bottom_radius = float(p.get("radius", 0.5))
-                cm.height = float(p.get("height", 1.0))
-                cm.radial_segments = int(p.get("segments", 8))
-                cm.rings = 1
-                mi.mesh = cm
-            "sphere":
-                var sm := SphereMesh.new()
-                sm.radius = float(p.get("radius", 0.5))
-                sm.height = sm.radius * 2.0
-                sm.radial_segments = 8
-                sm.rings = 4
-                mi.mesh = sm
-            _:
-                var bm := BoxMesh.new()
-                bm.size = _v(p.get("size", [1, 1, 1]))
-                mi.mesh = bm
+        var mat: Material
+        var mkey: String
         if p.has("mat") and mats.has(p.mat):
-            mi.material_override = mats[p.mat]
+            mat = mats[p.mat]
+            mkey = String(p.mat)
         else:
-            var m := StandardMaterial3D.new()
-            m.albedo_color = Color(String(p.get("color", "#888888")))
-            mi.material_override = m
-        mi.position = _v(p.pos)
-        if p.has("rot_deg"):
-            mi.rotation_degrees = _v(p.rot_deg)
-        mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if p.get("no_shadow", false) else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+            mkey = "#" + String(p.get("color", "#888888"))
+            if not color_mats.has(mkey):
+                var m := StandardMaterial3D.new()
+                m.albedo_color = Color(String(p.get("color", "#888888")))
+                color_mats[mkey] = m
+            mat = color_mats[mkey]
+        var shadow: bool = not bool(p.get("no_shadow", false))
+        var key := "%s_%s" % [mkey.replace("#", "c"), "s" if shadow else "n"]
+        if not groups.has(key):
+            var st := SurfaceTool.new()
+            st.begin(Mesh.PRIMITIVE_TRIANGLES)
+            groups[key] = {"st": st, "mat": mat, "shadow": shadow, "n": 0}
+            order.append(key)
+        var xf := Transform3D(Basis.from_euler(_v(p.get("rot_deg", [0, 0, 0])) * (PI / 180.0), EULER_ORDER_YXZ), _v(p.pos))
+        groups[key].st.append_from(_prop_mesh(p), 0, xf)
+        groups[key].n += 1
+    for key in order:
+        var g: Dictionary = groups[key]
+        var mi := MeshInstance3D.new()
+        mi.name = "props_" + key
+        mi.mesh = g.st.commit()
+        mi.material_override = g.mat
+        mi.set_meta("prop_count", g.n)
+        mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if g.shadow else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
         root.add_child(mi)
     return root
-
 static func _grid_tex() -> Texture2D:
     var img := Image.create(2, 2, false, Image.FORMAT_RGB8)
     img.set_pixel(0, 0, Color(1, 1, 1))

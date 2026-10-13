@@ -32,3 +32,15 @@ run_tests discovery, INTERFACES §6 optional keys, SpawnPicker respawn hook — 
    Props were generated once at authoring time and stored in the JSON (deterministic for networking).
 2. Perf note: under Xvfb software GL, arena02 screenshot run ~15 fps vs ~18 fps on master (fog + ~170 props).
    If needed for mobile, a quality setting could skip `Props`/fog (UI/core toggle) — not required now.
+
+## Round 4 — low quality + perf
+1. **UI/core: `low_quality` flag** — not on master yet. MapLoader reads it defensively
+   (`MapLoader.low_quality_flag()`: `Settings.low_quality`, then `GameConfig.low_quality`, default false).
+   Please add `var low_quality := false` to Settings (persisted) and expose it in the options menu; a map
+   rebuild/reload is needed after toggling. Optional `-- --low_quality` CLI flag for capture/perf runs.
+2. **INTERFACES §6**: `MapLoader.build(path, opts := {})` — `opts.low_quality` overrides the flag (tests).
+   Low quality skips `Props` and fog; collision identical. Props are now batched: `Props` children are one
+   merged MeshInstance3D per (material, shadow) group, meta `prop_count`. New optional theme keys
+   `shadow_mode` (default PSSM 2 splits) and `shadow_distance` (default 60).
+3. Suggestion: in low quality also disable sun shadows (measured: shadows are ~40 % of frame time under
+   software GL). Not done since the task scope was props + fog.
