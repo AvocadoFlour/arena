@@ -90,3 +90,8 @@ the hero JSON (name, type, cooldown, ult cost, primary numbers, "description"). 
 select detail, Match page "HeroInfo" pane: hover/focus a hero or tap its "?") and `ability_tooltip.gd` (HUD icons:
 hover with a free cursor or touch long-press; observes input only, never blocks). Tests: ui_round16_test.gd (mocked
 HeroAbilities via tests/ui_mock_hero_abilities.gd + JSON fallback), ui_ability_tooltip_sim.gd.
+
+Hero sounds (1.0): `hero_sfx.gd` (`HeroSfx`, owned by the HUD) plays LibreQuake WAVs from `src/ui/audio/lq/` (byte-identical,
+see `src/ui/audio/LICENSES.md`) on the SFX bus, keyed by hero id x Actions slot (fire, ability1/Shift, ability2/E,
+ultimate/Q, ult_ready) plus 4 team cues (enemy hits me / a teammate, teammate kill, teammate killed). UiSfx keeps its
+procedural "hit" (my hit marker) and "kill" (my kill). Tests: ui_round17_test.gd, ui_hero_sfx_sim.gd.

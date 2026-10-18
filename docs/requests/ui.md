@@ -153,3 +153,17 @@ Live (composition root main.gd; host/offline only, like `set_bot_count`):
   `world.net_bot_difficulty(team, level)` (updates the client copy, emits the signal). Welcome info carries `bot_difficulty`
   (`{0: level, 1: level}`) for late joiners.
 - Please add to INTERFACES §8.1 / §10 when implemented. No UI change needed: the page enables itself once `set_bot_difficulty` exists.
+
+## LibreQuake audio (hero ability sounds + team cues; src/ui/hero_sfx.gd, src/ui/audio/)
+1. **Asset location.** The 29 LibreQuake WAVs live in `src/ui/audio/lq/<original lq1/sound path>` with
+   `src/ui/audio/LICENSES.md`, because TEAM.md gives UI no `assets/` path. If you want a shared `assets/audio/`,
+   move the folder as is (files are byte-identical; only `HeroSfx.BASE` changes).
+2. **Ship the licence notice (BSD-3 clause 2, binary redistribution).** The release zip holds only Arena.exe and
+   Arena.pck, and `export_presets.cfg` has include_filter `*.json`, so LICENSES.md isn't shipped. Please add one of:
+   (a) build.sh zip step: also write `src/ui/audio/LICENSES.md` as `Arena/LICENSES-audio.md` (and copy it next to
+   dist/linux/arena.x86_64), or (b) add `src/ui/audio/LICENSES.md` to both presets' include_filter. (a) is visible
+   to players.
+3. **Optional: a shot event.** Primary-fire sounds detect a shot UI-side from the local player's `weapon.ammo`
+   dropping (no event exists). If core adds `Events.shot_fired(hero)` (or includes the primary in `ability_used`
+   with slot "primary"), HeroSfx will switch to it. Only the local player's own casts and shots play for now
+   (non-positional); hearing other heroes' abilities positionally would need hero-side players and is out of scope.
