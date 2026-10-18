@@ -683,15 +683,24 @@ func _breach_wall(h):
     if not (c is Node) or not c.is_in_group("destructible") or c.is_queued_for_deletion():
         return null
     var dps := float(pr.get("damage", 0.0)) * float(pr.get("fire_rate", 0.0))
-    if not should_breach(float(c.get("hp")), dps, breach_time, h.eye_position().distance_to(hit.position), float(pr.get("range", 0.0))):
+    var reload_s := breach_reload_time(float(c.get("hp")), float(pr.get("damage", 0.0)), int(h.weapon.ammo), int(pr.get("mag", 0)), float(pr.get("reload_time", 0.0)))
+    if not should_breach(float(c.get("hp")), dps, breach_time, h.eye_position().distance_to(hit.position), float(pr.get("range", 0.0)), reload_s):
         return null
     var aim: Vector3 = hit.position
     aim.y = c.global_position.y   # aim at the block's middle, not the top edge the sight line grazes (spread misses over it)
     return [c, aim]
 
 ## Pure (unit-tested): worth shooting a block with `hp` given our `dps`, time budget and range?
-static func should_breach(hp: float, dps: float, budget: float, dist: float, rng: float) -> bool:
-    return budget > 0.0 and dps > 0.0 and hp > 0.0 and dist <= rng * 0.9 and hp / dps <= budget
+## `reload_s`: reload time spent on the way (see breach_reload_time).
+static func should_breach(hp: float, dps: float, budget: float, dist: float, rng: float, reload_s := 0.0) -> bool:
+    return budget > 0.0 and dps > 0.0 and hp > 0.0 and dist <= rng * 0.9 and hp / dps + reload_s <= budget
+
+## Pure: reload seconds needed to put `hp` worth of `dmg`-shots into a block, starting with `ammo` of a `mag`.
+static func breach_reload_time(hp: float, dmg: float, ammo: int, mag: int, reload_time: float) -> float:
+    if dmg <= 0.0 or mag <= 0:
+        return 0.0
+    var shots := ceili(hp / dmg)
+    return 0.0 if shots <= ammo else ceili(float(shots - ammo) / mag) * reload_time
 
 func _visible(h, o) -> bool:
     var q := PhysicsRayQueryParameters3D.create(h.eye_position(), o.global_position + Vector3(0, 1.1, 0))

@@ -9,6 +9,9 @@ func _ctx(o: Dictionary) -> Dictionary:
     return c
 
 func test_difficulty_presets_ordered() -> void:
+    check(is_equal_approx(BotBrain.breach_reload_time(300.0, 11.0, 24, 24, 1.5), 1.5), "28 shots from a 24 mag -> one reload")
+    check(BotBrain.breach_reload_time(300.0, 11.0, 30, 30, 1.5) == 0.0, "fits in the mag -> no reload")
+    check(not BotBrain.should_breach(300.0, 77.0, 6.0, 10.0, 60.0, 3.0), "reloads count against the budget")
     var e := BotBrain.new({"difficulty": "easy"})
     var n := BotBrain.new({"difficulty": "normal"})
     var h := BotBrain.new({"difficulty": "hard"})
@@ -221,6 +224,9 @@ func test_peek_side_styles() -> void:
     check(BotBrain.next_peek_side("random", 1.0, 0.2) == 1.0 and BotBrain.next_peek_side("random", 1.0, 0.8) == -1.0, "normal: random")
 
 func test_peek_timing_by_difficulty() -> void:
+    check(is_equal_approx(BotBrain.breach_reload_time(300.0, 11.0, 24, 24, 1.5), 1.5), "28 shots from a 24 mag -> one reload")
+    check(BotBrain.breach_reload_time(300.0, 11.0, 30, 30, 1.5) == 0.0, "fits in the mag -> no reload")
+    check(not BotBrain.should_breach(300.0, 77.0, 6.0, 10.0, 60.0, 3.0), "reloads count against the budget")
     var e := BotBrain.new({"difficulty": "easy"})
     var n := BotBrain.new({"difficulty": "normal"})
     var h := BotBrain.new({"difficulty": "hard"})
@@ -257,6 +263,9 @@ func test_should_breach() -> void:
     check(not BotBrain.should_breach(300.0, 56.0, 3.0, 10.0, 22.0), "too slow for the budget")
     check(not BotBrain.should_breach(300.0, 77.0, 0.0, 10.0, 60.0), "budget 0 (easy) never breaches")
     check(not BotBrain.should_breach(300.0, 56.0, 8.0, 21.0, 22.0), "beyond 90 % of weapon range")
+    check(is_equal_approx(BotBrain.breach_reload_time(300.0, 11.0, 24, 24, 1.5), 1.5), "28 shots from a 24 mag -> one reload")
+    check(BotBrain.breach_reload_time(300.0, 11.0, 30, 30, 1.5) == 0.0, "fits in the mag -> no reload")
+    check(not BotBrain.should_breach(300.0, 77.0, 6.0, 10.0, 60.0, 3.0), "reloads count against the budget")
     var e := BotBrain.new({"difficulty": "easy"})
     var n := BotBrain.new({"difficulty": "normal"})
     var h := BotBrain.new({"difficulty": "hard"})
