@@ -89,3 +89,7 @@ Test auto-discovery, hero API docs, damage kinds, mixed bot roster.
 ## Queue notes (Oct 13)
 - PAUSED (not cancelled): Cob shell polish; Twin Tails face/wing polish.
 - Tomo and Niđo: concept step 1 only (docs/concept/tomo_v1.png, nidjo_v1.png, tomo_nidjo_proposal.md). No 3D, nothing in-game yet.
+
+## FYI (Oct 19): ability descriptions API (no core change needed)
+`HeroAbilities.describe(hero_id, slot)` / `describe_all(hero_id)` in src/heroes/hero_abilities.gd (global class_name, pure JSON data).
+UI can call it directly; nothing to wire in core. See src/heroes/README.md.
