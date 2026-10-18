@@ -34,7 +34,12 @@ func _physics_process(dt: float) -> void:
     _rec("hover_shows", tip.visible and tip.slot == "ability1" and tip.title.text.contains("[%s]" % Hud.key_label("ability1")), tip.title.text)
     _rec("not_handled", not get_viewport().is_input_handled())
     var r := tip.get_global_rect()
-    _rec("on_screen", Rect2(Vector2.ZERO, tip.get_viewport_rect().size).encloses(r), str(r))
+    var vr := tip.get_viewport_rect()
+    var m := AbilityTooltip.MARGIN
+    if vr.size.x >= r.size.x + 2 * m and vr.size.y >= r.size.y + 2 * m:
+        _rec("on_screen", vr.encloses(r), "%s in %s" % [r, vr])
+    else:   # tests/run_tests.gd hosts sims in a tiny SubViewport: the clamp pins it at the top-left margin
+        _rec("on_screen", r.position.is_equal_approx(vr.position + Vector2(m, m)), "%s in %s" % [r, vr])
     var away := InputEventMouseMotion.new()
     away.position = Vector2(20, 20)
     hud._input(away)
