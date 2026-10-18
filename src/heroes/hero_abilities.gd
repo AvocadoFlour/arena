@@ -17,7 +17,7 @@ const COSMETIC := ["id", "name", "type", "color", "visual", "beam_color", "kind"
 const COMMON := ["cooldown", "needs_ult"]
 ## Stat keys each template reads. Add the key here AND use it in _text_<type> when a script gains one.
 const TEMPLATES := {
-    "hitscan": ["damage", "fire_rate", "mag", "reload_time", "spread_deg", "range"],
+    "hitscan": ["damage", "fire_rate", "mag", "reload_time", "spread_deg", "range", "burst", "burst_delay"],
     "melee": ["damage", "fire_rate", "mag", "reload_time", "spread_deg", "range", "arc_deg", "combo", "combo_window", "finisher_knockback", "lunge"],
     "charge": ["distance", "duration", "damage", "hit_radius", "knockback"],
     "shield_wall": ["width", "height", "thickness", "distance", "duration"],
@@ -29,9 +29,11 @@ const TEMPLATES := {
     "projectile": ["speed", "damage", "gravity", "lifetime", "hit_radius", "splash_radius", "slow"],
     "rally": ["radius", "heal"],
     "nova": ["radius", "damage"],
+    "blink": ["distance", "duration", "bonus_mult", "bonus_shots", "bonus_window"],
+    "shockwave": ["radius", "arc_deg", "damage", "knockback", "lift"],
 }
 ## Types that always consume the full ultimate meter, even without "needs_ult".
-const ULT_TYPES := ["rally", "nova"]
+const ULT_TYPES := ["rally", "nova", "shockwave"]
 const MELEE_LUNGE_CONE_DEG := 30.0      # hero.gd melee_swing lunge search cone
 const AOE_EDGE_PCT := 50                # HitMath.aoe_damage: linear falloff to 50% at the edge
 
@@ -95,9 +97,11 @@ static func describe_def(hero: Dictionary, slot: String) -> Dictionary:
         "projectile": text = _text_projectile(d, stats)
         "rally": text = _text_rally(d, stats)
         "nova": text = _text_nova(d, stats)
+        "blink": text = _text_blink(d, stats)
+        "shockwave": text = _text_shockwave(d, stats)
         _: text = _text_generic(d)
     if slot != "primary":
-        text += " " + _cost_text(hero, d, t, stats)
+        text += " " + _cost_text(hero, d, t, stats, slot)
     return {"name": nm, "slot": slot, "type": t, "text": text.strip_edges(), "stats": stats}
 
 ## Gameplay keys of a def that no template covers (empty = fully described).
@@ -130,9 +134,13 @@ static func _stats(d: Dictionary) -> Dictionary:
             s[k] = v
     return s
 
-static func _cost_text(hero: Dictionary, d: Dictionary, t: String, stats: Dictionary) -> String:
+## True if the ability spends the ultimate meter (ultimate slot, "needs_ult", or a meter-only type).
+static func is_ult(d: Dictionary, t: String, slot: String) -> bool:
+    return slot == "ultimate" or bool(d.get("needs_ult", false)) or t in ULT_TYPES
+
+static func _cost_text(hero: Dictionary, d: Dictionary, t: String, stats: Dictionary, slot: String) -> String:
     var cd := float(d.get("cooldown", 0.0))
-    if bool(d.get("needs_ult", false)) or t in ULT_TYPES:
+    if is_ult(d, t, slot):
         var cost := float(hero.get("ultimate_cost", 500))
         stats["ult_cost"] = cost
         return "Ultimate: needs a full meter of %s charge (1 charge per point of damage dealt)%s." % [n(cost), (", then a %s s cooldown" % n(cd)) if cd > 0.0 else ""]
@@ -141,6 +149,16 @@ static func _cost_text(hero: Dictionary, d: Dictionary, t: String, stats: Dictio
 # ------------------------------------------------------------------ templates (one per ability type)
 static func _text_hitscan(d: Dictionary, s: Dictionary) -> String:
     var dps := float(d.get("damage", 0)) * float(d.get("fire_rate", 1))
+    if int(d.get("burst", 1)) > 1:
+        # BurstWeapon: rounds inside a burst 1/fire_rate apart, then burst_delay before the next burst
+        var b := int(d.get("burst", 1))
+        var cycle := (b - 1) / float(d.get("fire_rate", 1)) + float(d.get("burst_delay", 0.4))
+        dps = float(d.get("damage", 0)) * b / cycle
+        s["dps"] = dps
+        s["burst_damage"] = float(d.get("damage", 0)) * b
+        return "Hitscan %s-round bursts: %s damage per round (%s per burst), %s rounds/s inside a burst, %s s between bursts (~%s DPS); a started burst always completes. %s-round magazine, %s s reload, %s° spread, %s m range, no damage falloff. Hits enemies and breakable cover." % [
+            b, n(d.get("damage", 0)), n(float(d.get("damage", 0)) * b), n(d.get("fire_rate", 1)), n(d.get("burst_delay", 0.4)), n(dps),
+            n(d.get("mag", 0)), n(d.get("reload_time", 0)), n(d.get("spread_deg", 0)), n(d.get("range", 80))]
     s["dps"] = dps
     return "Hitscan: %s damage per shot at %s shots/s (%s DPS), %s-round magazine, %s s reload, %s° spread, %s m range, no damage falloff. Hits enemies and breakable cover." % [
         n(d.get("damage", 0)), n(d.get("fire_rate", 1)), n(dps), n(d.get("mag", 0)), n(d.get("reload_time", 0)), n(d.get("spread_deg", 0)), n(d.get("range", 80))]
@@ -213,7 +231,10 @@ static func _text_projectile(d: Dictionary, s: Dictionary) -> String:
     if not slow.is_empty():
         s["slow_mult"] = float(slow.get("mult", 0.6))
         s["slow_duration"] = float(slow.get("duration", 2))
-        txt += " Every enemy hit is slowed to %s move speed for %s s." % [pct(slow.get("mult", 0.6)), n(slow.get("duration", 2))]
+        if float(slow.get("mult", 0.6)) <= 0.0:
+            txt += " Every enemy hit is rooted (%s move speed) for %s s." % [pct(slow.get("mult", 0.6)), n(slow.get("duration", 2))]
+        else:
+            txt += " Every enemy hit is slowed to %s move speed for %s s." % [pct(slow.get("mult", 0.6)), n(slow.get("duration", 2))]
     return txt
 
 static func _text_rally(d: Dictionary, s: Dictionary) -> String:
@@ -221,6 +242,14 @@ static func _text_rally(d: Dictionary, s: Dictionary) -> String:
 
 static func _text_nova(d: Dictionary, s: Dictionary) -> String:
     return "Blasts %s damage to enemies within %s m (linear falloff to %d%% at the edge)." % [n(d.get("damage", 220)), n(d.get("radius", 10)), AOE_EDGE_PCT]
+
+static func _text_blink(d: Dictionary, s: Dictionary) -> String:
+    return "Blinks %s m in your movement direction (facing if standing still) over %s s, then your speed is capped to run speed. Your next %s primary rounds within %s s deal x%s damage." % [
+        n(d.get("distance", 7)), n(d.get("duration", 0.18)), n(d.get("bonus_shots", 3)), n(d.get("bonus_window", 4)), n(d.get("bonus_mult", 1.5))]
+
+static func _text_shockwave(d: Dictionary, s: Dictionary) -> String:
+    return "Shockwave in a %s° frontal cone up to %s m: %s damage to every enemy in it (linear falloff to %d%% at the edge), knocking them straight away at %s m/s and %s m/s up (not while knockback-immune). Also hits breakable cover." % [
+        n(d.get("arc_deg", 120)), n(d.get("radius", 9)), n(d.get("damage", 130)), AOE_EDGE_PCT, n(d.get("knockback", 15)), n(d.get("lift", 5.5))]
 
 ## Unknown type: still precise, just generic ("Type: key value, ..."). uncovered_keys() flags it.
 static func _text_generic(d: Dictionary) -> String:
