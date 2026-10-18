@@ -136,6 +136,7 @@ func poll(h) -> InputFrame:
         var hurt_ranged: bool = opportunistic_cover and not holding and melee_range(h) == 0.0 and h.health.hp < h.health.max_hp * 0.7
         if low or hurt_ranged:
             _enter_cover(h, target, 6.0 if holding or not low else INF)   # point-holding tank: only cover next to the point
+    breaching = breaching and state == "chase" and target != null
     if _do_support(h, f, dt):
         pass
     elif state == "cover":
@@ -202,9 +203,8 @@ func _do_chase(h, f: InputFrame, dt: float, low: bool) -> void:
         f.fire = los and err < fire_cone and _react_left <= 0.0
         var wall = _breach_wall(h) if not los and _lost > 0.25 and breach_time > 0.0 else null
         breaching = wall != null
-        if breaching:   # enemy hiding behind breakable cover we can chew through: hold range and shoot the block
+        if breaching:   # enemy hiding behind breakable cover we can chew through: keep moving (flank/close) but spend the trigger on the block
             var e2 := _aim(h, f, wall[1] - h.eye_position(), dt, true)
-            f.move = Vector2(_strafe * 0.15, 0.0)   # plant and chew through it (orbiting re-aims every tick and loses the line)
             f.fire = e2 < fire_cone and _react_left <= 0.0
     if use_abilities:
         var ctx := _ctx(h, low, false)
