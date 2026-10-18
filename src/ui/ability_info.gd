@@ -113,8 +113,11 @@ static func _normalise(e: Dictionary, def: Dictionary, src: String) -> Dictionar
     var slot := String(e.get("slot", ""))
     var sd := slot_def(def, slot)
     var st = e.get("stats", {})
+    var nm := String(e.get("name", sd.get("name", SLOT_LABELS.get(slot, slot))))
+    if slot == "primary" and not sd.has("name") and not def.is_empty():
+        nm = KillFeed.primary_name(def)   # unnamed primary: same label as the kill feed
     return {
-        "name": String(e.get("name", sd.get("name", SLOT_LABELS.get(slot, slot)))),
+        "name": nm,
         "slot": slot,
         "type": String(e.get("type", sd.get("type", ""))),
         "text": String(e.get("text", "")),
@@ -165,6 +168,10 @@ const STAT_LABELS := {"fire_rate": "rate", "ult_cost": "ult", "reload_time": "re
 
 static func stats_line(stats: Dictionary, limit := 5) -> String:
     var keys := []
+    stats = stats.duplicate()
+    if _is_num(stats.get("mag")) and int(stats.mag) >= 999:
+        stats.erase("mag")   # "no ammo" sentinel
+        stats.erase("reload_time")
     for k in STAT_ORDER:
         if stats.has(k) and _is_num(stats[k]):
             keys.append(k)

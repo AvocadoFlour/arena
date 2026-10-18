@@ -10,6 +10,7 @@ var preview: HeroPreview
 var info: VBoxContainer
 var def: Dictionary = {}
 var abilities: AbilityList
+var scroll: ScrollContainer
 
 func _ready() -> void:
     size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -19,7 +20,7 @@ func _ready() -> void:
     preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     preview.size_flags_vertical = Control.SIZE_EXPAND_FILL
     add_child(preview)
-    var scroll := ScrollContainer.new()
+    scroll = ScrollContainer.new()
     scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
     scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -33,8 +34,13 @@ func _ready() -> void:
 func _relayout() -> void:
     layout_for_width(size.x)
 
+## Stacked (narrow): the ability list gets more height than the preview.
 func layout_for_width(w: float) -> void:
     vertical = w < NARROW
+    if scroll != null:
+        scroll.size_flags_stretch_ratio = 1.6 if vertical else 1.0
+    if preview != null:
+        preview.custom_minimum_size = Vector2(200, 150) if vertical else Vector2(320, 320)
 
 static func slot_line(slot: String, a: Dictionary) -> String:
     var s := "%s: %s  (%s" % [SLOT_LABELS.get(slot, slot), a.get("name", a.get("id", "?")), str(a.get("type", "")).replace("_", " ")]

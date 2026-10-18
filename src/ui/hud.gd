@@ -110,6 +110,11 @@ func setup(p) -> void:
         pc.add_child(l)
         row.add_child(pc)
         ab_labels[slot] = [l, sb]
+    tooltip = AbilityTooltip.new()
+    add_child(tooltip)
+    for slot in ab_labels:
+        tooltip.panels[slot] = ab_labels[slot][0].get_parent()
+    tooltip.entry_for = ability_entry
     center_label = _label(34)
     center_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     _place(center_label, 0.5, 0.35, 0.5, 0.35, -300, -30, 300, 30)
@@ -119,6 +124,29 @@ func setup(p) -> void:
     bind_ready_event(Events)
     _setup_net_ui()
     Settings.apply_fov(get_viewport().get_camera_3d())   # player camera exists (rig set up before HUD)
+
+var tooltip: AbilityTooltip
+var _entries := {}
+
+## AbilityInfo entry for one of the local player's slots (HeroAbilities text, JSON fallback); cached per hero.
+func ability_entry(slot: String) -> Dictionary:
+    if player == null or not (player.def is Dictionary):
+        return {}
+    var key := "%s/%s" % [player.def.get("id", ""), slot]
+    if not _entries.has(key):
+        _entries[key] = AbilityInfo.describe(String(player.def.get("id", "")), slot, player.def)
+    return _entries[key]
+
+## Tooltip only observes input (never set_input_as_handled), so gameplay and menus get every event.
+## Hover counts only when the cursor is free and not over another UI (e.g. the pause overlay).
+func _input(event: InputEvent) -> void:
+    if tooltip == null:
+        return
+    var blocked := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+    if event is InputEventMouseMotion and not blocked:
+        var hc := get_viewport().gui_get_hovered_control()
+        blocked = hc != null and not is_ancestor_of(hc)
+    tooltip.feed(event, blocked)
 
 var match_stats: MatchStats
 var scoreboard: Scoreboard
