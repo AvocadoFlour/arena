@@ -115,6 +115,10 @@ func setup(p) -> void:
     for slot in ab_labels:
         tooltip.panels[slot] = ab_labels[slot][0].get_parent()
     tooltip.entry_for = ability_entry
+    hero_sfx = HeroSfx.new()
+    hero_sfx.player = p
+    add_child(hero_sfx)
+    hero_sfx.bind(Events)
     center_label = _label(34)
     center_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     _place(center_label, 0.5, 0.35, 0.5, 0.35, -300, -30, 300, 30)
@@ -126,6 +130,7 @@ func setup(p) -> void:
     Settings.apply_fov(get_viewport().get_camera_3d())   # player camera exists (rig set up before HUD)
 
 var tooltip: AbilityTooltip
+var hero_sfx: HeroSfx   ## LibreQuake hero ability sounds + team cues (src/ui/hero_sfx.gd)
 var _entries := {}
 
 ## AbilityInfo entry for one of the local player's slots (HeroAbilities text, JSON fallback); cached per hero.
@@ -187,6 +192,8 @@ static func key_label(action: String) -> String:
 func _process(dt: float) -> void:
     if not player:
         return
+    if hero_sfx != null:
+        hero_sfx.player = player   # follows hero swaps (main.gd reassigns hud.player)
     var fps := Engine.get_frames_per_second()
     fps_label.text = "FPS %d" % fps
     fps_samples.append(fps)
