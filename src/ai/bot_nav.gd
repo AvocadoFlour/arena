@@ -67,6 +67,17 @@ static func dynamic_boxes(map_root: Node3D) -> Array:
                 out.append({"xform": s.global_transform, "size": s.shape.size})
     return out
 
+## Ids of destructible cover still standing under the map root ("pending" while one is being freed).
+static func destructible_sig(map_root: Node3D) -> String:
+    var ids: PackedStringArray = []
+    for n in map_root.get_tree().get_nodes_in_group("destructible"):
+        if not map_root.is_ancestor_of(n):
+            continue
+        if n.is_queued_for_deletion():
+            return "pending"
+        ids.append(str(n.get("block_id")))
+    return ",".join(ids)
+
 static func _sig(boxes: Array) -> String:
     var parts: PackedStringArray = []
     for b in boxes:
@@ -95,9 +106,17 @@ static func sync_dynamic(map_root: Node3D) -> int:
         return int(r.get_meta("version"))
     r.set_meta("checked_frame", fr)
     var boxes := dynamic_boxes(map_root)
-    var sig := _sig(boxes)
+    var dsig := destructible_sig(map_root)
+    if dsig == "pending":
+        return int(r.get_meta("version"))   # a block is being freed this frame: rebake once it is gone
+    var sig := _sig(boxes) + "|" + dsig
     if sig == String(r.get_meta("dyn_sig")):
         return int(r.get_meta("version"))
+    if not String(r.get_meta("dyn_sig")).ends_with("|" + dsig) and String(r.get_meta("dyn_sig")) != "":
+        # destructible cover broke: re-parse the map so the block's footprint opens up
+        var fresh := NavigationMeshSourceGeometryData3D.new()
+        NavigationServer3D.parse_source_geometry_data(make_navmesh(), fresh, map_root)
+        r.set_meta("static_src", fresh)
     r.set_meta("dyn_sig", sig)
     var nm := make_navmesh()
     var src := NavigationMeshSourceGeometryData3D.new()
@@ -181,7 +200,7 @@ static func best_cover_block(blocks: Array, from: Vector3, threat: Vector3, min_
     for b in blocks:
         if float(b.height) < min_height:
             continue
-        if b.has("node") and not is_instance_valid(b.node):
+        if b.has("node") and (not is_instance_valid(b.node) or b.node.is_queued_for_deletion()):
             continue
         var cp := cover_point(b, threat)
         var d_me := Vector2(cp.x - from.x, cp.z - from.z).length()

@@ -252,6 +252,16 @@ func test_cohesion_pull() -> void:
     var c := BotBrain.cohesion(d, Vector3.ZERO, Vector3(0, 0, 20))
     check(c.z > 0.5 and c.length() <= 1.0001, "far -> pulled toward the group (%s)" % c)
 
+func test_should_breach() -> void:
+    check(BotBrain.should_breach(300.0, 77.0, 6.0, 10.0, 60.0), "TT breaks a 300 HP wall in ~3.9 s")
+    check(not BotBrain.should_breach(300.0, 56.0, 3.0, 10.0, 22.0), "too slow for the budget")
+    check(not BotBrain.should_breach(300.0, 77.0, 0.0, 10.0, 60.0), "budget 0 (easy) never breaches")
+    check(not BotBrain.should_breach(300.0, 56.0, 8.0, 21.0, 22.0), "beyond 90 % of weapon range")
+    var e := BotBrain.new({"difficulty": "easy"})
+    var n := BotBrain.new({"difficulty": "normal"})
+    var h := BotBrain.new({"difficulty": "hard"})
+    check(e.breach_time < n.breach_time and n.breach_time < h.breach_time, "breach budget easy<normal<hard")
+
 func test_in_zone() -> void:
     var z := {"pos": Vector3(0, 2.5, 0), "size": Vector3(10, 3, 10)}
     check(BotBrain.in_zone(z, Vector3(4, 1, -4)), "inside")
