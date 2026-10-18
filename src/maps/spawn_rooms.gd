@@ -103,34 +103,46 @@ static func _inside(b: AABB, p: Vector3, r: float) -> bool:
 ## tick at `prev`) is moved out of every enemy volume (grown by `radius`) to the face nearest `prev`, and the
 ## velocity component pointing back in is zeroed. Returns [pos, vel, pushed_by_team (-1 = not pushed)].
 func resolve(team: int, pos: Vector3, vel: Vector3, prev: Vector3, radius := DEFAULT_RADIUS) -> Array:
-    var by := -1
-    for _pass in 4:
-        var moved := false
-        for v in volumes:
-            if v.team == team or team < 0 or not _inside(v.aabb, pos, radius):
-                continue
-            var b: AABB = v.aabb
-            var cands := [
-                [Vector3(b.position.x - radius - EPS, pos.y, pos.z), 0, -1],
-                [Vector3(b.end.x + radius + EPS, pos.y, pos.z), 0, 1],
-                [Vector3(pos.x, pos.y, b.position.z - radius - EPS), 2, -1],
-                [Vector3(pos.x, pos.y, b.end.z + radius + EPS), 2, 1]]
-            var best: Array = cands[0]
-            var bd := INF
-            for c in cands:
-                var dd: float = Vector2(c[0].x - prev.x, c[0].z - prev.z).length_squared()
-                if dd < bd - 1e-9:
-                    bd = dd
-                    best = c
-            pos = best[0]
-            var ax: int = best[1]
-            if vel[ax] * best[2] < 0.0:   # moving back into the volume
-                vel[ax] = 0.0
-            by = v.team
-            moved = true
-        if not moved:
+    if team < 0:
+        return [pos, vel, -1]
+    var by := _enemy_at(team, pos, radius)
+    if by < 0:
+        return [pos, vel, -1]
+    # Exit candidates: faces of the containing enemy volumes; a candidate that lands in another enemy volume
+    # expands with that volume's faces (overlapping room + door boxes). Pick the valid one nearest to `prev`.
+    var frontier: Array = [pos]
+    var best := pos
+    var bd := INF
+    for _depth in 3:
+        var nxt: Array = []
+        for p in frontier:
+            for v in volumes:
+                if v.team == team or not _inside(v.aabb, p, radius):
+                    continue
+                var bx: AABB = v.aabb
+                for c in [Vector3(bx.position.x - radius - EPS, p.y, p.z), Vector3(bx.end.x + radius + EPS, p.y, p.z),
+                        Vector3(p.x, p.y, bx.position.z - radius - EPS), Vector3(p.x, p.y, bx.end.z + radius + EPS)]:
+                    if _enemy_at(team, c, radius) >= 0:
+                        nxt.append(c)
+                        continue
+                    var dd: float = Vector2(c.x - prev.x, c.z - prev.z).length_squared()
+                    if dd < bd - 1e-6:
+                        bd = dd
+                        best = c
+        if bd < INF or nxt.is_empty():
             break
-    return [pos, vel, by]
+        frontier = nxt
+    var dlt := best - pos
+    for ax in [0, 2]:
+        if absf(dlt[ax]) > 0.0 and vel[ax] * dlt[ax] < 0.0:   # moving back into the volume
+            vel[ax] = 0.0
+    return [best, vel, by]
+
+func _enemy_at(team: int, pos: Vector3, radius: float) -> int:
+    for v in volumes:
+        if v.team != team and _inside(v.aabb, pos, radius):
+            return v.team
+    return -1
 
 # ------------------------------------------------------------------ host tick
 
