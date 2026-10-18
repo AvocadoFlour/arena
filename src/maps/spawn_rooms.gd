@@ -262,7 +262,7 @@ func _build_visuals(theme: Dictionary) -> void:
         n.set_meta("panel_count", per_team[t].size())
         add_child(n)
         n.add_child(_mi("Fill", fill.commit(), _fill_mat()))
-        n.add_child(_mi("Frame", frame.commit(), _flat_mat(c.lerp(Color.WHITE, 0.25))))
+        n.add_child(_mi("Frame", frame.commit(), _flat_mat(c)))
         var hm := _flat_mat(oc)
         hm.cull_mode = BaseMaterial3D.CULL_FRONT
         n.add_child(_mi("Outlines", hull.commit(), hm))
@@ -280,8 +280,8 @@ func _add_panel(fill: SurfaceTool, frame: SurfaceTool, hull: SurfaceTool, pn: Di
     var b: Vector3 = pn.b
     var h: float = pn.h
     var up := Vector3(0, h, 0)
-    var lo := Color(c, 0.34)
-    var hi := Color(c, 0.04)
+    var lo := Color(c, 0.42)
+    var hi := Color(c, 0.06)
     for tri in [[a, b, b + up], [a, b + up, a + up]]:
         for p in tri:
             fill.set_color(hi if p.y > a.y + 0.5 * h else lo)
