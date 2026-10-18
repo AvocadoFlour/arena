@@ -1,0 +1,33 @@
+{
+  "id": "tomo",
+  "name": "Tomo",
+  "role": "duelist",
+  "max_hp": 225,
+  "movement": {"speed": 7.3, "accel_ground": 72, "accel_air": 16, "jump_velocity": 8.6, "gravity": 22},
+  "collider": {"radius": 0.36, "height": 1.85},
+  "primary": {"type": "hitscan", "name": "Packet Burst", "damage": 15, "fire_rate": 14, "burst": 3, "burst_delay": 0.36, "mag": 24, "reload_time": 1.6, "spread_deg": 0.6, "range": 55},
+  "ultimate_cost": 500,
+  "abilities": {
+    "ability1": {"id": "hotfix", "type": "blink", "name": "Hotfix", "cooldown": 7.0, "distance": 6.0, "duration": 0.1, "bonus_mult": 1.5, "bonus_shots": 3, "bonus_window": 4.0, "color": "#ff4a4a"},
+    "ability2": {"id": "breakpoint", "type": "projectile", "name": "Breakpoint", "cooldown": 10.0, "speed": 34.0, "damage": 25, "gravity": 0.0, "lifetime": 1.0, "hit_radius": 0.35, "splash_radius": 0.0, "slow": {"mult": 0.0, "duration": 1.1}, "kind": "projectile", "color": "#ff3a3a", "size": 0.16, "visual": "res://src/abilities/breakpoint_visual.gd"},
+    "ultimate": {"id": "force_push", "type": "shockwave", "name": "Force Push", "cooldown": 1.0, "radius": 9.0, "arc_deg": 120, "damage": 130, "knockback": 15.0, "lift": 5.5, "color": "#ff4a4a"}
+  },
+  "model_scene": {"path": "res://src/heroes/models/tomo/tomo.glb", "yaw_deg": 180, "outline": 0.011, "no_outline": ["eye", "mouth", "vneck", "sticker"], "tails": ["pony_"], "fx_anchor": "Muzzle", "casts": {"ability1": {"anim": "blink", "full": true}, "ability2": {"anim": "throw", "full": true}, "ultimate": {"anim": "push", "full": true}}},
+  "model": [
+    {"shape": "capsule", "radius": 0.06, "height": 0.95, "pos": [-0.1, 0.47, 0], "color": "#ecc2a0", "pivot": [-0.1, 0.95, 0], "anim": "leg_l"},
+    {"shape": "capsule", "radius": 0.06, "height": 0.95, "pos": [0.1, 0.47, 0], "color": "#ecc2a0", "pivot": [0.1, 0.95, 0], "anim": "leg_r"},
+    {"shape": "box", "size": [0.11, 0.1, 0.27], "pos": [-0.1, 0.05, -0.05], "color": "#dc2428", "pivot": [-0.1, 0.95, 0], "anim": "leg_l"},
+    {"shape": "box", "size": [0.11, 0.1, 0.27], "pos": [0.1, 0.05, -0.05], "color": "#dc2428", "pivot": [0.1, 0.95, 0], "anim": "leg_r"},
+    {"shape": "box", "size": [0.36, 0.36, 0.22], "pos": [0, 0.82, 0], "color": "#38383d"},
+    {"shape": "box", "size": [0.36, 0.06, 0.23], "pos": [0, 0.98, 0], "color": "team"},
+    {"shape": "box", "size": [0.38, 0.62, 0.22], "pos": [0, 1.3, 0], "color": "#1a1a1c"},
+    {"shape": "capsule", "radius": 0.045, "height": 0.6, "pos": [-0.24, 1.27, 0], "color": "#ecc2a0", "pivot": [-0.24, 1.56, 0], "anim": "arm_l"},
+    {"shape": "capsule", "radius": 0.045, "height": 0.6, "pos": [0.24, 1.27, -0.1], "color": "#ecc2a0", "rot": [-50, 0, 0], "pivot": [0.24, 1.56, 0], "anim": "arm_r"},
+    {"shape": "box", "size": [0.03, 0.34, 0.25], "pos": [-0.29, 0.9, 0], "color": "#ccd1db", "pivot": [-0.24, 1.56, 0], "anim": "arm_l"},
+    {"shape": "sphere", "radius": 0.1, "pos": [0, 1.76, 0], "color": "#ecc2a0", "anim": "head"},
+    {"shape": "sphere", "radius": 0.085, "pos": [0, 1.7, -0.03], "color": "#3a2618", "scale": [1.0, 0.7, 0.9], "anim": "head"},
+    {"shape": "sphere", "radius": 0.105, "pos": [0, 1.83, 0.0], "color": "#17171a", "scale": [1.0, 1.05, 1.0], "anim": "head"},
+    {"shape": "capsule", "radius": 0.035, "height": 0.5, "pos": [0, 1.5, 0.15], "color": "#40291b", "pivot": [0, 1.78, 0.1], "anim": "tail"},
+    {"shape": "box", "size": [0.06, 0.06, 0.18], "pos": [0.24, 1.16, -0.42], "color": "#ff4a4a", "emission": "#ff2020", "muzzle": true, "pivot": [0.24, 1.2, -0.2], "anim": "weapon"}
+  ]
+}
