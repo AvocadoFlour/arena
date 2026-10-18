@@ -25,7 +25,7 @@
     {"kind": "wall", "pos": [20.5, 2, 0], "size": [1, 5, 40], "color": "#3a3f4c", "mat": "wall"},
     {"kind": "platform", "pos": [0, 1.5, -10], "size": [10, 3, 6], "color": "#7a6a58", "grid": true, "mat": "plat"},
     {"kind": "ramp", "pos": [0, 1.35, -4.0], "size": [3, 0.4, 6.9], "rot_deg": [26.6, 0, 0], "color": "#8a7a64", "mat": "ramp"},
-    {"kind": "ramp", "pos": [-8.05, 1.55, -10], "size": [6.8, 0.4, 3], "rot_deg": [0, 0, 27], "color": "#8a7a64", "mat": "ramp"},
+    {"kind": "ramp", "pos": [-7.94, 1.27, -10], "size": [6.8, 0.4, 3], "rot_deg": [0, 0, 27], "color": "#8a7a64", "mat": "ramp"},
     {"kind": "cover", "pos": [-7, 1, 5], "size": [2, 2, 2], "color": "#c08040", "mat": "crate"},
     {"kind": "cover", "pos": [7, 1, 5], "size": [2, 2, 2], "color": "#c08040", "mat": "crate"},
     {"kind": "cover", "pos": [-12, 0.75, 10], "size": [4, 1.5, 1], "color": "#f6c46a", "mat": "breakable", "hp": 300},
@@ -33,7 +33,11 @@
     {"kind": "cover", "pos": [0, 1.25, 8], "size": [1, 2.5, 4], "color": "#a06838", "mat": "pillar"},
     {"kind": "cover", "pos": [-14, 1.5, -4], "size": [2, 3, 2], "color": "#c08040", "mat": "pillar"},
     {"kind": "cover", "pos": [14, 1.5, -4], "size": [2, 3, 2], "color": "#c08040", "mat": "pillar"},
-    {"kind": "cover", "pos": [10, 0.6, -12], "size": [3, 1.2, 3], "color": "#c08040", "mat": "crate"}
+    {"kind": "cover", "pos": [10, 0.6, -12], "size": [3, 1.2, 3], "color": "#c08040", "mat": "crate"},
+    {"kind": "wall", "pos": [-9.5, 0.55, 14.5], "size": [3, 1.1, 0.6], "color": "#f0a868", "mat": "crate"},
+    {"kind": "wall", "pos": [-11.3, 0.55, 15.6], "size": [0.6, 1.1, 2.8], "color": "#f0a868", "mat": "crate"},
+    {"kind": "wall", "pos": [8, 1.75, 16.5], "size": [0.8, 3.5, 0.8], "color": "#d88870", "mat": "pillar"},
+    {"kind": "wall", "pos": [10.2, 0.65, 14.2], "size": [2.6, 1.3, 0.7], "rot_deg": [0, 45, 0], "color": "#e0b890", "mat": "plat"}
   ],
   "theme": {
     "sky_top": "#7fa8d8",
