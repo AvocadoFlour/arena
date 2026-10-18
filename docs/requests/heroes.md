@@ -93,3 +93,10 @@ Test auto-discovery, hero API docs, damage kinds, mixed bot roster.
 ## FYI (Oct 19): ability descriptions API (no core change needed)
 `HeroAbilities.describe(hero_id, slot)` / `describe_all(hero_id)` in src/heroes/hero_abilities.gd (global class_name, pure JSON data).
 UI can call it directly; nothing to wire in core. See src/heroes/README.md.
+
+## Oct 19: damage-reduction hook (hero.gd) - for the lead (INTERFACES §1/§3)
+`Hero.apply_damage_reduction(frac, dur, key := "default")`, `Hero.damage_taken_mult()`, `Hero.damage_reduction_left(key)`,
+`Hero.damage_reductions` (key -> [frac, secs]). Applied in `take_damage` BEFORE overheal and HP (host/offline only), so it
+can stop a one-shot; keys stack multiplicatively, same key refreshes (max frac / max time); cleared by `clear_buffs()`.
+Niđo's Rollback now uses it (no next-tick refund). Please document it in INTERFACES. Not replicated (HP is); if the
+HUD wants a DR indicator on clients, net.gd would need to send `damage_taken_mult()` (core).

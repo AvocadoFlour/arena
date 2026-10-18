@@ -125,15 +125,40 @@ func test_rollback_restores_hp_and_reduces_damage() -> void:
     check(enemy.health.hp < enemy.health.max_hp, "enemies untouched")
     var before := n.health.hp
     n.take_damage(100.0, enemy, Vector3.ZERO, "primary")
-    ult.tick(1.0 / 60.0)
-    near(before - n.health.hp, 65.0, 0.5, "35% damage reduction while active")
+    near(before - n.health.hp, 65.0, 0.5, "35% damage reduction applied before HP (same hit, no refund)")
+    near(ult.dr_left(), 4.0, 0.01, "dr timer")
     for i in 5 * 60:
         ult.tick(1.0 / 60.0)
+        n._tick_buffs(1.0 / 60.0)
     before = n.health.hp
     n.take_damage(50.0, enemy, Vector3.ZERO, "primary")
-    ult.tick(1.0 / 60.0)
     near(before - n.health.hp, 50.0, 0.5, "reduction ends")
     _free([n, ally, far_ally, enemy])
+
+func test_damage_reduction_hook_stops_one_shot_and_order() -> void:
+    var n := _hero(0, Vector3.ZERO)
+    var enemy := _hero(1, Vector3(0, 0, 5))
+    var hp0: float = n.health.hp
+    n.apply_damage_reduction(0.35, 4.0, "rollback")
+    var dealt: float = n.take_damage(hp0 * 1.3, enemy, Vector3.ZERO, "primary")   # would one-shot without DR
+    check(not n.dead and n.health.hp > 0.0, "pre-damage reduction stops a one-shot (%.1f hp left)" % n.health.hp)
+    near(dealt, hp0 * 1.3 * 0.65, 0.5, "reported damage is the reduced amount")
+    n.health.hp = n.health.max_hp
+    n.add_overheal(50.0, 4.0)
+    n.take_damage(100.0, enemy, Vector3.ZERO, "primary")   # 65 after DR: 50 overheal, then 15 HP
+    near(n.overheal, 0.0, 0.01, "overheal absorbs the reduced damage first")
+    near(n.health.max_hp - n.health.hp, 15.0, 0.5, "rest goes to HP")
+    n.apply_damage_reduction(0.5, 1.0, "other")
+    near(n.damage_taken_mult(), 0.65 * 0.5, 0.001, "different keys stack multiplicatively")
+    n.apply_damage_reduction(0.2, 10.0, "other")
+    near(n.damage_taken_mult(), 0.65 * 0.5, 0.001, "same key keeps the stronger fraction")
+    near(n.damage_reduction_left("other"), 10.0, 0.001, "and the longer time")
+    for i in 5 * 60:
+        n._tick_buffs(1.0 / 60.0)
+    near(n.damage_taken_mult(), 0.5, 0.001, "rollback DR expired, other remains")
+    n.clear_buffs()
+    near(n.damage_taken_mult(), 1.0, 0.001, "clear_buffs clears DR")
+    _free([n, enemy])
 
 func test_rollback_never_undoes_a_death() -> void:
     var n := _hero(0, Vector3.ZERO)

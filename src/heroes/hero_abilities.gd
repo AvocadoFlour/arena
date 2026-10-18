@@ -260,7 +260,7 @@ static func _text_pull(d: Dictionary, s: Dictionary) -> String:
         n(d.get("radius", 8)), n(d.get("pull_speed", 16)), n(d.get("up_speed", 3)), n(d.get("stop_distance", 1.8)), pct(d.get("slow", 0.6)), n(d.get("slow_duration", 2))]
 
 static func _text_rollback(d: Dictionary, s: Dictionary) -> String:
-    return "Restores you and allies within %s m to the health each of you had %s s ago (HP sampled every %s s; only heals, never undoes a death). Then for %s s you take %s less damage (refunded right after each hit, so it cannot stop a lethal hit)." % [
+    return "Restores you and allies within %s m to the health each of you had %s s ago (HP sampled every %s s; only heals, never undoes a death). Then for %s s you take %s less damage (applied before overheal and health, so it can survive a lethal hit)." % [
         n(d.get("radius", 10)), n(d.get("window", 4)), n(d.get("sample", 0.25)), n(d.get("dr_duration", 4)), pct(d.get("damage_reduction", 0.35))]
 
 ## Unknown type: still precise, just generic ("Type: key value, ..."). uncovered_keys() flags it.

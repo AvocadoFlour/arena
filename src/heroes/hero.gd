@@ -33,6 +33,9 @@ var charge_hits: Array = []          ## heroes already hit by the current charge
 var buff_mult := 1.0                 ## outgoing damage multiplier from buffs (stacks with damage_scale)
 var buff_left := 0.0
 var knockback_immune := false        ## set while a buff grants it; knockback() is ignored
+## Incoming damage reduction (host/offline): key -> [fraction 0..1, seconds left]. Applied in take_damage BEFORE
+## overheal and HP, so it can stop a one-shot. Several keys stack multiplicatively; the same key refreshes.
+var damage_reductions := {}
 var overheal := 0.0                  ## temporary HP above max, absorbed before health, decays
 var overheal_decay := 0.0            ## overheal lost per second
 var combo_step := 0                  ## melee primary: index in the combo
@@ -504,7 +507,31 @@ func add_overheal(amount: float, dur: float) -> void:
     overheal = maxf(overheal, amount)
     overheal_decay = overheal / maxf(dur, 0.01)
 
+## Take `frac` (0..1) less damage for `dur` s. `key` identifies the source (same key refreshes: max of fraction
+## and time; different keys stack multiplicatively). Host/offline gameplay state; HP is what replicates.
+func apply_damage_reduction(frac: float, dur: float, key := "default") -> void:
+    if dead or dur <= 0.0 or frac <= 0.0:
+        return
+    var e: Array = damage_reductions.get(key, [0.0, 0.0])
+    damage_reductions[key] = [clampf(maxf(e[0], frac), 0.0, 1.0), maxf(e[1], dur)]
+
+## Multiplier applied to incoming damage (1 = none, 0 = immune).
+func damage_taken_mult() -> float:
+    var m := 1.0
+    for k in damage_reductions:
+        m *= 1.0 - float(damage_reductions[k][0])
+    return clampf(m, 0.0, 1.0)
+
+## Seconds left on a damage reduction (0 if none).
+func damage_reduction_left(key := "default") -> float:
+    return float(damage_reductions.get(key, [0.0, 0.0])[1])
+
 func _tick_buffs(dt: float) -> void:
+    if not damage_reductions.is_empty():
+        for k in damage_reductions.keys():
+            damage_reductions[k][1] -= dt
+            if damage_reductions[k][1] <= 0.0:
+                damage_reductions.erase(k)
     if combo_left > 0.0:
         combo_left -= dt
     if buff_left > 0.0:
@@ -516,6 +543,7 @@ func _tick_buffs(dt: float) -> void:
         overheal = maxf(0.0, overheal - overheal_decay * dt)
 
 func clear_buffs() -> void:
+    damage_reductions.clear()
     buff_mult = 1.0
     buff_left = 0.0
     knockback_immune = false
@@ -596,6 +624,8 @@ func aoe(center: Vector3, radius: float, dmg: float, kind: String, ability_id :=
 func take_damage(amount: float, source, pos: Vector3, kind: String, ability_id := "") -> float:
     if dead or not Net.is_authority():   # THE authority check: only the host/offline sim applies damage
         return 0.0
+    if amount > 0.0:
+        amount *= damage_taken_mult()   # pre-damage reduction: before overheal and HP
     var absorbed := 0.0
     if overheal > 0.0 and amount > 0.0:
         absorbed = minf(overheal, amount)
