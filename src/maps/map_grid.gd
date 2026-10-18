@@ -101,7 +101,9 @@ func node_pos(n: int) -> Vector3:
     return Vector3(p.x, columns[ci][n & 15], p.y)
 
 ## Breadth-first flood from a node; returns Dictionary of reached node ids.
-func flood(start: int) -> Dictionary:
+## blocked (optional): Callable(pos: Vector3) -> bool; nodes for which it returns true are never entered
+## (e.g. enemy spawn-room keep-out volumes, SpawnRooms.owner_at).
+func flood(start: int, blocked := Callable()) -> Dictionary:
     var seen := {start: true}
     var q: Array = [start]
     var head := 0
@@ -124,6 +126,8 @@ func flood(start: int) -> Dictionary:
                 if dh <= STEP and dh >= -DROP:
                     var m := cj * 16 + li
                     if not seen.has(m):
+                        if blocked.is_valid() and blocked.call(Vector3(cell_pos(jx, jz).x, col[li], cell_pos(jx, jz).y)):
+                            continue
                         seen[m] = true
                         q.append(m)
     return seen
