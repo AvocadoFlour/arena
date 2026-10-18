@@ -131,3 +131,50 @@ Requests (core):
    `cover_42`/`cover_43` stays. Golden: exactly those two entries dropped vs master, nothing else changed.
    **AI (FYI)**: those two checks are single-seed comparisons that flip on small geometry changes near mid; a
    multi-seed mean or a margin would make them robust to future map edits.
+
+## Maps queue (1.0) item 1 — protected spawn rooms + spawn-shield hook (maps side done; needs core hooks)
+Data (map JSON, deterministic, no RNG):
+- `spawn_rooms."<team>".barriers`: `[{"pos","size"}]` boxes on the room openings (arena02: the front door and the
+  two 1.5 m back-corner gaps behind the side walls, per team). Room `pos`/`size` unchanged (meta `spawn_rooms` as before).
+- `spawn_areas`: `{"<team>": [{"pos","size"}]}` open protected spawn areas for maps without room geometry (arena01:
+  player area around (0, 15), bot corners around (±13, −16); the central platform spawn stays unprotected). Kept
+  out of `spawn_rooms` on purpose: `GameConfig.allies_for` treats a team-0 spawn room as a team map, and arena01
+  must stay FFA (meta `spawn_rooms` on arena01 is still `{}`).
+- `spawn_shield` (s, default 2.0); optional theme `team_colors` (default `["#5a8ad8", "#e06a6a"]`).
+
+Node: map-root child `SpawnRooms` (src/maps/spawn_rooms.gd, `process_physics_priority = 100`, after heroes move).
+Keep-out volumes per team = room box + its barrier boxes + its areas (xz, from 0.5 m below to 3 m above the top).
+**Why not per-team collision layers:** every hero ray (hitscan `hero.gd`, `projectile_shot.gd`, `BotBrain._visible`)
+uses `PhysicsRayQueryParameters3D.create(from, to)` with the default all-layers mask, so a team-layer StaticBody
+would also stop bullets, projectiles and bot sight for both teams (the owner couldn't shoot out of its own door).
+So the host resolves positions instead: each fixed tick, a living hero of team T inside a volume of team ≠ T
+(grown by its collider radius) is moved to the exit face nearest its previous tick position (union-aware, so the
+overlapping room + door boxes resolve in one step) and its inward velocity is zeroed. Owners pass freely. No
+physics bodies → **collision golden unchanged (0 additions, 0 changes)**; navmesh, SpawnPicker and rays unchanged.
+Low quality keeps the barrier visuals (3 merged meshes per team: alpha fill, team-colour frame, black hulls).
+
+Host/offline API (`Net.is_authority()`; clients: `step` no-ops):
+- `resolve(team, pos, vel, prev_pos, radius = 0.4) -> [pos, vel, pushed_by_team (-1 none)]` — pure rule, also for prediction.
+- `owner_at(pos, radius = 0) -> team|-1`, `in_team_volume(team, pos)`, `in_own_room(hero)`.
+- Spawn shield: a hero that becomes alive (match start, respawn, hero swap, new bot) gets `spawn_shield` s; if it
+  spawned inside its own room/area the shield ends early when it leaves; death ends it. `is_shielded(hero) -> bool`,
+  `shield_left(hero) -> float`. Signals: `spawn_shield_changed({hero, active, left, reason: spawn|timeout|left_room|died})`,
+  `own_room_changed({hero, inside})`, `pushed_out({hero, team, pos})`. If `Events` has `spawn_shield`, the same
+  payload is emitted there too (host only).
+
+Requests (core):
+1. **Damage gate (the shield itself)**: in `Hero.take_damage` (after the authority check) skip damage while
+   shielded: `var sr = <map>.get_node_or_null("SpawnRooms"); if sr and sr.is_shielded(self): return 0.0`
+   (map lookup like `Net.map_objects()`; a `Net.spawn_rooms()` helper would do). Same for `damage_destructibles`
+   n/a. Suggest also ending the shield when the hero fires/uses an ability — say if you want a `drop_shield(hero)`
+   call and I'll add it.
+2. **Events + Net**: `signal spawn_shield(ev)` in events.gd and `"spawn_shield": 1` in `Net.EVENT_SIGNALS`
+   (reliable) so HUD/FX on clients can show the shield (UI: e.g. a team-colour bubble / "Spawn shield" HUD tag).
+3. **Client prediction** (own `predicted` hero): after `move_and_slide()` in the predicted step and in reconcile
+   replay: `var r = sr.resolve(team, global_position, velocity, pos_before_move, radius); global_position = r[0];
+   velocity = r[1]` — identical to the host, so walking into an enemy door never causes a correction. Without it
+   the client is snapped back by normal reconciliation (~1 RTT, visible pop). Puppets need nothing.
+4. **INTERFACES §6**: document `barriers`, `spawn_areas`, `spawn_shield`, `team_colors` and the `SpawnRooms` API.
+5. **AI (FYI)**: enemy volumes aren't in the navmesh (no bodies), so a bot told to go into an enemy spawn just gets
+   held at the door. Suggest skipping wander/chase targets where `SpawnRooms.owner_at(p) not in [-1, my team]`.
+   No AI suite failed with this change (see build).
