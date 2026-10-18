@@ -165,8 +165,8 @@ Host/offline API (`Net.is_authority()`; clients: `step` no-ops):
 Requests (core):
 1. **Damage gate (the shield itself)**: in `Hero.take_damage` (after the authority check) skip damage while
    shielded: `var sr = <map>.get_node_or_null("SpawnRooms"); if sr and sr.is_shielded(self): return 0.0`
-   (map lookup like `Net.map_objects()`; a `Net.spawn_rooms()` helper would do). Same for `damage_destructibles`
-   n/a. Suggest also ending the shield when the hero fires/uses an ability — say if you want a `drop_shield(hero)`
+   (map lookup like `Net.map_objects()`; a `Net.spawn_rooms()` helper would do). Suggest also ending the
+   shield when the hero fires/uses an ability — say if you want a `drop_shield(hero)`
    call and I'll add it.
 2. **Events + Net**: `signal spawn_shield(ev)` in events.gd and `"spawn_shield": 1` in `Net.EVENT_SIGNALS`
    (reliable) so HUD/FX on clients can show the shield (UI: e.g. a team-colour bubble / "Spawn shield" HUD tag).
