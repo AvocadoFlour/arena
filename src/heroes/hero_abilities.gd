@@ -31,6 +31,8 @@ const TEMPLATES := {
     "nova": ["radius", "damage"],
     "blink": ["distance", "duration", "bonus_mult", "bonus_shots", "bonus_window"],
     "shockwave": ["radius", "arc_deg", "damage", "knockback", "lift"],
+    "pull": ["radius", "pull_speed", "up_speed", "stop_distance", "slow", "slow_duration"],
+    "rollback": ["radius", "window", "sample", "damage_reduction", "dr_duration"],
 }
 ## Types that always consume the full ultimate meter, even without "needs_ult".
 const ULT_TYPES := ["rally", "nova", "shockwave"]
@@ -99,6 +101,8 @@ static func describe_def(hero: Dictionary, slot: String) -> Dictionary:
         "nova": text = _text_nova(d, stats)
         "blink": text = _text_blink(d, stats)
         "shockwave": text = _text_shockwave(d, stats)
+        "pull": text = _text_pull(d, stats)
+        "rollback": text = _text_rollback(d, stats)
         _: text = _text_generic(d)
     if slot != "primary":
         text += " " + _cost_text(hero, d, t, stats, slot)
@@ -250,6 +254,14 @@ static func _text_blink(d: Dictionary, s: Dictionary) -> String:
 static func _text_shockwave(d: Dictionary, s: Dictionary) -> String:
     return "Shockwave in a %s° frontal cone up to %s m: %s damage to every enemy in it (linear falloff to %d%% at the edge), knocking them straight away at %s m/s and %s m/s up (not while knockback-immune). Also hits breakable cover." % [
         n(d.get("arc_deg", 120)), n(d.get("radius", 9)), n(d.get("damage", 130)), AOE_EDGE_PCT, n(d.get("knockback", 15)), n(d.get("lift", 5.5))]
+
+static func _text_pull(d: Dictionary, s: Dictionary) -> String:
+    return "Pulls every enemy within %s m toward you (up to %s m/s, with a %s m/s hop, stopping about %s m from you; not while knockback-immune) and slows them to %s move speed for %s s. No damage." % [
+        n(d.get("radius", 8)), n(d.get("pull_speed", 16)), n(d.get("up_speed", 3)), n(d.get("stop_distance", 1.8)), pct(d.get("slow", 0.6)), n(d.get("slow_duration", 2))]
+
+static func _text_rollback(d: Dictionary, s: Dictionary) -> String:
+    return "Restores you and allies within %s m to the health each of you had %s s ago (HP sampled every %s s; only heals, never undoes a death). Then for %s s you take %s less damage (refunded right after each hit, so it cannot stop a lethal hit)." % [
+        n(d.get("radius", 10)), n(d.get("window", 4)), n(d.get("sample", 0.25)), n(d.get("dr_duration", 4)), pct(d.get("damage_reduction", 0.35))]
 
 ## Unknown type: still precise, just generic ("Type: key value, ..."). uncovered_keys() flags it.
 static func _text_generic(d: Dictionary) -> String:

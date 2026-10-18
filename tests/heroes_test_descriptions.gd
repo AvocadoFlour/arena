@@ -50,7 +50,7 @@ func test_every_hero_slot_described_and_covered() -> void:
                 if _suppressed(t, k, d):
                     continue
                 if v is float or v is int:
-                    check(_has_num(desc.text, v), "%s.%s: '%s' = %s appears in: %s" % [id, slot, k, HeroAbilities.n(v), desc.text])
+                    check(_has_num(desc.text, v) or desc.text.contains(HeroAbilities.pct(v)), "%s.%s: '%s' = %s appears in: %s" % [id, slot, k, HeroAbilities.n(v), desc.text])
                 elif v is Array:
                     for m in v:
                         check(desc.text.contains("x" + HeroAbilities.n(m)), "%s.%s: combo x%s in text" % [id, slot, HeroAbilities.n(m)])
@@ -87,7 +87,7 @@ func test_text_follows_data_not_hand_typed() -> void:
     check(HeroAbilities.describe_def(hero, "primary").text.contains("80 DPS"), "derived DPS recomputed")
 
 func test_unknown_type_falls_back_and_is_flagged() -> void:
-    var hero := {"ultimate_cost": 500, "abilities": {"ability1": {"id": "x", "name": "Rewind", "type": "rollback", "cooldown": 9.0, "window": 3.0, "min_heal": 40}}}
+    var hero := {"ultimate_cost": 500, "abilities": {"ability1": {"id": "x", "name": "Rewind", "type": "time_warp", "cooldown": 9.0, "window": 3.0, "min_heal": 40}}}
     var d := HeroAbilities.describe_def(hero, "ability1")
     check(d.name == "Rewind" and d.text.contains("window 3") and d.text.contains("min heal 40") and d.text.contains("Cooldown 9 s"), "generic text: %s" % d.text)
     check(HeroAbilities.uncovered_keys(hero.abilities.ability1).size() == 2, "unknown type keys flagged")
