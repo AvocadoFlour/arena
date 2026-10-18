@@ -1,10 +1,11 @@
 """Cob - procedural Blender build (Blender 4.2, headless):
     blender -b --python src/heroes/models/cob/blender/build_cob.py -- [--out DIR] [--shots DIR] [--poses DIR]
-A wide stone beetle: faceted grey shell plates over a dark core, moss tufts, amber crystals (one front-right
+A wide stone beetle: angular, varied stone shell plates (seams/cracks) over a dark core, moss tufts, amber crystals (one front-right
 crystal is the shooter / muzzle), plated head with glowing amber eyes and curved mandibles, six thick
 segmented stone legs with toes. Custom rig (body/head/mandibles/6x2 leg bones). Faces Blender -Y, metres.
 Exports ../cob.glb."""
 import sys, os, math, random
+import bmesh
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "common", "blender"))
 from toonbuild import Build, arg
@@ -24,42 +25,97 @@ B = Build("cob", {
 OUT = arg("--out", os.path.dirname(HERE))
 rnd = random.Random(42)
 
-SHELL_C = Vector((0, 0.12, 0.6)); SHELL_R = Vector((0.74, 0.86, 0.66))
+SHELL_C = Vector((0, 0.12, 0.6)); SHELL_R = Vector((0.76, 0.88, 0.62))
+SHELL_M = 2.7      # superellipsoid exponent (>2 = boxier, less round dome)
 HEAD_C = Vector((0, -0.9, 0.5)); HEAD_R = (0.4, 0.34, 0.35)
 
+def surf(d):
+    """Point + normal on the (superellipsoid) shell along direction d from SHELL_C."""
+    d = Vector(d).normalized()
+    k = (abs(d.x / SHELL_R.x) ** SHELL_M + abs(d.y / SHELL_R.y) ** SHELL_M + abs(d.z / SHELL_R.z) ** SHELL_M) ** (-1.0 / SHELL_M)
+    q = d * k
+    g = Vector([math.copysign(abs(q[i] / SHELL_R[i]) ** (SHELL_M - 1) / SHELL_R[i], q[i]) for i in range(3)]).normalized()
+    return SHELL_C + q, g
+
 def on_shell(az, el, lift=0.0):
-    """Point + normal on the shell ellipsoid; az 0 = back (+Y), 90 = left (+X); el = elevation."""
+    """Point + normal on the shell; az 0 = back (+Y), 90 = left (+X); el = elevation."""
     a, e = math.radians(az), math.radians(el)
-    d = Vector((math.cos(e) * math.sin(a), math.cos(e) * math.cos(a), math.sin(e)))
-    p = SHELL_C + Vector((d.x * SHELL_R.x, d.y * SHELL_R.y, d.z * SHELL_R.z))
-    n = Vector((d.x / SHELL_R.x, d.y / SHELL_R.y, d.z / SHELL_R.z)).normalized()
+    p, n = surf((math.cos(e) * math.sin(a), math.cos(e) * math.cos(a), math.sin(e)))
     return p + n * lift, n
 
 def eul(n):
     return [math.degrees(a) for a in Vector((0, 0, 1)).rotation_difference(n).to_euler()]
 
-# ------------------------------------------------------------- shell: dark core + faceted stone plates
-B.ellipsoid("shell_core", SHELL_C, SHELL_R * 0.98, "stone_dk", ["body"], seg=18, rings=10)
+def _tangents(n):
+    t1 = n.cross(Vector((0, 0, 1))) if abs(n.z) < 0.95 else n.cross(Vector((1, 0, 0)))
+    t1.normalize()
+    return t1, n.cross(t1)
+
+def slab(name, az, el, rad, th, mat, seed, lift=0.0, crack=False):
+    """Angular stone plate conformed to the shell: irregular 5-7 gon, chamfered rim, low faceted peak.
+    Varied size / stretch / spin / tilt / height per seed; optional dark crack across the top."""
+    r = random.Random(seed)
+    c0, n = on_shell(az, el)
+    t1, t2 = _tangents(n)
+    sp = r.uniform(0, math.pi)
+    t1, t2 = t1 * math.cos(sp) + t2 * math.sin(sp), t2 * math.cos(sp) - t1 * math.sin(sp)
+    k = r.choice((5, 6, 6, 7))
+    ex = r.uniform(0.85, 1.25)
+    tilt = (t1 * r.uniform(-0.12, 0.12) + t2 * r.uniform(-0.12, 0.12))
+    ring = []
+    for i in range(k):
+        a = 2 * math.pi * i / k + r.uniform(-0.28, 0.28)
+        rr = rad * r.uniform(0.82, 1.12)
+        ring.append(t1 * math.cos(a) * rr * ex + t2 * math.sin(a) * rr / ex)
+    bm = bmesh.new()
+    bot, top = [], []
+    for v in ring:
+        sp_, sn = surf(c0 + v - SHELL_C)
+        h = lift + th * (1.0 + tilt.dot(v) / max(rad, 1e-3) * 2.0)
+        bot.append(bm.verts.new(sp_ - sn * 0.02))
+        sp2, sn2 = surf(c0 + v * 0.8 - SHELL_C)
+        top.append(bm.verts.new(sp2 + sn2 * h))
+    pk = bm.verts.new(c0 + n * (lift + th * r.uniform(1.05, 1.2)) + (t1 * r.uniform(-0.2, 0.2) + t2 * r.uniform(-0.2, 0.2)) * rad)
+    bm.faces.new(list(reversed(bot)))
+    for i in range(k):
+        j = (i + 1) % k
+        bm.faces.new((bot[i], bot[j], top[j], top[i]))
+        bm.faces.new((top[i], top[j], pk))
+    bmesh.ops.triangulate(bm, faces=[f for f in bm.faces if len(f.verts) > 4])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    B.obj(name, bm, mat, ["body"], smooth=False)
+    if crack:      # zig-zag seam: 3 thin dark segments from the rim towards the peak and on
+        pts = [ring[0] * 0.95, ring[0] * 0.35 + t2 * rad * 0.15, -ring[0] * 0.15 - t1 * rad * 0.1, -ring[0] * 0.55 + t2 * rad * 0.1]
+        for m in range(3):
+            pa = c0 + pts[m]; pb = c0 + pts[m + 1]
+            sa, na = surf(pa - SHELL_C); sb, nb = surf(pb - SHELL_C)
+            mid = (sa + sb) / 2 + (na + nb).normalized() * (lift + th * 1.12 + 0.012)
+            d = sb - sa
+            B.loft("%s_crack_%d" % (name, m), [(mid - d / 2, 0.013, 0.008), (mid + d / 2, 0.013, 0.008)], "stone_dk", ["body"], n=3)
+
+# ------------------------------------------------------------- shell: dark core + angular stone plates
+bm = bmesh.new()
+bmesh.ops.create_uvsphere(bm, u_segments=14, v_segments=8, radius=1.0)
+for v in bm.verts:
+    v.co = surf(v.co)[0] - (surf(v.co)[0] - SHELL_C) * 0.03
+B.obj("shell_core", bm, "stone_dk", ["body"], smooth=False)
 B.ellipsoid("belly", (0, 0.05, 0.42), (0.6, 0.8, 0.26), "belly", ["body"], seg=14, rings=8)
-plates = [(90, 1, 0.24)]   # (elevation, count, size)
-plates += [(66, 6, 0.26), (42, 10, 0.27), (20, 13, 0.26), (0, 15, 0.24), (-16, 15, 0.2)]
+# (elevation, count, size): big plates on top, smaller toward the rim; varied per plate
+plates = [(90, 1, 0.22), (64, 6, 0.22), (39, 10, 0.2), (16, 13, 0.18), (-6, 15, 0.16), (-22, 15, 0.13)]
 pi = 0
 for el, cnt, sz in plates:
     for k in range(cnt):
-        az = 360.0 * (k + (0.5 if (el // 10) % 2 else 0.0)) / cnt + rnd.uniform(-6, 6)
+        az = 360.0 * (k + (0.5 if (el // 10) % 2 else 0.0)) / cnt + rnd.uniform(-9, 9)
         azn = (az + 360) % 360
         if el <= 20 and 150 < azn < 210:      # leave the head opening at the front
             continue
-        p, n = on_shell(az, el + rnd.uniform(-3, 3), 0.02)
         mat = "stone" if rnd.random() < 0.7 else "stone_lt"
-        w = sz * rnd.uniform(0.9, 1.1)
-        B.rock("plate_%d" % pi, p, (w, w * 0.95, 0.075), mat, ["body"], seg=6, rings=4, rot=eul(n), seed=pi, jitter=0.1)
+        slab("plate_%d" % pi, az, el + rnd.uniform(-4, 4), sz * rnd.uniform(0.95, 1.4), rnd.uniform(0.045, 0.075), mat, 1000 + pi,
+             lift=rnd.uniform(0.0, 0.03), crack=(rnd.random() < 0.35 and el > -10))
         pi += 1
 # collar plates arching over the head
 for k in range(5):
-    az = 180 + (k - 2) * 20
-    p, n = on_shell(az, 12 + abs(k - 2) * 4, 0.03)
-    B.rock("collar_%d" % k, p, (0.2, 0.17, 0.08), "stone", ["body"], seg=6, rings=4, rot=eul(n), seed=100 + k)
+    slab("collar_%d" % k, 180 + (k - 2) * 21, 14 + abs(k - 2) * 5, 0.15, 0.08, "stone", 100 + k, lift=0.03)
 
 # moss tufts: little clusters of thin blades on top of the shell
 def tuft(name, p, n, bones):
@@ -72,14 +128,14 @@ def tuft(name, p, n, bones):
         B.loft("%s_%d" % (name, b), [(p, 0.018, 0.012), (p + d * L, 0.002, 0.002)], "moss", bones, n=4)
     B.ellipsoid(name + "_base", p, (0.045, 0.045, 0.02), "moss", bones, seg=8, rings=4)
 for k, (az, el) in enumerate([(40, 70), (140, 62), (250, 58), (320, 45), (100, 35), (200, 40), (10, 25), (280, 22), (60, 15), (160, 82), (300, 75)]):
-    p, n = on_shell(az, el, 0.09)
+    p, n = on_shell(az, el, 0.12)
     tuft("moss_%d" % k, p, n, ["body"])
 
 # amber crystals (one front-right crystal is the shooter: Muzzle marker at its tip)
 CRY = [((-0.36, -0.25), 58, 0.34, 0.085), ((0.5, 0.18), 40, 0.28, 0.075), ((0.28, 0.55), 52, 0.3, 0.08), ((-0.55, 0.42), 30, 0.24, 0.07)]
 for k, ((x, y), el, h, r) in enumerate(CRY):
     az = math.degrees(math.atan2(x, y))
-    p, n = on_shell(az, el, 0.02)
+    p, n = on_shell(az, el, 0.05)
     B.crystal("crystal_%d" % k, p, h, r, "amber" if k % 2 == 0 else "amber_lt", ["body"], tilt=eul((n + Vector((0, 0, 0.6))).normalized()))
 # shooter crystal: front-right, pointing forward (character's right is -X)
 GUN_BASE = Vector((-0.45, -0.74, 0.92))
