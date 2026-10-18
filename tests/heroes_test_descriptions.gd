@@ -21,7 +21,7 @@ func _suppressed(t: String, k: String, d: Dictionary) -> bool:
         return true
     if t == "projectile" and k == "splash_radius" and float(d.get("splash_radius", 0)) <= 0.0:
         return true
-    if k == "cooldown" and (bool(d.get("needs_ult", false)) or t in HeroAbilities.ULT_TYPES) and float(d.get("cooldown", 0)) <= 0.0:
+    if k == "cooldown" and HeroAbilities.is_ult(d, t, "ultimate" if d.get("needs_ult", false) else "") and float(d.get("cooldown", 0)) <= 0.0:
         return true
     return false
 
@@ -32,7 +32,7 @@ func _has_num(text: String, v) -> bool:
 
 func test_every_hero_slot_described_and_covered() -> void:
     var ids := HeroAbilities.hero_ids()
-    check(ids.size() >= 3, "heroes found %s" % [ids])
+    check(ids.size() >= 4 and "tomo" in ids, "heroes found %s" % [ids])
     for id in ids:
         var hero := HeroAbilities.load_hero(id)
         var all := HeroAbilities.describe_all(id)
@@ -61,7 +61,7 @@ func test_every_hero_slot_described_and_covered() -> void:
                     else:
                         check(false, "%s.%s: nested key %s not checked" % [id, slot, k])
             if slot != "primary":
-                var ult := bool(d.get("needs_ult", false)) or t in HeroAbilities.ULT_TYPES
+                var ult := HeroAbilities.is_ult(d, t, slot)
                 if ult:
                     check(_has_num(desc.text, hero.get("ultimate_cost", 500)) and desc.stats.get("ult_cost") == float(hero.get("ultimate_cost", 500)), "%s.%s: ult cost in text" % [id, slot])
                 check(desc.stats.has("cooldown") == d.has("cooldown"), "%s.%s: cooldown in stats" % [id, slot])
