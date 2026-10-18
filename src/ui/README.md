@@ -83,3 +83,10 @@ picks up `Net.ping_ms()` / `Net.last_packet_age()` automatically when core adds 
 `connection_lost_screen.gd`: "Host left" / "Connection lost" + reason + 420x96 "Return to menu"; the HUD shows it
 on `Net.disconnected(reason)`. Return: `return_requested` → else PauseMenu `leave_requested` (main.gd) → else
 `match_end.main_menu`. Tests: `tests/ui_round11_test.gd` (mock Net).
+
+Ability descriptions (1.0): `ability_info.gd` (`AbilityInfo`) is the only source of ability text for UI. It loads the
+heroes-owned `HeroAbilities` (src/heroes/hero_abilities.gd) by path when it exists, otherwise builds entries from
+the hero JSON (name, type, cooldown, ult cost, primary numbers, "description"). Shown by `ability_list.gd` (hero
+select detail, Match page "HeroInfo" pane: hover/focus a hero or tap its "?") and `ability_tooltip.gd` (HUD icons:
+hover with a free cursor or touch long-press; observes input only, never blocks). Tests: ui_round16_test.gd (mocked
+HeroAbilities via tests/ui_mock_hero_abilities.gd + JSON fallback), ui_ability_tooltip_sim.gd.
