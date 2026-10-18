@@ -1,0 +1,34 @@
+{
+  "id": "nidjo",
+  "name": "Niđo",
+  "role": "brawler",
+  "max_hp": 300,
+  "movement": {"speed": 6.6, "accel_ground": 65, "accel_air": 12, "jump_velocity": 8.0, "gravity": 22},
+  "collider": {"radius": 0.5, "height": 1.85},
+  "primary": {"type": "melee", "name": "Ping Hammer", "damage": 30, "fire_rate": 1.6, "mag": 999, "reload_time": 0.1, "spread_deg": 0, "range": 3.0, "arc_deg": 120, "combo": [1.0, 1.0, 1.4], "combo_window": 1.0, "finisher_knockback": 5.0, "lunge": 3.0},
+  "ultimate_cost": 600,
+  "abilities": {
+    "ability1": {"id": "firewall", "type": "shield_wall", "name": "Firewall", "cooldown": 10.0, "width": 3.4, "height": 2.4, "thickness": 0.3, "distance": 1.5, "duration": 3.5, "color": "#40e070", "visual": "res://src/abilities/prop_visuals.gd"},
+    "ability2": {"id": "standup_meeting", "type": "pull", "name": "Stand-up Meeting", "cooldown": 9.0, "radius": 8.0, "pull_speed": 16.0, "up_speed": 3.0, "stop_distance": 1.8, "slow": 0.6, "slow_duration": 2.0, "color": "#40e070"},
+    "ultimate": {"id": "rollback", "type": "rollback", "name": "Rollback", "cooldown": 1.0, "needs_ult": true, "radius": 10.0, "window": 4.0, "sample": 0.25, "damage_reduction": 0.35, "dr_duration": 4.0, "color": "#40e070"}
+  },
+  "model_scene": {"path": "res://src/heroes/models/nidjo/nidjo.glb", "yaw_deg": 180, "outline": 0.012, "no_outline": ["eye", "plaid", "led"], "aim_bones": [], "melee": {"swings": ["swing_a", "swing_b"], "finisher": "finisher", "full": ["finisher"]}, "casts": {"ability1": {"anim": "wall", "full": true}, "ability2": {"anim": "pull", "full": false}, "ultimate": {"anim": "ult", "full": false}}, "cast_bones": ["spine", "chest", "neck", "head", "shoulder.", "upper_arm.", "forearm.", "hand."]},
+  "model": [
+    {"shape": "capsule", "radius": 0.11, "height": 0.85, "pos": [-0.12, 0.42, 0], "color": "#141416", "pivot": [-0.12, 0.85, 0], "anim": "leg_l"},
+    {"shape": "capsule", "radius": 0.11, "height": 0.85, "pos": [0.12, 0.42, 0], "color": "#141416", "pivot": [0.12, 0.85, 0], "anim": "leg_r"},
+    {"shape": "box", "size": [0.16, 0.12, 0.3], "pos": [-0.12, 0.06, -0.05], "color": "#f2f2f2", "pivot": [-0.12, 0.85, 0], "anim": "leg_l"},
+    {"shape": "box", "size": [0.16, 0.12, 0.3], "pos": [0.12, 0.06, -0.05], "color": "#f2f2f2", "pivot": [0.12, 0.85, 0], "anim": "leg_r"},
+    {"shape": "box", "size": [0.5, 0.12, 0.32], "pos": [0, 0.92, 0], "color": "team"},
+    {"shape": "capsule", "radius": 0.28, "height": 0.7, "pos": [0, 1.18, 0], "color": "#f2f2f2", "scale": [1.3, 1.0, 0.9]},
+    {"shape": "box", "size": [0.62, 0.62, 0.42], "pos": [0, 1.18, 0.03], "color": "#2a7a48"},
+    {"shape": "box", "size": [0.12, 0.6, 0.04], "pos": [-0.17, 1.18, -0.2], "color": "#c02028"},
+    {"shape": "box", "size": [0.12, 0.6, 0.04], "pos": [0.17, 1.18, -0.2], "color": "#c02028"},
+    {"shape": "capsule", "radius": 0.1, "height": 0.65, "pos": [-0.42, 1.15, 0], "color": "#2a7a48", "pivot": [-0.4, 1.43, 0], "anim": "arm_l"},
+    {"shape": "capsule", "radius": 0.1, "height": 0.65, "pos": [0.42, 1.15, -0.12], "color": "#2a7a48", "rot": [-40, 0, 0], "pivot": [0.4, 1.43, 0], "anim": "arm_r"},
+    {"shape": "sphere", "radius": 0.22, "pos": [0, 1.66, 0], "color": "#f0cdb0", "anim": "head"},
+    {"shape": "sphere", "radius": 0.23, "pos": [0, 1.73, 0.01], "color": "#121214", "scale": [1.0, 0.6, 1.0], "anim": "head"},
+    {"shape": "box", "size": [0.22, 0.03, 0.14], "pos": [0, 1.76, -0.22], "color": "#121214", "anim": "head"},
+    {"shape": "box", "size": [0.05, 0.75, 0.05], "pos": [0.45, 1.25, -0.3], "color": "#242426", "pivot": [0.45, 0.95, -0.3], "anim": "weapon"},
+    {"shape": "box", "size": [0.32, 0.14, 0.14], "pos": [0.45, 1.62, -0.3], "color": "#6b7380", "metallic": 0.6, "muzzle": true, "pivot": [0.45, 0.95, -0.3], "anim": "weapon"}
+  ]
+}
