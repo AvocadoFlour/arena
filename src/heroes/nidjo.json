@@ -8,7 +8,7 @@
   "primary": {"type": "melee", "name": "Ping Hammer", "damage": 30, "fire_rate": 1.6, "mag": 999, "reload_time": 0.1, "spread_deg": 0, "range": 3.0, "arc_deg": 120, "combo": [1.0, 1.0, 1.4], "combo_window": 1.0, "finisher_knockback": 5.0, "lunge": 3.0},
   "ultimate_cost": 600,
   "abilities": {
-    "ability1": {"id": "firewall", "type": "shield_wall", "name": "Firewall", "cooldown": 10.0, "width": 3.4, "height": 2.4, "thickness": 0.3, "distance": 1.5, "duration": 3.5, "color": "#40e070", "visual": "res://src/abilities/prop_visuals.gd"},
+    "ability1": {"id": "firewall", "type": "shield_wall", "name": "Firewall", "cooldown": 10.0, "width": 3.4, "height": 2.4, "thickness": 0.3, "distance": 1.5, "duration": 3.5, "color": "#40e070"},
     "ability2": {"id": "standup_meeting", "type": "pull", "name": "Stand-up Meeting", "cooldown": 9.0, "radius": 8.0, "pull_speed": 16.0, "up_speed": 3.0, "stop_distance": 1.8, "slow": 0.6, "slow_duration": 2.0, "color": "#40e070"},
     "ultimate": {"id": "rollback", "type": "rollback", "name": "Rollback", "cooldown": 1.0, "needs_ult": true, "radius": 10.0, "window": 4.0, "sample": 0.25, "damage_reduction": 0.35, "dr_duration": 4.0, "color": "#40e070"}
   },
