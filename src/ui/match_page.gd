@@ -5,6 +5,9 @@ extends VBoxContainer
 ## hero/team changes are requests the host decides. Missing hooks show "Not available yet".
 ## The swap countdown lives in `countdown` (a Label on its own CanvasLayer, see PauseMenu) so it stays
 ## visible after the overlay closes.
+## Hero info: the "HeroInfo" pane under the hero grid lists the highlighted hero's abilities (AbilityList).
+## Highlight = hovering or focusing a hero button, or tapping its "?" button (touch: a tap on the hero button
+## itself still requests the switch, so "?" is the touch way to read first). Defaults to the current hero.
 signal back
 const NA := "Not available yet"
 var ctl: MatchControl
@@ -21,6 +24,12 @@ var diff: DifficultyControl
 var diff_picker: DifficultyPicker
 var swap_hero := ""
 var swap_team_only := false
+var info_btns := {}     ## hero id -> "?" Button
+var info_pane: VBoxContainer
+var info_title: Label
+var info_list: AbilityList
+var info_hero := ""     ## hero shown in the pane
+var _info_pinned := false   ## set by "?", hover, or focus; otherwise the pane follows the current hero
 
 func setup(c: MatchControl) -> void:
     ctl = c
@@ -76,13 +85,36 @@ func _ready() -> void:
         b.name = "Hero_" + String(h.id)
         b.set_meta("hero_id", String(h.id))
         b.set_meta("hero_name", String(h.name))
-        b.custom_minimum_size = Vector2(210, 64)
+        b.custom_minimum_size = Vector2(150, 64)
         b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-        grid.add_child(b)
+        b.mouse_entered.connect(highlight.bind(String(h.id)))
+        b.focus_entered.connect(highlight.bind(String(h.id)))
+        var cell := HBoxContainer.new()
+        cell.add_theme_constant_override("separation", 6)
+        cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        cell.add_child(b)
+        var ib := _small("?", highlight.bind(String(h.id)))
+        ib.name = "Info_" + String(h.id)
+        ib.custom_minimum_size = Vector2(64, 64)
+        ib.tooltip_text = String(h.name)
+        ib.toggle_mode = true
+        cell.add_child(ib)
+        info_btns[String(h.id)] = ib
+        grid.add_child(cell)
         hero_btns.append(b)
     v.add_child(grid)
     hero_note = _note("HeroNote")
     v.add_child(hero_note)
+    info_pane = VBoxContainer.new()
+    info_pane.name = "HeroInfo"
+    info_pane.add_theme_constant_override("separation", 6)
+    info_title = MenuStyle.label("", 22)
+    info_title.name = "HeroInfoName"
+    info_pane.add_child(info_title)
+    info_list = AbilityList.new()
+    info_list.text_size = 16
+    info_pane.add_child(info_list)
+    v.add_child(info_pane)
     v.add_child(MenuStyle.label("Team", 24))
     var trow := HBoxContainer.new()
     trow.add_theme_constant_override("separation", 10)
@@ -104,6 +136,7 @@ func _ready() -> void:
     bk.name = "Back"
     bk.custom_minimum_size = Vector2(360, 72)
     add_child(bk)
+    visibility_changed.connect(func(): if is_visible_in_tree(): _info_pinned = false)
     countdown = MenuStyle.label("", 30)
     countdown.name = "SwapCountdown"
     countdown.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -111,6 +144,22 @@ func _ready() -> void:
     countdown.offset_top = 120
     countdown.grow_horizontal = Control.GROW_DIRECTION_BOTH
     countdown.visible = false
+
+## Show `id`'s abilities in the HeroInfo pane and mark its "?" button.
+func highlight(id: String) -> void:
+    _info_pinned = true
+    _show_info(id)
+
+func _show_info(id: String) -> void:
+    if id == "" or not info_btns.has(id):
+        return
+    for k in info_btns:
+        info_btns[k].set_pressed_no_signal(k == id)
+    if id == info_hero:
+        return
+    info_hero = id
+    info_title.text = _hero_name(id)
+    info_list.show_hero(id)
 
 func _small(t: String, cb: Callable) -> Button:
     var b := MenuStyle.button(t, cb)
@@ -164,6 +213,8 @@ func refresh() -> void:
         b.text = _base_name(b) + ("  (current)" if is_cur else "")
     if not ctl.hero_available():
         hero_note.text = NA
+    if not _info_pinned:
+        _show_info(cur if info_btns.has(cur) else (String(hero_btns[0].get_meta("hero_id")) if hero_btns.size() > 0 else ""))
     var mine := ctl.local_team()
     for t in team_btns:
         team_btns[t].disabled = not ctl.team_available() or t == mine
