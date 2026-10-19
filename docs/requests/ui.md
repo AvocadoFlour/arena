@@ -167,3 +167,14 @@ Live (composition root main.gd; host/offline only, like `set_bot_count`):
    dropping (no event exists). If core adds `Events.shot_fired(hero)` (or includes the primary in `ability_used`
    with slot "primary"), HeroSfx will switch to it. Only the local player's own casts and shots play for now
    (non-positional); hearing other heroes' abilities positionally would need hero-side players and is out of scope.
+
+## Online rematch hook (match-end screen; adapter src/ui/rematch_control.gd)
+Today the match-end "Play again" → `_restart(true)`, which closes Net when online, so a host can't rematch with the
+same players. UI shows: offline "Play again"; online host "Rematch" (disabled until this hook exists, with a note) +
+"Main menu"; online client "Leave" (→ `main_menu` → `_restart(false)`). Requested (core: main.gd + Net):
+- `func rematch() -> void` on the composition root (main.gd), host only: tells every client
+  (`@rpc("authority", "call_remote", "reliable") Net._rematch()`), then reloads the match with the same session,
+  map, mode, heroes and bot settings (no `Net.close()`); clients reload into the same session and re-join.
+  The UI enables "Rematch" as soon as `rematch()` exists on main.gd (no UI change needed).
+- Optional: `Events.rematch_started` (or a Net signal) so the client end screen can say "Starting rematch...".
+Please add to INTERFACES §9/§10 when implemented.
