@@ -155,42 +155,11 @@ static func slot_label(slot: String, with_key := true) -> String:
         s += " [%s]" % Hud.key_label(SLOT_ACTIONS[slot])
     return s
 
-## Compact stats: the most useful numbers first, at most `limit`, "·"-separated with units.
-const STAT_ORDER := ["damage", "dps", "finisher_damage", "heal", "hps", "total_heal", "fire_rate", "radius", "range",
-    "distance", "duration", "slow", "slow_mult", "damage_mult", "damage_reduction", "overheal", "mag", "reload_time",
-    "cooldown", "ult_cost"]
-const UNITS := {"fire_rate": "/s", "radius": " m", "range": " m", "distance": " m", "duration": " s", "reload_time": " s",
-    "cooldown": " s", "hps": "/s", "dps": "", "width": " m", "height": " m", "speed": " m/s", "window": " s",
-    "slow_duration": " s", "dr_duration": " s", "lifetime": " s", "air_time": " s", "max_range": " m"}
-const STAT_LABELS := {"fire_rate": "rate", "ult_cost": "ult", "reload_time": "reload", "finisher_damage": "finisher",
-    "dps": "DPS", "hps": "heal", "total_heal": "total heal", "damage_mult": "damage x", "slow_mult": "speed x",
-    "cooldown": "CD", "mag": "mag", "damage_reduction": "DR"}
+## Readable stat lines for an entry ("Damage per hit: 32", "Cooldown: 7 s"); the label table is StatLabels.
+static func stat_lines(e: Dictionary) -> Array:
+    var st = e.get("stats", {})
+    return StatLabels.lines(st if st is Dictionary else {}, String(e.get("type", "")), String(e.get("slot", "")))
 
-static func stats_line(stats: Dictionary, limit := 5) -> String:
-    var keys := []
-    stats = stats.duplicate()
-    if _is_num(stats.get("mag")) and int(stats.mag) >= 999:
-        stats.erase("mag")   # "no ammo" sentinel
-        stats.erase("reload_time")
-    for k in STAT_ORDER:
-        if stats.has(k) and _is_num(stats[k]):
-            keys.append(k)
-    for k in stats.keys():
-        if not k in keys and _is_num(stats[k]) and not k in ["needs_ult", "combo_hits"]:
-            keys.append(k)
-    var important := keys.filter(func(k): return k in ["cooldown", "ult_cost"])
-    keys = keys.filter(func(k): return not k in important)
-    keys = keys.slice(0, maxi(0, limit - important.size())) + important   # cooldown / ult cost always shown
-    var parts := []
-    for k in keys:
-        parts.append("%s %s%s" % [STAT_LABELS.get(k, String(k).replace("_", " ")), num(stats[k]), UNITS.get(k, "")])
-    return "  ·  ".join(parts)
-
-static func _is_num(v) -> bool:
-    return v is int or v is float
-
-static func num(v) -> String:
-    var f := float(v)
-    if is_equal_approx(f, roundf(f)):
-        return str(int(roundf(f)))
-    return String.num(f, 2)
+## Same, one per line.
+static func stats_text(e: Dictionary) -> String:
+    return "\n".join(stat_lines(e))

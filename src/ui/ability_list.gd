@@ -2,7 +2,7 @@ class_name AbilityList
 extends VBoxContainer
 ## Per-slot ability rows (hero select detail, Match page hero switch). One block per AbilityInfo entry:
 ##   header "Ability 1 [SHIFT]: <name>" (node Slot_<slot>), the precise text (Text_<slot>), the def's own
-##   "description" if any, and a compact stats line (Stats_<slot>). Keys are the live bindings at show time.
+##   "description" if any, and the stats, one labelled phrase per line (Stats_<slot>, StatLabels). Keys are live at show time.
 ## All names come from the hero def / HeroAbilities; nothing new is invented here.
 var entries: Array = []
 var hero_id := ""
@@ -30,7 +30,7 @@ func show_entries(list: Array) -> void:
             add_child(_sub("Text_" + slot, String(e.text), text_size, Color(0.88, 0.9, 0.95)))
         if String(e.get("description", "")) != "" and e.description != e.text:
             add_child(_sub("Desc_" + slot, String(e.description), text_size, Color(0.75, 0.8, 0.9)))
-        var st := AbilityInfo.stats_line(e.get("stats", {}))
+        var st := AbilityInfo.stats_text(e)   # one readable stat per line (StatLabels)
         if st != "":
             add_child(_sub("Stats_" + slot, st, text_size - 1, Color(0.55, 0.8, 1.0)))
         var gap := Control.new()

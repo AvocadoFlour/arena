@@ -39,8 +39,8 @@ func test_provider_hook_and_stats_filter() -> void:
     AbilityInfo.provider = MockProvider.new()
     var all := AbilityInfo.describe_all("the_best")
     check(all.size() == 2 and all[0].slot == "primary" and all[1].slot == "ability2", "provider entries sorted")
-    var line := AbilityInfo.stats_line(all[0].stats)
-    check(line == "damage 5  ·  CD 2.5 s", "non-numeric stats skipped: " + line)
+    var line := AbilityInfo.stats_text(all[0])
+    check(line == "Damage per shot: 5\nCooldown: 2.5 s", "non-numeric / unknown stats skipped: " + line)
     AbilityInfo.reset()
 
 func test_json_fallback_every_hero() -> void:
@@ -78,13 +78,12 @@ func test_real_api_when_present() -> void:
         if not d.primary.has("name"):
             check(all[0].name == KillFeed.primary_name(d), h.id + " unnamed primary labelled like the kill feed")
 
-func test_stats_line_units_and_limit() -> void:
-    var s := AbilityInfo.stats_line({"damage": 30, "fire_rate": 1.6, "range": 3.0, "radius": 8, "duration": 3.5, "width": 3.4, "cooldown": 10})
-    check(s.begins_with("damage 30  ·  rate 1.6/s") and s.ends_with("CD 10 s"), s)
-    check(s.split("  ·  ").size() == 5, "limited to 5: " + s)
-    check(AbilityInfo.stats_line({"ult_cost": 600}) == "ult 600", "ult cost")
-    check(AbilityInfo.stats_line({}) == "", "empty")
-    check(AbilityInfo.stats_line({"damage": 32, "mag": 999, "reload_time": 1}) == "damage 32", "no-ammo sentinel hidden")
+func test_stats_text_labels() -> void:
+    var e := {"slot": "ability1", "type": "x", "stats": {"radius": 8, "duration": 3.5, "width": 3.4, "cooldown": 10}}
+    check(AbilityInfo.stats_text(e) == "Radius: 8 m\nWall width: 3.4 m\nDuration: 3.5 s\nCooldown: 10 s", AbilityInfo.stats_text(e))
+    check(AbilityInfo.stats_text({"slot": "ultimate", "stats": {"ult_cost": 600}}) == "Ultimate cost: 600 charge", "ult cost")
+    check(AbilityInfo.stats_text({"stats": {}}) == "", "empty")
+    check(AbilityInfo.stats_text({"slot": "primary", "type": "melee", "stats": {"damage": 32, "mag": 999, "reload_time": 1}}) == "Damage per hit: 32", "no-ammo sentinel hidden")
 
 func test_slot_label_has_live_key() -> void:
     var keep := InputMap.action_get_events("ability1")
@@ -110,13 +109,13 @@ func test_hero_detail_lists_all_slots() -> void:
         var want: String = KillFeed.primary_name(_def("twin_tails")) if s == "primary" else "twin_tails " + s   # unnamed primary
         check(h != null and h.text.begins_with(AbilityInfo.slot_label(s)) and h.text.ends_with(want), "header %s: %s" % [s, h.text if h else "-"])
         check(t != null and t.text.contains("12 damage"), "text " + s)
-        check(st != null and st.text.contains("CD 7 s"), "stats " + s)
+        check(st != null and st.text.contains("Cooldown: 7 s"), "stats " + s)
     _json_only()
     hd.show_def(_def("twin_tails"))
     var d := _def("twin_tails")
     var h1: Label = hd.info.find_child("Slot_ability1", true, false)
     check(h1 != null and h1.text.ends_with(d.abilities.ability1.name), "fallback header")
-    check((hd.info.find_child("Stats_ability1", true, false) as Label).text.contains("CD "), "fallback cooldown")
+    check((hd.info.find_child("Stats_ability1", true, false) as Label).text.contains("Cooldown: %s s" % StatLabels.num(d.abilities.ability1.cooldown)), "fallback cooldown")
     hd.free()
     AbilityInfo.reset()
 
@@ -193,7 +192,7 @@ func test_tooltip_hover_live_key_and_dismiss() -> void:
     tip.feed(_motion(c))
     check(tip.visible and tip.slot == "ability2" and tip.mode == "hover", "hover shows")
     check(tip.title.text == "N-ability2  [%s]" % Hud.key_label("ability2"), tip.title.text)
-    check(tip.stats.text == "damage 9  ·  CD 4 s" and tip.body.text.begins_with("Long precise"), "text + stats")
+    check(tip.stats.text == "Damage: 9\nCooldown: 4 s" and tip.body.text.begins_with("Long precise"), "text + stats")
     var keep := InputMap.action_get_events("ability2")
     var ev := InputEventKey.new()
     ev.physical_keycode = KEY_G
