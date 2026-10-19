@@ -79,6 +79,8 @@ func _ready() -> void:
     controls_page = KeybindScreen.new()
     controls_page.read_only = true
     controls_bg.add_child(controls_page)
+    controls_bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    controls_page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     controls_page.back.connect(close_controls)
     controls_page.rebind_requested.connect(open_rebind)
     visible = false
