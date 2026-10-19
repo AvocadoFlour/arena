@@ -6,9 +6,9 @@ extends RefCounted
 ## spawner from spread_deg) plus difficulty-dependent aim jitter and reaction delay.
 
 const DIFFICULTY := {
-    "easy":   {"spread_deg": 14.0, "turn_rate": 2.2, "fire_cone": 0.30, "reaction_time": 0.75, "aim_jitter": 0.18, "fire_duty": 0.65, "ability_delay": 2.0, "focus_slack": 0.0, "low_hp_frac": 0.20, "cover_time": 2.0, "peek_time": 1.4, "hide_min": 1.6, "hide_max": 2.4, "peek_side_mode": "same"},
-    "normal": {"fire_duty": 1.0, "spread_deg": 6.0,  "turn_rate": 4.0, "fire_cone": 0.15, "reaction_time": 0.35, "aim_jitter": 0.05, "ability_delay": 0.6, "focus_slack": 8.0, "low_hp_frac": 0.35, "cover_time": 3.0, "peek_time": 1.0, "hide_min": 1.0, "hide_max": 1.8, "peek_side_mode": "random"},
-    "hard":   {"fire_duty": 1.0, "spread_deg": 3.0,  "turn_rate": 7.0, "fire_cone": 0.10, "reaction_time": 0.15, "aim_jitter": 0.015, "ability_delay": 0.2, "focus_slack": 12.0, "low_hp_frac": 0.30, "cover_time": 3.5, "peek_time": 0.7, "hide_min": 0.5, "hide_max": 1.3, "peek_side_mode": "mixed"},
+    "easy":   {"breach_time": 0.0, "spread_deg": 14.0, "turn_rate": 2.2, "fire_cone": 0.30, "reaction_time": 0.75, "aim_jitter": 0.18, "fire_duty": 0.65, "ability_delay": 2.0, "focus_slack": 0.0, "low_hp_frac": 0.20, "cover_time": 2.0, "peek_time": 1.4, "hide_min": 1.6, "hide_max": 2.4, "peek_side_mode": "same"},
+    "normal": {"breach_time": 6.0, "fire_duty": 1.0, "spread_deg": 6.0,  "turn_rate": 4.0, "fire_cone": 0.15, "reaction_time": 0.35, "aim_jitter": 0.05, "ability_delay": 0.6, "focus_slack": 8.0, "low_hp_frac": 0.35, "cover_time": 3.0, "peek_time": 1.0, "hide_min": 1.0, "hide_max": 1.8, "peek_side_mode": "random"},
+    "hard":   {"breach_time": 8.0, "fire_duty": 1.0, "spread_deg": 3.0,  "turn_rate": 7.0, "fire_cone": 0.10, "reaction_time": 0.15, "aim_jitter": 0.015, "ability_delay": 0.2, "focus_slack": 12.0, "low_hp_frac": 0.30, "cover_time": 3.5, "peek_time": 0.7, "hide_min": 0.5, "hide_max": 1.3, "peek_side_mode": "mixed"},
 }
 const ULT_RANGE := 8.0        ## Nova radius is 10; stay inside with margin
 const SLAM_RANGE := 4.5       ## grounded slam radius is 5
@@ -39,6 +39,8 @@ var opportunistic_cover := true  ## ranged bots under 70 % HP use cover within 6
 var escort_allies := true
 var fire_duty := 1.0         ## fraction of each 1.6 s burst cycle the trigger may be held (easy: shoots in bursts, pauses visibly)
 var _burst_t := 0.0
+var breach_time := 6.0       ## s: shoot breakable cover an unseen target hides behind if our DPS breaks it this fast (0 = never)
+var breaching := false        ## this tick: shooting a destructible cover block (tests)
 var focus_slack := 8.0       ## m: how much farther a shared focus target may be than the nearest (easy 0 = ignores calls)
 var team_play := true         ## shared focus target, grouping, tank holds the control point
 var _seen_now: Array = []
@@ -106,6 +108,8 @@ func poll(h) -> InputFrame:
         _map_root = BotNav.find_map_root(h)
         if _map_root:
             BotNav.ensure_region(_map_root)
+    if use_navmesh and _map_root and is_instance_valid(_map_root):
+        BotNav.sync_dynamic(_map_root)   # once per frame for all bots: broken cover / shield walls rebake even while nobody paths
     _think -= dt
     _cover_cd -= dt
     _react_left -= dt
@@ -120,7 +124,7 @@ func poll(h) -> InputFrame:
         var t = _find_target(h)
         if t != target and t != null:
             _react_left = reaction_time
-        if target != null and _lost > 0.0 and _lost < TARGET_MEMORY and \
+        if target != null and _lost > 0.0 and _lost < (TARGET_MEMORY + breach_time if breaching else TARGET_MEMORY) and \
                 (t == null or h.global_position.distance_to(t.global_position) > h.global_position.distance_to(target.global_position)):
             t = target   # briefly out of sight: stick with it instead of wandering off or switching to a farther enemy
         if t != target:
@@ -132,6 +136,7 @@ func poll(h) -> InputFrame:
         var hurt_ranged: bool = opportunistic_cover and not holding and melee_range(h) == 0.0 and h.health.hp < h.health.max_hp * 0.7
         if low or hurt_ranged:
             _enter_cover(h, target, 6.0 if holding or not low else INF)   # point-holding tank: only cover next to the point
+    breaching = breaching and state == "chase" and target != null
     if _do_support(h, f, dt):
         pass
     elif state == "cover":
@@ -196,6 +201,11 @@ func _do_chase(h, f: InputFrame, dt: float, low: bool) -> void:
                 sd = cohesion(sd, h.global_position, rally_point(h))
             f.move = world_to_move(h.global_transform.basis, sd)
         f.fire = los and err < fire_cone and _react_left <= 0.0
+        var wall = _breach_wall(h) if not los and _lost > 0.25 and breach_time > 0.0 else null
+        breaching = wall != null
+        if breaching:   # enemy hiding behind breakable cover we can chew through: keep moving (flank/close) but spend the trigger on the block
+            var e2 := _aim(h, f, wall[1] - h.eye_position(), dt, true)
+            f.fire = e2 < fire_cone and _react_left <= 0.0
     if use_abilities:
         var ctx := _ctx(h, low, false)
         ctx.merge({"dist": dist, "flat_dist": Vector2(to.x, to.z).length(),
@@ -319,7 +329,7 @@ func _do_cover(h, f: InputFrame, dt: float) -> void:
             _leave_cover(8.0)
             return
     # cover destroyed (e.g. a removed block) -> re-pick or fight
-    if _cover_block != null and _cover_block.has("node") and not is_instance_valid(_cover_block.node):
+    if _cover_block != null and _cover_block.has("node") and (not is_instance_valid(_cover_block.node) or _cover_block.node.is_queued_for_deletion()):
         if not _enter_cover(h, _threat, 12.0):
             _leave_cover(4.0)
         return
@@ -657,6 +667,40 @@ func _aim(h, f: InputFrame, to: Vector3, dt: float, jitter: bool) -> float:
     var lim := turn_rate * dt
     f.look = Vector2(clampf(dy, -lim, lim), clampf(dp, -lim, lim))
     return Vector2(dy - f.look.x, dp - f.look.y).length()
+
+## Breakable cover between us and the (unseen) target that we can break within `breach_time`:
+## [block, hit point] or null.
+func _breach_wall(h):
+    var pr: Dictionary = h.def.get("primary", {})
+    if String(pr.get("type", "")) == "melee" or not is_instance_valid(target):
+        return null
+    var q := PhysicsRayQueryParameters3D.create(h.eye_position(), target.global_position + Vector3(0, 1.1, 0))
+    q.exclude = [h.get_rid()]
+    var hit: Dictionary = h.get_world_3d().direct_space_state.intersect_ray(q)
+    if hit.is_empty():
+        return null
+    var c = hit.collider
+    if not (c is Node) or not c.is_in_group("destructible") or c.is_queued_for_deletion():
+        return null
+    var dps := float(pr.get("damage", 0.0)) * float(pr.get("fire_rate", 0.0))
+    var reload_s := breach_reload_time(float(c.get("hp")), float(pr.get("damage", 0.0)), int(h.weapon.ammo), int(pr.get("mag", 0)), float(pr.get("reload_time", 0.0)))
+    if not should_breach(float(c.get("hp")), dps, breach_time, h.eye_position().distance_to(hit.position), float(pr.get("range", 0.0)), reload_s):
+        return null
+    var aim: Vector3 = hit.position
+    aim.y = c.global_position.y   # aim at the block's middle, not the top edge the sight line grazes (spread misses over it)
+    return [c, aim]
+
+## Pure (unit-tested): worth shooting a block with `hp` given our `dps`, time budget and range?
+## `reload_s`: reload time spent on the way (see breach_reload_time).
+static func should_breach(hp: float, dps: float, budget: float, dist: float, rng: float, reload_s := 0.0) -> bool:
+    return budget > 0.0 and dps > 0.0 and hp > 0.0 and dist <= rng * 0.9 and hp / dps + reload_s <= budget
+
+## Pure: reload seconds needed to put `hp` worth of `dmg`-shots into a block, starting with `ammo` of a `mag`.
+static func breach_reload_time(hp: float, dmg: float, ammo: int, mag: int, reload_time: float) -> float:
+    if dmg <= 0.0 or mag <= 0:
+        return 0.0
+    var shots := ceili(hp / dmg)
+    return 0.0 if shots <= ammo else ceili(float(shots - ammo) / mag) * reload_time
 
 func _visible(h, o) -> bool:
     var q := PhysicsRayQueryParameters3D.create(h.eye_position(), o.global_position + Vector3(0, 1.1, 0))

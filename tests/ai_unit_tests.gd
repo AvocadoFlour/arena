@@ -9,6 +9,9 @@ func _ctx(o: Dictionary) -> Dictionary:
     return c
 
 func test_difficulty_presets_ordered() -> void:
+    check(is_equal_approx(BotBrain.breach_reload_time(300.0, 11.0, 24, 24, 1.5), 1.5), "28 shots from a 24 mag -> one reload")
+    check(BotBrain.breach_reload_time(300.0, 11.0, 30, 30, 1.5) == 0.0, "fits in the mag -> no reload")
+    check(not BotBrain.should_breach(300.0, 77.0, 6.0, 10.0, 60.0, 3.0), "reloads count against the budget")
     var e := BotBrain.new({"difficulty": "easy"})
     var n := BotBrain.new({"difficulty": "normal"})
     var h := BotBrain.new({"difficulty": "hard"})
@@ -221,6 +224,9 @@ func test_peek_side_styles() -> void:
     check(BotBrain.next_peek_side("random", 1.0, 0.2) == 1.0 and BotBrain.next_peek_side("random", 1.0, 0.8) == -1.0, "normal: random")
 
 func test_peek_timing_by_difficulty() -> void:
+    check(is_equal_approx(BotBrain.breach_reload_time(300.0, 11.0, 24, 24, 1.5), 1.5), "28 shots from a 24 mag -> one reload")
+    check(BotBrain.breach_reload_time(300.0, 11.0, 30, 30, 1.5) == 0.0, "fits in the mag -> no reload")
+    check(not BotBrain.should_breach(300.0, 77.0, 6.0, 10.0, 60.0, 3.0), "reloads count against the budget")
     var e := BotBrain.new({"difficulty": "easy"})
     var n := BotBrain.new({"difficulty": "normal"})
     var h := BotBrain.new({"difficulty": "hard"})
@@ -251,6 +257,19 @@ func test_cohesion_pull() -> void:
     check(BotBrain.cohesion(d, Vector3.ZERO, Vector3(0, 0, 4)) == d, "inside COHESION_R -> unchanged")
     var c := BotBrain.cohesion(d, Vector3.ZERO, Vector3(0, 0, 20))
     check(c.z > 0.5 and c.length() <= 1.0001, "far -> pulled toward the group (%s)" % c)
+
+func test_should_breach() -> void:
+    check(BotBrain.should_breach(300.0, 77.0, 6.0, 10.0, 60.0), "TT breaks a 300 HP wall in ~3.9 s")
+    check(not BotBrain.should_breach(300.0, 56.0, 3.0, 10.0, 22.0), "too slow for the budget")
+    check(not BotBrain.should_breach(300.0, 77.0, 0.0, 10.0, 60.0), "budget 0 (easy) never breaches")
+    check(not BotBrain.should_breach(300.0, 56.0, 8.0, 21.0, 22.0), "beyond 90 % of weapon range")
+    check(is_equal_approx(BotBrain.breach_reload_time(300.0, 11.0, 24, 24, 1.5), 1.5), "28 shots from a 24 mag -> one reload")
+    check(BotBrain.breach_reload_time(300.0, 11.0, 30, 30, 1.5) == 0.0, "fits in the mag -> no reload")
+    check(not BotBrain.should_breach(300.0, 77.0, 6.0, 10.0, 60.0, 3.0), "reloads count against the budget")
+    var e := BotBrain.new({"difficulty": "easy"})
+    var n := BotBrain.new({"difficulty": "normal"})
+    var h := BotBrain.new({"difficulty": "hard"})
+    check(e.breach_time < n.breach_time and n.breach_time < h.breach_time, "breach budget easy<normal<hard")
 
 func test_in_zone() -> void:
     var z := {"pos": Vector3(0, 2.5, 0), "size": Vector3(10, 3, 10)}
