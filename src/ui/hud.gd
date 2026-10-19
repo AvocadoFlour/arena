@@ -219,6 +219,14 @@ func _process(dt: float) -> void:
         return
     if hero_sfx != null:
         hero_sfx.player = player   # follows hero swaps (main.gd reassigns hud.player)
+    # kill feed / scoreboard / capture bars colour by relation to the local player: follow swaps + mode
+    kill_feed.player = player
+    kill_feed.mode = bar_mode()
+    if scoreboard != null:
+        scoreboard.player = player
+        scoreboard.mode = kill_feed.mode
+    if capture_widget != null:
+        capture_widget.player = player
     var fps := Engine.get_frames_per_second()
     fps_label.text = "FPS %d" % fps
     fps_samples.append(fps)

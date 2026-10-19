@@ -71,8 +71,9 @@ Tests: `tests/ui_round9_test.gd`.
 
 Miku queue 1: kill feed (top-right, `KillFeed`) entries are rows of killer name, ability badge
 (`KillFeed.ability_badge`: initials of the ability/weapon label in a HeroBadge-style circle, filled with the
-ability's def colour or the killer's hero colour, ringed in the killer's team colour), victim name. Names use
-team colours (`HeroBadge.TEAM_COLORS`); the local player's kills/deaths get a neutral white/grey bordered panel
+ability's def colour or the killer's hero colour, ringed in the killer's team colour), victim name. Names and the
+badge ring use TeamPalette colours seen from the local player (self blue, ally green, enemy red; FFA: all but self
+red), recoloured live (`KillFeed.recolor`, 4 Hz) on team change / hero swap; the local player's kills/deaths get a neutral white/grey bordered panel
 so the highlight never competes with team colours. 5 s lifetime, max 5, newest on top.
 Setting **Damage numbers** (`Settings.damage_numbers`, default on, `[hud] damage_numbers` in
 user://settings.cfg, toggle on the Settings page): off = HUD spawns no floating numbers (hit marker and sounds stay).
@@ -101,3 +102,9 @@ procedural "hit" (my hit marker) and "kill" (my kill). Tests: ui_round17_test.gd
 Overhead health bars / names (`hud.gd` `_update_bars`): coloured by relation to the local player with
 `team_palette.gd` (self blue, ally green, enemy red; FFA = every other hero red), from the authoritative
 `hero.team`, re-evaluated every frame. Tests: `tests/ui_round22_test.gd`.
+
+Team colours by relation (TeamPalette, one place): the kill feed (names + ability-badge ring), the score table
+(Tab scoreboard + match-end: own team panel green, other teams red, own row blue, other names/badge rings
+green/red; FFA all but self red) and the capture bars (own team green, other red, neutral grey, contested yellow)
+follow the local player like the overhead bars; the HUD keeps their `player` / `mode` current across hero swaps.
+Mode: host/offline MatchRules, else (client) capture zones on the map = Control (`TeamPalette.mode_near`).
