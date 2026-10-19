@@ -43,7 +43,7 @@ func _ready() -> void:
     walker.yaw = 0.0
     enemy = _hero(1, Vector3(-2, 0.2, -8))
     hider = _hero(0, Vector3(-9, 0.2, -2))
-    hider_brain = BotBrain.new({"use_abilities": false, "difficulty": "hard"})
+    hider_brain = BotBrain.new({"use_abilities": false, "difficulty": "hard", "use_packs": false})   # cover test (packs: ai_items_driver)
     hider.input_source = hider_brain
 
     _seed_all()
