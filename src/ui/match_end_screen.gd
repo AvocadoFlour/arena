@@ -13,7 +13,7 @@ extends CanvasLayer
 ## stretch canvas_items) or smaller. Cards have a real minimum width and wrap onto more rows when narrow.
 signal play_again
 signal main_menu
-const CARD_MIN := Vector2(270, 100)
+const CARD_MIN := Vector2(270, 96)
 const CARD_TEXT_MIN := 180.0    ## text column of a card (a wrapping label in a non-expanding box collapses to 1 px)
 const REASONS := {"score": "Target score reached", "forced": "Match over"}
 var banner: Label
@@ -38,7 +38,7 @@ func _highlight_card(hl: Dictionary) -> PanelContainer:
     var sb := StyleBoxFlat.new()
     sb.bg_color = Color(0.08, 0.11, 0.18, 0.95)
     sb.set_corner_radius_all(10)
-    sb.set_content_margin_all(12)
+    sb.set_content_margin_all(10)
     pc.add_theme_stylebox_override("panel", sb)
     var h := HBoxContainer.new()
     h.add_theme_constant_override("separation", 12)
@@ -71,13 +71,13 @@ func _ready() -> void:
     for side in ["left", "right"]:
         m.add_theme_constant_override("margin_" + side, 32)
     for side in ["top", "bottom"]:
-        m.add_theme_constant_override("margin_" + side, 20)
+        m.add_theme_constant_override("margin_" + side, 14)
     bg.add_child(m)
     var v := VBoxContainer.new()
-    v.add_theme_constant_override("separation", 10)
+    v.add_theme_constant_override("separation", 6)
     m.add_child(v)
     banner = MenuStyle.title("")
-    banner.add_theme_font_size_override("font_size", 60)
+    banner.add_theme_font_size_override("font_size", 54)
     v.add_child(banner)
     reason_l = MenuStyle.label("", 22)
     reason_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -89,7 +89,7 @@ func _ready() -> void:
     v.add_child(scroll)
     board = VBoxContainer.new()
     board.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    board.add_theme_constant_override("separation", 12)
+    board.add_theme_constant_override("separation", 8)
     scroll.add_child(board)
     highlights_row = HFlowContainer.new()
     highlights_row.name = "Highlights"
