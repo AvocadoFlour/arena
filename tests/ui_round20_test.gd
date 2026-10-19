@@ -1,6 +1,6 @@
 extends "res://tests/test_base.gd"
 ## HeroSfx per-hero/slot playback volume (VOLUME_GAIN): Cob / The Best left-click sounds at linear_to_db(0.6)
-## (60% amplitude), Niđo's at linear_to_db(0.36) (36%, about -8.87 dB), all else 0 dB.
+## (60% amplitude), Niđo's at linear_to_db(0.5) (50%, about -6.02 dB), all else 0 dB.
 var tree: SceneTree
 
 class MockHero extends RefCounted:
@@ -17,8 +17,8 @@ func _sfx(id: String) -> HeroSfx:
 
 func test_primary_volume_table_applied_on_play() -> void:
     var want := {"cob": "weapons/ric1.wav", "nidjo": "player/axhit1.wav", "the_best": "knight/sword1.wav"}
-    var gain := {"cob": 0.6, "nidjo": 0.36, "the_best": 0.6}
-    var approx_db := {"cob": -4.437, "nidjo": -8.874, "the_best": -4.437}
+    var gain := {"cob": 0.6, "nidjo": 0.5, "the_best": 0.6}
+    var approx_db := {"cob": -4.437, "nidjo": -6.021, "the_best": -4.437}
     for id in want:
         check(HeroSfx.path_for(id, "fire") == HeroSfx.BASE + want[id], id + " fire is " + want[id])
         check(HeroSfx.VOLUME_GAIN[id].fire == gain[id] and HeroSfx.volume_db_for(id, "fire") == linear_to_db(gain[id]), "%s fire %s amplitude in the table" % [id, gain[id]])
