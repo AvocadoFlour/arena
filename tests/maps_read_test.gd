@@ -1,6 +1,6 @@
 extends "res://tests/test_base.gd"
 ## Readability / snag pass (maps queue 2): ramp ends flush, arena01 cover variety, symmetric arena02 additions,
-## new blocks clear of gameplay data, golden = v0.9 golden + additions (one documented exception).
+## new blocks clear of gameplay data, golden = v0.9 golden + additions (three documented exceptions: arena01 ramp_07, arena02 ramp_18 + ramp_19).
 ## Physics checks (stuck points, snags, sightlines) live in tests/maps_snag_sim.gd and tests/maps_sight_sim.gd.
 
 const MAPS := ["arena01.json", "arena02.json"]

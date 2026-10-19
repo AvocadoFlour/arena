@@ -226,3 +226,93 @@ Requests:
    half wall / slab and the arena02 low walls as `cover` (better bot cover use). The flipped dais ramps change mid
    pathing slightly; teamplay still passes at seed 4242, but it remains a single-seed check (see queue 3 note).
 2. **Core (FYI)**: no hooks needed. INTERFACES §6 could note "ramp ends must be flush (≤ 0.1 m)" and the scan tools.
+
+## Maps queue (1.0) item 3 — out-of-bounds kill volumes + fall recovery (maps side done; works offline/host now)
+`src/maps/map_bounds.gd` (`MapBounds`, map root child `Bounds`, added by `MapLoader.build` on every map, also in low
+quality; no physics bodies, no visuals, collision golden unchanged). Host/offline `step(heroes)` in its own
+`_physics_process` over group `heroes` (same pattern as `Objects`); clients no-op. Map JSON (proposed INTERFACES §6 key):
+```json
+"out_of_bounds": {
+  "bounds":  {"min": [x, y, z], "max": [x, y, z]},      // x/z = inside faces of the outer walls, min.y = kill plane, max.y = ceiling
+  "below":   {"mode": "recover"|"kill", "damage": 10},  // feet below min.y
+  "outside": {"mode": "recover"|"kill", "damage": 10},  // outside the walls in x/z, or above the ceiling
+  "credit_window": 4.0,
+  "volumes": [{"id", "pos", "size", "mode", "damage"?, "stand"?: bool, "dwell"?: s}]
+}
+```
+- recover: teleport to the nearest safe point (1 m MapGrid inside the box; flat, 0.8 m clear of every block, reachable
+  from the spawns; never in spawn rooms/barriers/spawn areas/zones/pickups/pads/volumes or next to a spawn; not on a point
+  another living hero stands on) nearest the hero's last in-bounds position; velocity and dash reset; then `damage`
+  via `take_damage(d, credit_if_lethal, pos, "fall")`. kill: `take_damage(1e6, credit, pos, "fall")`; if refused
+  (immune/shielded) the hero is recovered instead. No safe point (broken data) -> kill.
+- Credit: Bounds listens to `Events.damage_dealt` (host) and credits the last ENEMY that damaged the hero within
+  `credit_window` s (else killer = null = environment). Non-lethal penalties are never credited (no ult charge).
+- Signal `out_of_bounds({hero, mode, reason: below|outside|ceiling|volume, volume_id, from, to, damage, credit, killed})`,
+  also emitted on `Events.out_of_bounds` once that signal exists.
+- Data: arena01 box ±20 × ±20, kill plane −3, ceiling 10; arena02 box ±40 × ±32, −3, ceiling 14. Both maps: below/outside
+  = recover, 10 damage (the floors are solid, so falling under them is a clip, not a pit; there are no real pits/void, so
+  no kill volumes in current data; mode "kill" is supported and tested on a synthetic pit). Stand-only recover volumes
+  (|vy| < 0.5 for 0.25 s, so flying past never counts): a 0.7 m rim inside each outer wall from 0.3 m below the wall top
+  to the ceiling (perching on the wall edge), and on arena02 the 8 spawn-room wall tops (no camping above a spawn).
+- Findings (tests/maps_oob_sim.gd, Jolt, Tomo-sized capsules): jump pads never leave bounds (8 + 16 launches, holding air
+  control in 8 directions). A Force Push (15 m/s + 5.5 lift) on a standing hero never needs a recovery on either map,
+  but a hero that JUMPS at the moment of the push (8.8 + 5.5 up) next to arena01's 4.5 m outer walls clears the wall:
+  130 / 181 such worst-case pushes on arena01 and 16 / 1117 on arena02 (from the spires) left the box and were all
+  recovered the same tick; every probe ends standing inside. Ceiling: highest walkable surface + strongest stacked launch
+  (arena01 7.8 m, arena02 11.8 m) stays below it (tested).
+
+Requests:
+1. **Core (event/net hook)**: add `signal out_of_bounds(ev)` to Events (payload above; `hero`, `credit` as heroes) and put it
+   in `Net.EVENT_SIGNALS` (reliable) so clients can play an FX/sound and the UI can show "Out of bounds". On the client
+   whose own predicted hero was recovered (`mode == "recover"`), hard-snap prediction to `ev.to` (clear the input replay
+   buffer) instead of a smoothed correction; until then normal reconciliation snaps it (> 0.15 m) one RTT later.
+2. **Core (credit)**: kills go through `take_damage(..., kind "fall")`, so `Events.killed.killer` is already the last enemy
+   within 4 s (or null). If core adds its own last-attacker tracking (e.g. `hero.last_attacker(window)`), Bounds can use
+   it instead of listening to `damage_dealt`. A lethal credited penalty also charges the pusher's ult through
+   `on_damage_dealt`; say if "fall" damage should not charge ult and I'll pass the credit only to `killed` (needs a core
+   hook to set the killer without the damage source).
+3. **Core (FYI)**: `hero.gd` still kills at y < −25 (kind "fall"); Bounds recovers at −3 first, so that is only a backstop.
+   The spawn shield, once hooked into damage, makes kill-mode volumes fall back to recovery for shielded heroes (by design).
+4. **UI (optional)**: kill feed already handles kind "fall"; a credited fall could read "<killer> knocked <victim> off".
+5. **AI (FYI)**: bots never walk into any volume (all walkable surfaces are in bounds, tested); a recovered bot just
+   re-plans from its new position.
+6. **INTERFACES §6**: document the `out_of_bounds` key and the `Bounds` child (text above).
+
+## Maps queue (1.0) item 4 — perf pass (maps side done; 60 fps in low quality is NOT reachable from maps code)
+Changes (visual output unchanged: fixed-camera renders master vs branch are pixel-identical in normal quality and
+within 1/255 in low quality, `tests/maps_still_render.gd`; collision golden unchanged):
+- Static blocks: one merged MeshInstance3D per (material, shadow) under map child `Blocks` (`blocks_<mat>_<s|n>`,
+  meta `block_count`); block StaticBody3Ds keep collision, names, metas (`mesh_group` = their merged mesh). Destructible
+  cover keeps its own mesh + hull (it is freed on break). Block meshes 18 -> 6 (arena01) and 60 -> 15 (arena02); map
+  geometry instances 45 -> 33 / 36 -> 24 lq (arena01), 98 -> 53 / 85 -> 40 lq (arena02).
+- Low quality: palette materials use `src/maps/toon/map_toon_lq.gdshader` (unshaded, 2-tone decided per vertex from
+  `sun_to`, sRGB-exact match of the lit shader's shadow tone/emission), so the map skips the light pass. Normal quality
+  keeps `map_toon.gdshader`.
+- Host scripts per 60 Hz tick, 10 heroes on arena02: SpawnRooms ~50 us, Bounds ~26 us, Objects ~13 us, CaptureZone
+  ~2 us (~0.1 ms total, < 1 % of a 16.7 ms frame): no caching needed (tested < 1 ms).
+Measured (Linux export, Xvfb 1280x720, opengl3, screenshot run --delay=6, fps_avg, master vs branch interleaved, 3 runs
+each; load average 4-7 on 8 cores from other bots' sims during the runs, so ±15 % noise):
+| map / quality | master | branch |
+|---|---|---|
+| arena01 normal | 30.2 / 24.2 / 24.3 (26.2) | 29.0 / 29.0 / 26.9 (28.3) |
+| arena01 low    | 55.6 / 56.0 / 51.3 (54.3) | 54.0 / 52.0 / 50.6 (52.2) |
+| arena02 normal | 23.8 / 24.6 / 24.5 (24.3) | 22.4 / 22.5 / 23.9 (22.9) |
+| arena02 low    | 31.3 / 43.4 / 45.3 (40.0) | 43.0 / 44.8 / 41.8 (43.2) |
+What limits it (`tests/maps_perf_probe.gd`, paired windows "all" vs "X hidden", arena02, low quality): hiding the
+whole map +1..5 % fps, the sky +4 %, but hiding the heroes +63..71 % (10 toon GLB heroes ≈ 60-80k of ~80k primitives
+in frame) and hiding the HUD CanvasLayers +31..34 %. Normal quality: whole map +79 % (sun shadows + props + fog; kept,
+no visual regression allowed), heroes +82 %.
+
+Requests:
+1. **Heroes**: low-quality hero path (the dominant cost): a low-poly LOD / decimated GLB or fewer outline hulls for
+   heroes beyond ~15 m, `visibility_range_end` on hero outline meshes, and skipping per-frame tail/cape bone sim in low
+   quality. Hiding all heroes takes arena02 low quality from ~40 to ~65-75 fps.
+2. **UI**: HUD costs ~30 % of the frame under software GL (hiding the CanvasLayers +31-34 %): check per-frame redraws
+   (labels/minimap/ability icons rebuilt every frame?) and update them only on change; consider fewer transparent
+   panels in low quality.
+3. **Core (FYI)**: `window/vsync/vsync_mode=1`; arena01 low quality sits at ~55 fps, close to a 60 Hz cap, so a
+   "60 fps" target should be measured with vsync off (`--disable-vsync`) to see headroom. Running
+   `tests/maps_perf_probe.gd` with `-s` logs a UI parse error ("StatLabels not declared", class cache order in
+   script mode); harmless for the probe but worth a look.
+4. **INTERFACES §6**: note the `Blocks` merged meshes (block bodies have no MeshInstance3D child unless destructible;
+   use `mesh_group` meta) and the low-quality shader.

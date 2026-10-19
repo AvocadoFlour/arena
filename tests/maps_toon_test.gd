@@ -6,6 +6,13 @@ const MAPS := ["arena01.json", "arena02.json"]
 func _golden() -> Dictionary:
     return JSON.parse_string(FileAccess.get_file_as_string("res://tests/maps_collision_golden.json"))
 
+## The visual of block i: its merged "Blocks/blocks_<mat>_<s|n>" mesh, or its own MeshInstance3D (destructible).
+static func block_mesh(m: Node, i: int, b: Dictionary) -> MeshInstance3D:
+    var body: Node = m.get_node("%s_%02d" % [b.kind, i])
+    if body.has_meta("mesh_group"):
+        return m.get_node("Blocks/" + String(body.get_meta("mesh_group")))
+    return body.find_children("*", "MeshInstance3D", false, false)[0]
+
 func test_toon_materials_from_palette() -> void:
     for f in MAPS:
         var d: Dictionary = MapLoader.load_def("res://src/maps/" + f)
@@ -13,7 +20,7 @@ func test_toon_materials_from_palette() -> void:
         var m := MapLoader.build("res://src/maps/" + f, {"low_quality": false})
         for i in d.blocks.size():
             var b: Dictionary = d.blocks[i]
-            var mi: MeshInstance3D = m.get_node("%s_%02d" % [b.kind, i]).find_children("*", "MeshInstance3D", false, false)[0]
+            var mi: MeshInstance3D = block_mesh(m, i, b)
             var mat: Material = mi.material_override
             check(mat is ShaderMaterial and mat.shader == MapLoader.MAP_TOON, "%s block %d uses map toon shader" % [f, i])
             check(MapLoader.mat_color(mat) == Color(String(d.materials[b.mat].color)), "%s block %d colour from palette" % [f, i])

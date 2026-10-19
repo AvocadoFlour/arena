@@ -17,6 +17,18 @@
   "jump_pads": [
     {"pos": [6.5, 0, -8], "size": [2, 1, 2], "launch": [-4, 13, 0]}
   ],
+  "out_of_bounds": {
+    "bounds": {"min": [-20, -3, -20], "max": [20, 10, 20]},
+    "below": {"mode": "recover", "damage": 10},
+    "outside": {"mode": "recover", "damage": 10},
+    "credit_window": 4.0,
+    "volumes": [
+      {"id": "rim_n", "pos": [0, 7.1, -19.65], "size": [40, 5.8, 0.7], "mode": "recover", "damage": 10, "stand": true, "dwell": 0.25},
+      {"id": "rim_s", "pos": [0, 7.1, 19.65], "size": [40, 5.8, 0.7], "mode": "recover", "damage": 10, "stand": true, "dwell": 0.25},
+      {"id": "rim_w", "pos": [-19.65, 7.1, 0], "size": [0.7, 5.8, 40], "mode": "recover", "damage": 10, "stand": true, "dwell": 0.25},
+      {"id": "rim_e", "pos": [19.65, 7.1, 0], "size": [0.7, 5.8, 40], "mode": "recover", "damage": 10, "stand": true, "dwell": 0.25}
+    ]
+  },
   "blocks": [
     {"kind": "floor", "pos": [0, -0.5, 0], "size": [40, 1, 40], "color": "#5a6070", "grid": true, "mat": "floor"},
     {"kind": "wall", "pos": [0, 2, -20.5], "size": [42, 5, 1], "color": "#3a3f4c", "mat": "wall"},
