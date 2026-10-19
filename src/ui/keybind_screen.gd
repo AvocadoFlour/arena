@@ -2,7 +2,13 @@ class_name KeybindScreen
 extends Control
 ## Rebinding screen: one large row per action; click, then press a key / mouse button.
 ## Esc cancels capture. Saves to user://keybinds.cfg immediately.
+## `read_only` (set before adding): the Esc overlay's "Controls" reference page: every action with all
+## its current bindings (re-read when shown and every frame while visible, so a rebind shows at once),
+## no capture, and a "Change key bindings" button that emits rebind_requested (opens this screen).
 signal back
+signal rebind_requested
+var read_only := false
+var values := {}   ## read-only: action -> Label
 var buttons := {}
 var waiting := ""
 var status: Label
@@ -16,7 +22,7 @@ func _ready() -> void:
     v.add_theme_constant_override("separation", 10)
     m.add_child(v)
     v.add_child(MenuStyle.title("Controls"))
-    status = MenuStyle.label("Click an action, then press a key or mouse button. Esc cancels.", 18)
+    status = MenuStyle.label("Current key bindings." if read_only else "Click an action, then press a key or mouse button. Esc cancels.", 18)
     v.add_child(status)
     var scroll := ScrollContainer.new()
     scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -32,18 +38,33 @@ func _ready() -> void:
         var l := MenuStyle.label(Keybinds.pretty(a), 22)
         l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
         grid.add_child(l)
+        if read_only:
+            var val := MenuStyle.label("", 22)
+            val.custom_minimum_size.x = 260
+            val.add_theme_color_override("font_color", MenuStyle.ACCENT)
+            grid.add_child(val)
+            values[a] = val
+            continue
         var b := MenuStyle.button("", func(): _start(a))
         b.custom_minimum_size.x = 260
         grid.add_child(b)
         buttons[a] = b
     var row := HBoxContainer.new()
     row.add_theme_constant_override("separation", 16)
-    row.add_child(MenuStyle.button("Reset defaults", func(): Keybinds.reset_defaults(); Keybinds.save(); refresh()))
+    if read_only:
+        var ch := MenuStyle.button("Change key bindings", func(): rebind_requested.emit())
+        ch.name = "ChangeKeyBindings"
+        row.add_child(ch)
+    else:
+        row.add_child(MenuStyle.button("Reset defaults", func(): Keybinds.reset_defaults(); Keybinds.save(); refresh()))
     row.add_child(MenuStyle.button("Back", func(): waiting = ""; back.emit()))
     v.add_child(row)
+    visibility_changed.connect(refresh)
     refresh()
 
 func refresh() -> void:
+    for a in values:
+        values[a].text = Keybinds.bindings_text(a)
     for a in buttons:
         buttons[a].text = "Press a key..." if a == waiting else Keybinds.binding_text(a)
 
@@ -53,7 +74,7 @@ func _start(a: String) -> void:
 
 ## Feed a captured event (also used by tests). Returns true if consumed.
 func capture(ev: InputEvent) -> bool:
-    if waiting == "" or not ev.is_pressed() or ev.is_echo():
+    if read_only or waiting == "" or not ev.is_pressed() or ev.is_echo():
         return false
     if ev is InputEventKey and (ev.physical_keycode == KEY_ESCAPE or ev.keycode == KEY_ESCAPE):
         waiting = ""
@@ -68,6 +89,10 @@ func capture(ev: InputEvent) -> bool:
     refresh()
     return true
 
+func _process(_dt: float) -> void:
+    if read_only and is_visible_in_tree():
+        refresh()
+
 func _input(ev: InputEvent) -> void:
-    if visible and capture(ev):
+    if visible and not read_only and capture(ev):
         get_viewport().set_input_as_handled()

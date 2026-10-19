@@ -41,6 +41,11 @@ static func binding_text(action: String) -> String:
     var evs := InputMap.action_get_events(action)
     return event_text(evs[0]) if evs.size() > 0 else "-"
 
+## Every binding of an action, e.g. "Shift, Mouse Right" ("-" if none).
+static func bindings_text(action: String) -> String:
+    var evs := InputMap.action_get_events(action) if InputMap.has_action(action) else []
+    return ", ".join(evs.map(func(e): return event_text(e))) if evs.size() > 0 else "-"
+
 static func _same(a: InputEvent, b: InputEvent) -> bool:
     if a is InputEventKey and b is InputEventKey:
         return a.physical_keycode == b.physical_keycode
