@@ -49,8 +49,10 @@ func test_rows_per_hero_live_keys_and_ability_names() -> void:
         check(_row(r, "Look").size() == 3 and _row(r, "Jump")[1] == "SPACE", id + " look + jump")
         for slot in ["primary", "ability1", "ability2", "ultimate"]:
             var want_name := String(AbilityInfo.describe(id, slot, d).name)
+            if want_name == AbilityInfo.SLOT_LABELS[slot]:
+                want_name = ""   # e.g. a weapon simply named "Primary": not repeated
             var row := _row(r, AbilityInfo.SLOT_LABELS[slot])
-            check(row.size() == 3 and row[1] == Hud.key_label(AbilityInfo.SLOT_ACTIONS[slot]) and row[2] == want_name and want_name != "",
+            check(row.size() == 3 and row[1] == Hud.key_label(AbilityInfo.SLOT_ACTIONS[slot]) and row[2] == want_name and (want_name != "" or slot == "primary"),
                 "%s %s: %s" % [id, slot, str(row)])
         check(_row(r, "Ability 1")[1] == "SHIFT" and _row(r, "Ability 2")[1] == "E" and _row(r, "Ultimate")[1] == "Q"
             and _row(r, "Primary")[1] == "MOUSE LEFT", id + " default keys")
@@ -181,6 +183,8 @@ func test_esc_controls_page_lists_every_action_live() -> void:
     check(b != null and b.custom_minimum_size.y >= 64, "Controls button in the Esc overlay")
     b.pressed.emit()
     check(pm.controls_open() and not pm.panel.visible, "Controls page open")
+    check(pm.controls_page.anchor_right == 1.0 and pm.controls_page.anchor_bottom == 1.0 and pm.controls_page.offset_right == 0.0
+        and pm.controls_bg.anchor_bottom == 1.0, "page fills the screen")
     var page := pm.controls_page
     check(page.read_only and page.buttons.is_empty(), "read-only: no capture buttons")
     for a in Keybinds.actions():
