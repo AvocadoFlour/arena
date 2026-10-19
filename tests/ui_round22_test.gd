@@ -84,6 +84,7 @@ func test_control_self_ally_enemy() -> void:
     _is(hud, ally, "ally", "control ally")
     _is(hud, foe, "enemy", "control enemy")
     check(_bar(hud, ally).get_child(1).scale.x == 0.5, "fill still follows health")
+    check(is_equal_approx(_bar(hud, me).scale.x, TeamPalette.SELF_SCALE) and _bar(hud, ally).scale.x == 1.0, "own bar smaller")
     for n in [hud, me, ally, foe, root]:
         n.free()
 

@@ -8,6 +8,7 @@ const ALLY := Color("#3ee07a")    ## green
 const ENEMY := Color("#ff4848")   ## red
 const OUTLINE := Color(0, 0, 0, 0.9)   ## name text outline (readable on sky, walls and floor)
 const OUTLINE_SIZE := 12
+const SELF_SCALE := 0.6   ## the local player's own bar is drawn smaller: it is right in front of the third-person camera
 const COLORS := {"self": SELF, "ally": ALLY, "enemy": ENEMY}
 
 static func color(rel: String) -> Color:

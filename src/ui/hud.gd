@@ -282,6 +282,7 @@ static func set_bar_relation(b: Node3D, rel: String) -> void:
     if b.get_meta("relation", "") == rel:
         return
     b.set_meta("relation", rel)
+    b.scale = Vector3.ONE * (TeamPalette.SELF_SCALE if rel == "self" else 1.0)   # own bar sits near the camera
     var c := TeamPalette.color(rel)
     ((b.get_child(1) as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = c
     var name_l: Label3D = b.get_child(2)
