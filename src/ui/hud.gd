@@ -212,7 +212,7 @@ func set_gameplay_visible(on: bool) -> void:
         c.visible = on
     for h in _bars:
         if is_instance_valid(_bars[h]):
-            _bars[h].visible = on and is_instance_valid(h) and not h.dead
+            _bars[h].visible = on and is_instance_valid(h) and not ("dead" in h and h.dead)
 
 func _process(dt: float) -> void:
     if not player or gameplay_hidden:
