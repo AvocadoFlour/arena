@@ -37,6 +37,24 @@ static func from_def(d: Dictionary, cell_size := 0.5) -> MapGrid:
             g.columns.append(g._column(g.cell_pos(ix, iz)))
     return g
 
+## Same grid restricted to the rectangle [mn, mx] (x, z) — cheap enough to build at map load
+## (MapBounds safe points); from_def covers the blocks' bounding circles, which is ~4x the playable area.
+static func from_def_region(d: Dictionary, cell_size: float, mn: Vector2, mx: Vector2) -> MapGrid:
+    var g := MapGrid.new()
+    g.cell = cell_size
+    for b in d.get("blocks", []):
+        var rot: Array = b.get("rot_deg", [0, 0, 0])
+        var basis := Basis.from_euler(Vector3(deg_to_rad(rot[0]), deg_to_rad(rot[1]), deg_to_rad(rot[2])), EULER_ORDER_YXZ)
+        g._obbs.append({"c": Vector3(b.pos[0], b.pos[1], b.pos[2]), "b": basis,
+            "e": Vector3(b.size[0], b.size[1], b.size[2]) * 0.5})
+    g.origin = mn
+    g.nx = int(floor((mx.x - mn.x) / cell_size + 1e-6)) + 1
+    g.nz = int(floor((mx.y - mn.y) / cell_size + 1e-6)) + 1
+    for iz in g.nz:
+        for ix in g.nx:
+            g.columns.append(g._column(g.cell_pos(ix, iz)))
+    return g
+
 func cell_pos(ix: int, iz: int) -> Vector2:
     return origin + Vector2(ix, iz) * cell
 
