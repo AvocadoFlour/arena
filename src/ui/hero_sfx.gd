@@ -30,10 +30,11 @@ const HERO := {
 }
 ## Playback level per hero/slot as a linear amplitude gain, converted when the sound plays
 ## (AudioStreamPlayer.volume_db = linear_to_db(gain)); missing entries and cues play at 1.0 (0 dB).
-## The left-click sounds below were too loud next to the rest (user request): 60% amplitude (about -4.44 dB).
+## The left-click sounds below were too loud next to the rest (user request): Cob and The Best at 60% amplitude
+## (about -4.44 dB), Niđo at 36% (about -8.87 dB).
 const VOLUME_GAIN := {
     "cob": {"fire": 0.6},        # weapons/ric1
-    "nidjo": {"fire": 0.6},      # player/axhit1
+    "nidjo": {"fire": 0.36},     # player/axhit1
     "the_best": {"fire": 0.6},   # knight/sword1
 }
 const CUES := {"hit_me": "player/pain1.wav", "hit_teammate": "player/pain5.wav",
