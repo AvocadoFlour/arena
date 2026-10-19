@@ -14,12 +14,30 @@ static func build(path: String, opts: Dictionary = {}) -> Node3D:
     var grid := _grid_tex()
     var theme: Dictionary = d.get("theme", {})
     var mats := _materials(d.get("materials", {}), grid, bool(theme.get("toon", false)))
+    if lq:
+        mats = _lq_materials(mats, theme)   # unshaded 2-tone toon path (no light pass; shadows are off anyway)
+    var merged := {}    # (material, shadow) key -> {st, mat, shadow, n}; static block meshes, one draw call each
+    var morder: Array = []
     var i := 0
     var destruction := MapDestruction.new()
     destruction.name = "Destruction"
     destruction.map_name = String(d.get("name", "Map"))
     for b in d.get("blocks", []):
-        var body := _box(b, grid, mats)
+        var mergeable := mergeable_block(b, mats)
+        var body := _box(b, grid, mats, not mergeable)
+        if mergeable:
+            var shadow := String(b.get("kind", "")) != "floor"
+            var key := "%s_%s" % [String(b.mat), "s" if shadow else "n"]
+            if not merged.has(key):
+                var st := SurfaceTool.new()
+                st.begin(Mesh.PRIMITIVE_TRIANGLES)
+                merged[key] = {"st": st, "mat": mats[b.mat], "shadow": shadow, "n": 0}
+                morder.append(key)
+            var bm := BoxMesh.new()
+            bm.size = _v(b.size)
+            merged[key].st.append_from(bm, 0, body.transform)
+            merged[key].n += 1
+            body.set_meta("mesh_group", "blocks_" + key)
         body.name = "%s_%02d" % [String(b.get("kind", "block")), i]   # unique, keeps kind prefix (AI finds "cover")
         body.set_meta("kind", String(b.get("kind", "block")))
         body.set_meta("block_id", i)
@@ -34,6 +52,19 @@ static func build(path: String, opts: Dictionary = {}) -> Node3D:
         root.add_child(body)
         i += 1
     root.add_child(destruction)
+    if not morder.is_empty():
+        var bl := Node3D.new()
+        bl.name = "Blocks"
+        for key in morder:
+            var g: Dictionary = merged[key]
+            var mi := MeshInstance3D.new()
+            mi.name = "blocks_" + key
+            mi.mesh = g.st.commit()
+            mi.material_override = g.mat
+            mi.set_meta("block_count", g.n)
+            mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if g.shadow else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+            bl.add_child(mi)
+        root.add_child(bl)
     if d.has("pickups") or d.has("jump_pads"):
         root.add_child(MapObjects.from_def(d))
     if SpawnRooms.has_data(d):
@@ -79,7 +110,31 @@ static func build(path: String, opts: Dictionary = {}) -> Node3D:
 static func _v(a) -> Vector3:
     return Vector3(a[0], a[1], a[2])
 
-static func _box(b: Dictionary, grid: Texture2D, mats: Dictionary = {}) -> StaticBody3D:
+## Static block whose visual can live in the merged "Blocks" meshes: palette toon material (world-space
+## pattern, so merging changes no pixel) and never removed at runtime (destructible cover keeps its own mesh).
+static func mergeable_block(b: Dictionary, mats: Dictionary) -> bool:
+    return b.has("mat") and mats.has(b.mat) and mats[b.mat] is ShaderMaterial and not is_destructible(b)
+
+static func _lq_materials(mats: Dictionary, theme: Dictionary) -> Dictionary:
+    var r: Array = theme.get("sun_rot", [-55, -35, 0])
+    var sun_to := Basis.from_euler(_v(r) * (PI / 180.0)) * Vector3(0, 0, 1)   # DirectionalLight3D shines along -Z
+    var out := {}
+    for k in mats:
+        var m: Material = mats[k]
+        if m is ShaderMaterial and (m as ShaderMaterial).shader == MAP_TOON:
+            var q := ShaderMaterial.new()
+            q.shader = MAP_TOON_LQ
+            for pn in ["albedo", "shade", "pattern", "use_pattern", "pattern_scale", "emission", "emission_energy"]:
+                var v = m.get_shader_parameter(pn)
+                if v != null:
+                    q.set_shader_parameter(pn, v)
+            q.set_shader_parameter("sun_to", sun_to)
+            out[k] = q
+        else:
+            out[k] = m
+    return out
+
+static func _box(b: Dictionary, grid: Texture2D, mats: Dictionary = {}, with_mesh := true) -> StaticBody3D:
     var body: StaticBody3D = DestructibleCover.new() if is_destructible(b) else StaticBody3D.new()
     body.name = String(b.get("kind", "block"))
     var size := _v(b.size)
@@ -88,6 +143,11 @@ static func _box(b: Dictionary, grid: Texture2D, mats: Dictionary = {}) -> Stati
     bs.size = size
     cs.shape = bs
     body.add_child(cs)
+    body.position = _v(b.pos)
+    if b.has("rot_deg"):
+        body.rotation_degrees = _v(b.rot_deg)
+    if not with_mesh:
+        return body
     var mi := MeshInstance3D.new()
     var bm := BoxMesh.new()
     bm.size = size
@@ -106,9 +166,6 @@ static func _box(b: Dictionary, grid: Texture2D, mats: Dictionary = {}) -> Stati
     if String(b.get("kind", "")) == "floor":
         mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF   # receives only; nothing below it
     body.add_child(mi)
-    body.position = _v(b.pos)
-    if b.has("rot_deg"):
-        body.rotation_degrees = _v(b.rot_deg)
     return body
 
 ## Visual-only theme (optional "theme" key). Defaults reproduce the v0.1 look.
@@ -297,6 +354,7 @@ static func _outlined(e: Dictionary, mdefs: Dictionary) -> bool:
     return true
 
 const MAP_TOON := preload("res://src/maps/toon/map_toon.gdshader")
+const MAP_TOON_LQ := preload("res://src/maps/toon/map_toon_lq.gdshader")
 
 static func _toon_mat(m: Dictionary, texs: Dictionary) -> ShaderMaterial:
     var mat := ShaderMaterial.new()
