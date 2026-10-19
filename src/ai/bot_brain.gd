@@ -189,12 +189,8 @@ func _consider_pack(h) -> void:
     var want := (minf(pack_hp_frac, low_hp_frac) if grouped else pack_hp_frac) if fighting else (0.6 if grouped else 0.8)
     if frac >= want or h.health.max_hp - h.health.hp < 20.0:
         return
-    if grouped and _healer_near(h, 20.0):
-        return   # a teammate's heal beam is close: stay with the group
     var holding: bool = team_play and BotTeam.is_tank(h) and objective_zone(h) != null
-    var max_eta := minf(pack_max_eta, 4.0) if holding else (pack_max_eta if fighting else pack_max_eta * 1.5)
-    if grouped:
-        max_eta *= 0.6
+    var max_eta := minf(pack_max_eta, 4.0) if holding else (pack_max_eta if fighting or grouped else pack_max_eta * 1.5)
     var best = _best_pack(h, max_eta, rally_point(h) if grouped else null)
     if best == null:
         return
@@ -207,17 +203,9 @@ func _consider_pack(h) -> void:
             if blk != null:
                 var cp := BotNav.cover_point(blk, target.global_position)
                 cover_eta = Vector2(cp.x - h.global_position.x, cp.z - h.global_position.z).length() / _speed(h)
-        if not BotItems.pack_beats_cover(best.cost, max_eta, cover_eta, 1.0 if grouped else 4.0):
+        if not BotItems.pack_beats_cover(best.cost, max_eta, cover_eta):
             return
     _start_pack(h, best)
-
-func _healer_near(h, r: float) -> bool:
-    for m in BotTeam.mates(h):
-        if not m.dead and h.global_position.distance_to(m.global_position) < r:
-            for s in ["ability1", "ability2", "ultimate"]:
-                if slot_type(m, s) == "heal_beam":
-                    return true
-    return false
 
 func _speed(h) -> float:
     return maxf(1.0, float(h.move_cfg.get("speed", 7.0)) if "move_cfg" in h else 7.0)
