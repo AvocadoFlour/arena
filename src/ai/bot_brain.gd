@@ -186,12 +186,11 @@ func _consider_pack(h) -> void:
     var frac: float = h.health.hp / h.health.max_hp
     var fighting: bool = target != null
     var grouped: bool = team_play and not BotTeam.mates(h).is_empty()   # team play: don't leave the group to top up
-    var want := (minf(pack_hp_frac, low_hp_frac) if grouped else pack_hp_frac) if fighting else (0.6 if grouped else 0.8)
-    if frac >= want or h.health.max_hp - h.health.hp < 20.0:
+    if frac >= (pack_hp_frac if fighting else (0.6 if grouped else 0.8)) or h.health.max_hp - h.health.hp < 20.0:
         return
     var holding: bool = team_play and BotTeam.is_tank(h) and objective_zone(h) != null
     var max_eta := minf(pack_max_eta, 4.0) if holding else (pack_max_eta if fighting or grouped else pack_max_eta * 1.5)
-    var best = _best_pack(h, max_eta, rally_point(h) if grouped else null)
+    var best = _best_pack(h, max_eta)
     if best == null:
         return
     if fighting and seek_cover:
@@ -210,8 +209,7 @@ func _consider_pack(h) -> void:
 func _speed(h) -> float:
     return maxf(1.0, float(h.move_cfg.get("speed", 7.0)) if "move_cfg" in h else 7.0)
 
-## `rally`: team play group point; packs far from it cost the extra time spent away from the group.
-func _best_pack(h, max_eta: float, rally = null):
+func _best_pack(h, max_eta: float):
     var objs := BotItems.objects(_map_root)
     if objs == null:
         return null
@@ -237,8 +235,6 @@ func _best_pack(h, max_eta: float, rally = null):
                 danger += 1
         var nearer: bool = target != null and is_instance_valid(target) and target.global_position.distance_to(p.pos) < h.global_position.distance_to(p.pos)
         var c := BotItems.pack_cost(eta, bool(p.active), float(p.left), danger, nearer)
-        if rally != null:
-            c += maxf(0.0, Vector2(p.pos.x - rally.x, p.pos.z - rally.z).length() - 8.0) / spd
         if c <= max_eta and (best == null or c < best.cost):
             best = {"pack": p, "cost": c, "eta": eta}
     return best
