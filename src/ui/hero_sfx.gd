@@ -69,7 +69,7 @@ const MAX_DISTANCE := 0.0          ## 0 = no hard cutoff
 const MAX_DB := 0.0                ## closest a normal remote sound gets: never louder than the local player's own
 const NO_FILTER_HZ := 20500.0      ## distance low-pass off (no processing)
 ## Shortest gap between two plays of the same key (seconds).
-const MIN_GAP := {"fire": 0.09, "ability1": 0.1, "ability2": 0.1, "ultimate": 0.1, "ult_ready": 1.0,
+const MIN_GAP := {"fire": 0.09, "ability1": 0.1, "ability2": 0.1, "ability3": 0.1, "ultimate": 0.1, "ult_ready": 1.0,
     "hit_me": 0.35, "hit_teammate": 0.6, "team_kill": 0.25, "teammate_killed": 0.25}
 const FIRE_GAP := {"tomo": 0.3}   ## per-hero override: Packet Burst = one sound per burst
 var pool_size := DEFAULT_POOL      ## set before adding to the tree
@@ -281,7 +281,7 @@ func play_cue(cue: String) -> bool:
     return _play(cue, cue_path(cue), float(MIN_GAP.get(cue, 0.3)))
 
 func on_ability_used(hero, slot: String, _ability_id := "") -> void:
-    if _valid(hero) and slot in ["ability1", "ability2", "ultimate"]:
+    if _valid(hero) and slot in ["ability1", "ability2", "ability3", "ultimate"]:   # ability3: silent until mapped
         play_hero(slot, hero)
 
 ## hit_me: an enemy damaged me. hit_teammate: an enemy damaged a living teammate (not me). Kills are left to on_kill.
