@@ -100,3 +100,8 @@ UI can call it directly; nothing to wire in core. See src/heroes/README.md.
 can stop a one-shot; keys stack multiplicatively, same key refreshes (max frac / max time); cleared by `clear_buffs()`.
 Niđo's Rollback now uses it (no next-tick refund). Please document it in INTERFACES. Not replicated (HP is); if the
 HUD wants a DR indicator on clients, net.gd would need to send `damage_taken_mult()` (core).
+
+## Oct 19: burst fire built into hero.gd (tomo.md #1 done) - for the lead (INTERFACES §2.1)
+`primary.burst` (> 1 rounds per burst) and `primary.burst_delay` (s between bursts; `fire_rate` = rate inside a burst).
+`Hero._build` creates a `BurstWeapon` for it; `_physics_process` calls `BurstWeapon.continue_burst(self)` each auth tick
+before the fire input, so a started burst completes. Hotfix (blink.gd) no longer installs/drives it. Please document.

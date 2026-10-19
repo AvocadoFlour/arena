@@ -167,3 +167,17 @@ func test_breakpoint_visual() -> void:
     check(v != null and v.get_child_count() == 3, "marker visual")
     check(v.find_children("*", "CollisionObject3D", true, false).is_empty(), "visual only")
     v.free()
+
+func test_burst_is_built_into_hero() -> void:
+    var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(DEF)).duplicate(true)
+    d.abilities = {}   # no Hotfix: burst fire must not depend on any ability
+    var h := Hero.new()
+    h.def = d
+    h._build()
+    check(h.weapon is BurstWeapon and h.weapon.burst_size == 3, "hero.gd builds a BurstWeapon from primary.burst")
+    h.free()
+    var c := Hero.from_def("res://src/heroes/cob.json")
+    check(not (c.weapon is BurstWeapon), "no burst key -> plain Weapon")
+    c.free()
+    var src := FileAccess.get_file_as_string("res://src/abilities/blink.gd")
+    check(not src.contains("BurstWeapon.install") and not src.contains("continue_burst"), "Hotfix no longer installs/drives the burst")

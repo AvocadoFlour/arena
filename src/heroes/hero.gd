@@ -84,7 +84,9 @@ func _build() -> void:
     display_name = def.get("name", "Hero")
     move_cfg = def.get("movement", {})
     health = Health.new(float(def.get("max_hp", 200)))
-    weapon = Weapon.new(def.get("primary", {}))
+    var prim: Dictionary = def.get("primary", {})
+    # Built-in burst fire: "burst" > 1 -> BurstWeapon (fire_rate inside a burst, burst_delay between bursts)
+    weapon = BurstWeapon.new(prim) if int(prim.get("burst", 1)) > 1 else Weapon.new(prim)
     ult = UltMeter.new(float(def.get("ultimate_cost", 500)))
     var abl: Dictionary = def.get("abilities", {})
     for slot in abl:
@@ -369,6 +371,8 @@ func _physics_process(dt: float) -> void:
             slam_pending = false
             for ab in abilities.values():
                 ab.on_landed()
+    if weapon is BurstWeapon:
+        BurstWeapon.continue_burst(self)   # a started burst completes even if the trigger was released
     if f.fire:
         _try_fire()
     if global_position.y < -25.0:

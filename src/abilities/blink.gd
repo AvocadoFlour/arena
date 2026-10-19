@@ -2,14 +2,10 @@ extends "res://src/abilities/dash.gd"
 ## Hotfix (Tomo): a very short dash ("blink") in the move direction (else facing) that leaves a fading afterimage
 ## at the start point; the next burst deals bonus damage. Params: distance, duration (dash.gd), bonus_mult,
 ## bonus_shots, bonus_window, color.
-## Also installs the burst-fire primary (BurstWeapon) for heroes whose primary has "burst" and completes started
-## bursts each tick, until hero.gd supports primary.burst natively (docs/requests/tomo.md).
+## Burst fire itself is built into hero.gd (primary.burst -> BurstWeapon).
 const AFTERIMAGE_LIFE := 0.45
 var _blinking := false   ## our dash is running; when it ends, momentum is capped to run speed (a blink, not a launch)
 
-func _init(h, d: Dictionary) -> void:
-    super(h, d)
-    BurstWeapon.install(h)
 
 func _do() -> bool:
     var from: Vector3 = hero.global_position
@@ -38,7 +34,6 @@ func tick(dt: float) -> void:
         if hv.length() > cap:
             hv = hv.normalized() * cap
             hero.velocity = Vector3(hv.x, hero.velocity.y, hv.z)
-    BurstWeapon.continue_burst(hero)
 
 ## Bonus rounds still pending (HUD/tests).
 func bonus_pending() -> int:

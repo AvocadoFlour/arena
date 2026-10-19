@@ -5,8 +5,8 @@ extends Weapon
 ## `burst_delay` s. A started burst always completes (BurstWeapon.continue_burst, called every host tick) unless the
 ## magazine runs dry. Optional one-shot bonus: `grant_bonus(mult, shots, window)` multiplies the damage of the next
 ## `shots` rounds (Hotfix). Pure logic like Weapon; hero.gd reads `damage` right after try_fire() returns true.
-## Installed per hero by BurstWeapon.install(hero) (from the blink ability) until hero.gd supports primary.burst
-## natively (docs/requests/tomo.md).
+## Built into hero.gd: Hero._build creates it when primary.burst > 1 and _physics_process calls continue_burst()
+## every auth tick before the fire input. install() remains for tools/tests that build a hero by hand.
 var burst_size := 3
 var burst_delay := 0.4
 var burst_left := 0          ## rounds still to fire in the current burst (0 = idle)
