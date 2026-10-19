@@ -1,5 +1,6 @@
 extends Node3D
-## HUD ability tooltip on the real composition root (main.tscn, offline): icons wired, entries match the
+## HUD ability tooltip on the real composition root (main.tscn, offline): icons wired (ability3 panel hidden
+## for heroes without one, so it never hovers), entries match the
 ## player's def, hover over an icon via Hud._input shows name + live key, event left unhandled, leave hides.
 var results: Array = []
 var done := false
@@ -22,7 +23,7 @@ func _physics_process(dt: float) -> void:
         return
     var hud: Hud = m.hud
     var tip: AbilityTooltip = hud.tooltip
-    _rec("wired", tip != null and tip.panels.keys() == ["ability1", "ability2", "ultimate"])
+    _rec("wired", tip != null and tip.panels.keys() == ["ability1", "ability2", "ability3", "ultimate"] and (not m.player.abilities.has("ability3")) == (not tip.panels.ability3.is_visible_in_tree()))
     var names_ok := true
     for s in ["ability1", "ability2", "ultimate"]:
         names_ok = names_ok and hud.ability_entry(s).get("name", "") == String(m.player.def.abilities[s].name)
