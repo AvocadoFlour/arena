@@ -11,7 +11,9 @@ loaded by Settings at startup), `damage_number.gd` (outlined, distance-scaled La
 
 Round 2: HUD ability key labels read live bindings (`Hud.key_label`); `scoreboard.gd` (hold Tab,
 action `scoreboard`, rebindable) fed by `match_stats.gd` (K/D/damage from Events);
-`match_end_screen.gd` (VICTORY/DEFEAT/DRAW + final board, Play again/Main menu/Quit);
+`match_end_screen.gd` (VICTORY/DEFEAT/DRAW + award cards + final board in a scroll area; buttons via
+`rematch_control.gd`: offline Play again/Main menu/Quit to desktop, host Rematch (core hook)/Main menu, client Leave;
+Esc = Main menu/Leave; frees the cursor and hides the gameplay HUD via `Hud.set_gameplay_visible(false)`);
 `capture_widget.gd` (capture progress bars, binds to Events capture signals once they exist) and
 `mock_capture_source.gd`. Tests: `tests/ui_round2_test.gd`.
 

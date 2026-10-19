@@ -195,8 +195,27 @@ static func shows_ammo(def) -> bool:
 static func key_label(action: String) -> String:
     return Keybinds.binding_text(action).to_upper()
 
+## Match end: hide (and stop) everything of the gameplay HUD except the end screen and the connection-lost
+## screen, including the 3D enemy health bars / name tags. true restores.
+var gameplay_hidden := false
+var _modes := {}
+func set_gameplay_visible(on: bool) -> void:
+    gameplay_hidden = not on
+    for c in get_children():
+        if c == match_end or c == conn_lost or not (c is CanvasItem or c is CanvasLayer):
+            continue
+        if not on:
+            _modes[c] = c.process_mode
+            c.process_mode = Node.PROCESS_MODE_DISABLED
+        elif _modes.has(c):
+            c.process_mode = _modes[c]
+        c.visible = on
+    for h in _bars:
+        if is_instance_valid(_bars[h]):
+            _bars[h].visible = on and is_instance_valid(h) and not ("dead" in h and h.dead)
+
 func _process(dt: float) -> void:
-    if not player:
+    if not player or gameplay_hidden:
         return
     if hero_sfx != null:
         hero_sfx.player = player   # follows hero swaps (main.gd reassigns hud.player)
@@ -232,8 +251,8 @@ func _process(dt: float) -> void:
 
 func _update_bars() -> void:
     for h in get_tree().get_nodes_in_group("heroes"):
-        if h == player:
-            continue
+        if h == player or not (h is Node3D) or not ("dead" in h and "health" in h):
+            continue   # only real 3D heroes get a bar (tests / tools may put other nodes in the group)
         if not _bars.has(h):
             _bars[h] = _make_bar(h)
         var b: Node3D = _bars[h]
