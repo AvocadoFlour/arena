@@ -7,15 +7,37 @@ const PATH := "user://keybinds.cfg"
 ## UI-only actions (not gameplay, never in InputFrame). Registered here until core adds them to
 ## Actions.BINDINGS (request in docs/requests/ui.md); skipped if core already defines them.
 const UI_BINDINGS := {"scoreboard": [KEY_TAB]}
+## Gameplay actions core has not added to Actions yet (src/core/actions.gd is core-owned; request in
+## docs/requests/ui.md). Registered in the InputMap here so they are bindable and shown now; skipped once
+## Actions defines them. ability3 = HeroAbilities slot between ability2 and ultimate, right mouse button.
+const PENDING_MOUSE := {"ability3": [MOUSE_BUTTON_RIGHT]}
+
+static func _core_has(a: String) -> bool:
+    return Actions.BINDINGS.has(a) or Actions.MOUSE_BINDINGS.has(a)
 
 static func actions() -> Array:
     var a: Array = Actions.BINDINGS.keys() + Actions.MOUSE_BINDINGS.keys()
     for u in UI_BINDINGS:
         if not a.has(u):
             a.append(u)
+    for p in PENDING_MOUSE:
+        if not a.has(p):
+            var i := a.find("ability2")
+            a.insert(i + 1 if i >= 0 else a.size(), p)
+    if a.has("ability3") and a.has("ability2") and a.find("ability3") != a.find("ability2") + 1:
+        a.erase("ability3")   # keep slot order (Shift, E, right mouse, Q) even once core lists it
+        a.insert(a.find("ability2") + 1, "ability3")
     return a
 
 static func ensure_ui_actions() -> void:
+    for p in PENDING_MOUSE:
+        if _core_has(p) or InputMap.has_action(p):
+            continue
+        InputMap.add_action(p)
+        for b in PENDING_MOUSE[p]:
+            var ev := InputEventMouseButton.new()
+            ev.button_index = b
+            InputMap.action_add_event(p, ev)
     for u in UI_BINDINGS:
         if Actions.BINDINGS.has(u) or InputMap.has_action(u):
             continue
@@ -38,7 +60,7 @@ static func event_text(ev: InputEvent) -> String:
     return ev.as_text()
 
 static func binding_text(action: String) -> String:
-    var evs := InputMap.action_get_events(action)
+    var evs := InputMap.action_get_events(action) if InputMap.has_action(action) else []
     return event_text(evs[0]) if evs.size() > 0 else "-"
 
 ## Every binding of an action, e.g. "Shift, Mouse Right" ("-" if none).
@@ -100,6 +122,14 @@ static func reset_defaults() -> void:
     for a in Actions.MOUSE_BINDINGS:
         InputMap.action_erase_events(a)
         for b in Actions.MOUSE_BINDINGS[a]:
+            var ev := InputEventMouseButton.new()
+            ev.button_index = b
+            InputMap.action_add_event(a, ev)
+    for a in PENDING_MOUSE:
+        if _core_has(a):
+            continue
+        InputMap.action_erase_events(a)
+        for b in PENDING_MOUSE[a]:
             var ev := InputEventMouseButton.new()
             ev.button_index = b
             InputMap.action_add_event(a, ev)
