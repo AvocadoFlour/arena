@@ -4,6 +4,7 @@ extends Control
 ## badges and K / D / damage / healing per player (ScoreTable), player highlighted.
 var stats: MatchStats
 var player
+var mode := ""   ## "" = resolve from the composition root; the HUD keeps it current
 var table: ScoreTable
 var held_override := -1   ## tests: 1 = force held, 0 = force released, -1 = read input
 var _t := 0.0
@@ -44,7 +45,7 @@ func _process(dt: float) -> void:
 func refresh() -> void:
     if table == null or stats == null:
         return
-    table.build(stats, get_tree().get_nodes_in_group("heroes"), player)
+    table.build(stats, get_tree().get_nodes_in_group("heroes"), player, mode)
 
 func row_count() -> int:
     return table.row_total if table else 0
