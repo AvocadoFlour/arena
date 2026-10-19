@@ -178,3 +178,51 @@ Requests (core):
 5. **AI (FYI)**: enemy volumes aren't in the navmesh (no bodies), so a bot told to go into an enemy spawn just gets
    held at the door. Suggest skipping wander/chase targets where `SpawnRooms.owner_at(p) not in [-1, my team]`.
    No AI suite failed with this change (see build).
+
+## Maps queue (1.0) item 2 — sightline / readability / snag pass (maps side done; no core hooks needed)
+Tools (tests, deterministic): `tests/maps_snag_sim.gd` — real Jolt CharacterBody3D capsules (widest: Cob r 0.65 h 1.5;
+slimmest/tallest: Tomo r 0.36 h 1.85) driven by `Motion.step_velocity` in 8 directions from a sampled MapGrid
+(2 m in the suite; `tests/maps_snag_scan.gd -- --spacing=1.0` lists every hit): stuck points (can't get 0.3 m away
+even jumping), lips (blocked on a ≤ 0.3 m step-up along a slope or onto a flat deck) and level gaps/seams/corners
+narrower than the collider. `tests/maps_sight_sim.gd` (+ `maps_sight_scan.gd`): longest ground sightline with no
+cover within 2.5 m, spawn-door camping spots (> 20 m, eye sees the door exit), passages narrower than Cob between
+two spots where Cob fits, and "cover that hides nothing" (every cover / free-standing wall piece is the occluder for
+≥ 20 % of threat spots from one side). `tests/maps_read_test.gd`: ramp ends flush (≤ 0.1 m lip), arena01 cover
+variety, arena02 additions point-symmetric, new blocks clear of rooms/zones/pickups/pads/spawns, golden = v0.9 golden
+(`tests/maps_collision_golden_v09.json`) + additions except the listed exceptions, reachability around new blocks.
+
+Findings → fixes (before → after, spacing 1 m scan):
+- arena01 snag: `ramp_07` (side ramp to the platform) had a 0.19 m lip at its foot and a 0.27 m lip where it meets the
+  platform top (slim heroes stopped dead walking off the platform onto it). → 0 stuck / 0 lips / 0 gaps on both maps.
+- arena02 dais: `ramp_18` / `ramp_19` (east/west) were rotated the wrong way — they rose AWAY from the dais
+  (1.03 m step at the outer end, 0.84 m drop at the dais edge), so the capture point had only 2 working ramps.
+- arena02 sightlines: longest uncovered ground lane 74 m (z = 0 straight across the map through the flank openings)
+  and 56 m along the outer corridors / x = ±12 → 36 m (the remaining one is the mid diagonal across the open
+  capture dais, left alone on purpose). Spawn-door camping spots > 20 m: 185 / 180 → 27 / 30 (all remaining are on
+  the 4 m balconies looking down).
+- arena01 sightlines: 34 m along the strip in front of the player spawn → 23 m. Narrow passages: 0 (both maps).
+
+**Collision changes to existing blocks (explicit exceptions to "golden additions only"):**
+1. arena01 `ramp_07`: pos (−8.05, 1.55, −10) → (−7.94, 1.27, −10); size/rotation unchanged. Moves the top-surface
+   end flush with the platform edge (corner 3.27 → 2.99 at x = −5.0) and buries the foot 0.09 m below the floor
+   (corner 0.185 → −0.095). Only way to remove both lips without new geometry on the platform.
+2. arena02 `ramp_18` rot_deg z 14 → −14 and `ramp_19` −14 → 14 (pos/size unchanged): flips them so they rise to the
+   dais like `ramp_16`/`ramp_17`. Checked: ai_teamplay_driver (seed 4242) still passes (focus 0.90 vs 0.69, team
+   groups up 5.0 m vs 8.0 m, tank holds point 60 %).
+Everything else is appended at the end of `blocks` (indices, names and collision of all other blocks unchanged).
+
+Additions (all non-`cover` kind, so AI cover counts are unchanged):
+- arena01 (cover variety, south strip; away from the AI test spots, x = −3.5 walker lane and (15, 15)): `wall_16`/`wall_17`
+  L-shaped 1.1 m half wall at (−9.5…−11.3, 14.5…15.6); `wall_18` 3.5 m slim column (8, 16.5); `wall_19` 1.3 m slab rotated
+  45° at (10.2, 14.2). arena01 still has exactly 8 `cover` blocks.
+- arena02 (point-symmetric pairs): balcony support pillars under the outer balcony edge (±31.5, z ±6); 1.2 m low walls
+  in the outer corridors (±36, ±12) and the x = ±11 side lanes (±11, ±16); 1.2 m blockers in the flank openings
+  (±20, 0); 2.4 m team-colour wing walls beside each spawn door (±5, ±19.75) that cut the sideways camping lines
+  along the room fronts. Clear of barriers/keep-out volumes, zones, pickups, pads and spawns (tested).
+
+Requests:
+1. **AI (FYI / optional)**: `tests/ai_team_driver.gd` asserts exactly 8 cover blocks on arena01; the new pieces use
+   kind `wall` to respect that, so bots don't treat them as cover. If you relax it to `>= 8` I can retag the arena01
+   half wall / slab and the arena02 low walls as `cover` (better bot cover use). The flipped dais ramps change mid
+   pathing slightly; teamplay still passes at seed 4242, but it remains a single-seed check (see queue 3 note).
+2. **Core (FYI)**: no hooks needed. INTERFACES §6 could note "ramp ends must be flush (≤ 0.1 m)" and the scan tools.
