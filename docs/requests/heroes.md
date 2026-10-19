@@ -134,3 +134,39 @@ locally and gets corrected by the host. Please replicate `root_left` (and ideall
 5. **AI (bot_brain.want_ability):** `ride` and `line_slash` are unknown types today, so bots never use Übel's Shift/E.
    Suggested: `ride` like `leap` (aimed, visible enemy within 10 m), `line_slash` like `charge` but dist < 6; while
    mounted (`h.mounted_on() != null`) keep swinging and don't jump.
+
+## Oct 19: 0.9.3 smoke FAIL arena01/ubel (ability1 = 0) - REQUEST core (src/main.gd smoke forcing), exact diff below
+Root cause: the smoke forces each unused slot exactly ONCE (at 60% of the run) and marks it "forced" whether or not
+it fired. Übel's Uninvited Guest is target-gated by design: ride.can_activate() needs an enemy within 10 m (head),
+inside the 30° aim cone, with line of sight; without one nothing happens, no cooldown is spent and no
+Events.ability_used fires (correct: a ride with no target is not a use). The autopilot (BotBrain) never casts the
+ride type, so the single forced press is the only chance. On master a0a9613 the run is deterministic and at that
+instant the nearest enemy is 13.9 m away (4.4° off the crosshair, clear line), on arena01 and arena02 alike, so
+ability1 stays 0 -> SMOKE FAIL on both maps (arena02/ubel fails too; the build stops at the first failure).
+dc183c9 passed only because positions at that instant differed before the 0.9.3 AI changes.
+Fix (smoke only, no gameplay change): keep retrying an unused slot every frame until it fires. Verified locally on
+a0a9613 with this diff: arena01/ubel and arena02/ubel SMOKE PASS (ability1 = 1).
+```diff
+diff --git a/src/main.gd b/src/main.gd
+index be2892a..03172fc 100644
+--- a/src/main.gd
++++ b/src/main.gd
+@@ -269,12 +269,13 @@ func _process(dt: float) -> void:
+     if args.has("smoke") and el >= float(args.smoke) * 0.6 and not player.dead:
+         # autopilot policy (src/ai) may skip situational abilities: exercise each unused slot once (retries while dead)
+         for slot in ["ability1", "ability2", "ultimate"]:
+-            if stats.get(slot, 0) == 0 and player.abilities.has(slot) and not stats.get("forced", []).has(slot):
++            if stats.get(slot, 0) == 0 and player.abilities.has(slot):   # retry until it fires (target-gated: ride)
+                 player.abilities[slot].cooldown.remaining = 0.0
+                 if slot == "ultimate":
+                     player.ult.add(player.ult.cost)
+                 player._use(slot)
+-                stats["forced"] = stats.get("forced", []) + [slot]
++                if not stats.get("forced", []).has(slot):
++                    stats["forced"] = stats.get("forced", []) + [slot]
+     if args.has("smoke") and el >= float(args.smoke):
+         _finish()
+     if args.has("demo") and args.demo != "1" and el >= float(args.demo):
+```
+**AI (optional, longer term):** let BotBrain cast `ride` (enemy within `range` in the aim cone) so the smoke would
+not need to force it at all.
