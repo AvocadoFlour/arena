@@ -25,6 +25,9 @@ signal low_quality_changed(on: bool)
 var low_quality := false
 ## HUD floating damage numbers (Settings page toggle "Damage numbers"), default on.
 var damage_numbers := true
+## First-time controls hint (ControlsHint): true once dismissed with "Don't show again" on.
+## Settings > "Show controls hint" clears it.
+var controls_hint_seen := false
 var bot_difficulty := {0: "normal", 1: "normal"}   ## last pre-match bot difficulty per team (main menu)
 
 func set_low_quality(on: bool) -> void:
@@ -56,6 +59,7 @@ func load_from(path: String) -> bool:
     fov = clampf(float(cfg.get_value("video", "fov", fov)), FOV_MIN, FOV_MAX)
     set_low_quality(bool(cfg.get_value("video", "low_quality", low_quality)))
     damage_numbers = bool(cfg.get_value("hud", "damage_numbers", damage_numbers))
+    controls_hint_seen = bool(cfg.get_value("hud", "controls_hint_seen", controls_hint_seen))
     for t in [0, 1]:
         var lv := String(cfg.get_value("match", "bot_difficulty_%d" % t, bot_difficulty[t]))
         bot_difficulty[t] = lv if lv in ["easy", "normal", "hard"] else "normal"
@@ -71,6 +75,7 @@ func save(path := PATH) -> void:
     cfg.set_value("video", "fov", fov)
     cfg.set_value("video", "low_quality", low_quality)
     cfg.set_value("hud", "damage_numbers", damage_numbers)
+    cfg.set_value("hud", "controls_hint_seen", controls_hint_seen)
     for t in [0, 1]:
         cfg.set_value("match", "bot_difficulty_%d" % t, bot_difficulty[t])
     for b in AUDIO_BUSES:
