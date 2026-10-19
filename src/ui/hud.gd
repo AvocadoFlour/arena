@@ -251,8 +251,8 @@ func _process(dt: float) -> void:
 
 func _update_bars() -> void:
     for h in get_tree().get_nodes_in_group("heroes"):
-        if h == player:
-            continue
+        if h == player or not (h is Node3D) or not ("dead" in h and "health" in h):
+            continue   # only real 3D heroes get a bar (tests / tools may put other nodes in the group)
         if not _bars.has(h):
             _bars[h] = _make_bar(h)
         var b: Node3D = _bars[h]
