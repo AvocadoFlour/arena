@@ -28,12 +28,22 @@ var slam_pending := false
 var last_wish := Vector3.ZERO
 var move_cfg: Dictionary = {}
 var slow_mult := 1.0                 ## movement speed multiplier from slows (1 = none)
+## On-hit speed bonus (hero JSON primary.on_hit_speed: {bonus, decay}, Niđo's Momentum): a primary swing/shot that
+## hits at least one enemy hero sets momentum_left = decay (refresh, no stacking); move speed and acceleration are
+## x (1 + bonus x momentum_left / decay), fading linearly to 1. Host-authoritative; clients read the replicated
+## fraction from the MomentumLink net prop. Lost on death.
+var on_hit_speed := {}
+var momentum_left := 0.0
+var momentum_refreshes := 0   ## count of refreshes (tests / stats)
+var _momentum_prop: Node3D = null
+var _trail_t := 0.0
 var slow_left := 0.0
 ## Root (host/offline): while root_left > 0 the hero cannot walk, jump, be pushed horizontally or use the movement
 ## abilities in ROOT_BLOCKS; aiming, shooting and other abilities still work. Distinct from slow_mult.
 var root_left := 0.0
 const ROOT_BLOCKS := ["dash", "blink", "leap", "charge", "ride"]
 const MountLink := preload("res://src/abilities/mount_link.gd")
+const MomentumLink := preload("res://src/abilities/momentum_link.gd")
 var ridden_by = null                 ## HOST: the hero riding on our head (ride ability), or null
 var _ride = null                     ## the hero's ride ability (Übel's Shift), if any: host-side mount state machine
 var charge_hits: Array = []          ## heroes already hit by the current charge
@@ -92,6 +102,7 @@ func _build() -> void:
     move_cfg = def.get("movement", {})
     health = Health.new(float(def.get("max_hp", 200)))
     var prim: Dictionary = def.get("primary", {})
+    on_hit_speed = prim.get("on_hit_speed", {})
     # Built-in burst fire: "burst" > 1 -> BurstWeapon (fire_rate inside a burst, burst_delay between bursts)
     weapon = BurstWeapon.new(prim) if int(prim.get("burst", 1)) > 1 else Weapon.new(prim)
     ult = UltMeter.new(float(def.get("ultimate_cost", 500)))
@@ -125,6 +136,42 @@ func mounted_on():
     if net_role == "auth" and _ride != null:
         return _ride.victim if _ride.busy() and is_instance_valid(_ride.victim) else null
     return MountLink.victim_of(self)
+
+## Line of sight for close-range and area damage (melee swings + lunge, Clean Cut, leap landings, charges, slams,
+## novas, shockwaves and the breakable cover they hit). A ray from `from` to `to` that hits everything hitscan hits
+## (default mask: world geometry, shield walls / deployables, breakable cover) but no hero. Clear when nothing is
+## in between, or when the first thing hit is `target` itself (a breakable cover block). Host/offline: walls are
+## static and heroes are excluded, so it is the same under lag-compensation rewind.
+const LOS_CHEST := 1.2   ## ray end points: feet + this (attacker and target hero)
+
+static func los_clear(node: Node3D, from: Vector3, to: Vector3, target = null) -> bool:
+    if node == null or not node.is_inside_tree():
+        return true
+    var q := PhysicsRayQueryParameters3D.create(from, to)
+    var ex: Array[RID] = []
+    for h in node.get_tree().get_nodes_in_group("heroes"):
+        if h is CollisionObject3D:
+            ex.append(h.get_rid())
+    q.exclude = ex
+    var hit := node.get_world_3d().direct_space_state.intersect_ray(q)
+    if hit.is_empty():
+        return true
+    var c = hit.collider
+    return target != null and c != null and (c == target or (target is Node and target.is_ancestor_of(c)))
+
+func chest() -> Vector3:
+    return global_position + Vector3(0, LOS_CHEST, 0)
+
+## Can my close-range / area attack reach `target` (a hero or a breakable cover block)? The hero I ride is
+## always reachable (Übel's ride: she sits on its head).
+func can_hit(target, from = null) -> bool:
+    if target == null:
+        return false
+    if target == mounted_on():
+        return true
+    var o: Vector3 = from if from is Vector3 else chest()
+    var to: Vector3 = target.global_position + Vector3(0, LOS_CHEST, 0) if (target is Hero or target.is_in_group("heroes")) else target.global_position
+    return Hero.los_clear(self, o, to, target)
 
 ## Ends a ride early (stuns and other hard crowd control should call this; knockback and root already do).
 func cancel_ride(why := "cancel") -> void:
@@ -190,6 +237,7 @@ func _process(dt: float) -> void:
         else:
             model.revive()
     _was_dead = dead
+    _momentum_trail(dt)
     if _vis == null or dead:
         return
     _anim_t += dt
@@ -326,6 +374,9 @@ func _notification(what: int) -> void:
             hit.disconnect_events()
 
 func _exit_tree() -> void:
+    if is_instance_valid(_momentum_prop):   # the prop lives in the world, not under us: don't leak it
+        _momentum_prop.queue_free()
+    _momentum_prop = null
     for ab in abilities.values():
         if ab.has_method("free_visuals"):
             ab.free_visuals()
@@ -377,6 +428,7 @@ func _physics_process(dt: float) -> void:
         _use("ultimate")
     var was_air := not is_on_floor()
     _tick_buffs(dt)
+    _tick_momentum(dt)
     if slow_left > 0.0:
         slow_left -= dt
         if slow_left <= 0.0:
@@ -417,6 +469,13 @@ func _physics_process(dt: float) -> void:
                 ab.on_landed()
     if weapon is BurstWeapon:
         BurstWeapon.continue_burst(self)   # a started burst completes even if the trigger was released
+    if _fire_buffered:
+        _fire_buffer_age += dt
+        if _fire_buffer_age > FIRE_BUFFER_MAX:
+            _fire_buffered = false   # stale (e.g. a very long fall): drop it
+        elif not movement_active() and is_on_floor():
+            _fire_buffered = false   # landed: the landing impact (on_landed above) already ran, now the swing
+            _try_fire()
     if f.fire:
         _try_fire()
     if global_position.y < -25.0:
@@ -454,7 +513,30 @@ func _use(slot: String) -> void:
     if abilities.has(slot) and abilities[slot].activate():
         Events.ability_used.emit(self, slot, abilities[slot].id)
 
+## A movement ability is moving us: a leap in the air, a charge, or any dash push (dash, lunge, hop-off).
+func movement_active() -> bool:
+    if dash_time > 0.0:
+        return true
+    for ab in abilities.values():
+        if (ab.has_method("leaping") and ab.leaping()) or (ab.has_method("charging") and ab.charging()):
+            return true
+    return false
+
+## Melee swings pressed during a leap / charge / dash are buffered (one swing) and run when it is over and we are
+## on the floor - after the landing impact - so the click is not lost and cannot change the trajectory.
+const FIRE_BUFFER_MAX := 2.0
+var _fire_buffered := false
+var _fire_buffer_age := 0.0
+
+func _melee() -> bool:
+    return String(def.get("primary", {}).get("type", "hitscan")) == "melee"
+
 func _try_fire() -> void:
+    if _melee() and movement_active() and mounted_on() == null:
+        if not _fire_buffered:
+            _fire_buffered = true
+            _fire_buffer_age = 0.0
+        return
     if not weapon.try_fire():
         return
     var rewound := Net.rewind_for(self)   # lag compensation for remote shooters (host only)
@@ -516,13 +598,15 @@ func melee_swing() -> int:
     # Lunge: if the nearest enemy in the arc is beyond sword range but within `lunge`, dash to it
     # and extend the reach for this swing.
     var under = mounted_on()   # riding: the head below is always in reach (also under lag-compensation rewind)
-    var lunge := 0.0 if under != null else float(p.get("lunge", 0.0))
+    # no lunge while mounted, airborne, or while a leap / charge / dash is moving us (it would overwrite dash_vel
+    # and replace the leap's arc with a flat hover burst)
+    var lunge := 0.0 if (under != null or movement_active() or not is_on_floor()) else float(p.get("lunge", 0.0))
     if lunge > 0.0:
         var best_d := INF
         for h in get_tree().get_nodes_in_group("heroes"):
             if h == self or h.dead or h.team == team:
                 continue
-            if MeleeMath.in_arc(global_position, fwd, h.global_position, rng + lunge, deg_to_rad(30.0)):
+            if MeleeMath.in_arc(global_position, fwd, h.global_position, rng + lunge, deg_to_rad(30.0)) and can_hit(h):
                 best_d = minf(best_d, Vector2(h.global_position.x - global_position.x, h.global_position.z - global_position.z).length())
         if best_d < INF and best_d > rng * 0.8:
             var gap := best_d - rng * 0.6
@@ -532,14 +616,16 @@ func melee_swing() -> int:
     for h in get_tree().get_nodes_in_group("heroes"):
         if h == self or h.dead or h.team == team:
             continue
-        if h == under or MeleeMath.in_arc(global_position, fwd, h.global_position, rng, arc):
+        if h == under or (MeleeMath.in_arc(global_position, fwd, h.global_position, rng, arc) and can_hit(h)):
             h.take_damage(weapon.damage * mult * damage_mult(), self, h.global_position + Vector3(0, 1.2, 0), "primary")
             if final_hit and h.has_method("knockback"):
                 h.knockback(fwd * float(p.get("finisher_knockback", 6.0)) + Vector3(0, 3, 0))
             n += 1
     for c in get_tree().get_nodes_in_group("destructible"):   # breakable cover in the swing arc
-        if c.is_inside_tree() and MeleeMath.in_arc(global_position, fwd, c.global_position, rng + 0.5, arc):
+        if c.is_inside_tree() and MeleeMath.in_arc(global_position, fwd, c.global_position, rng + 0.5, arc) and can_hit(c):
             c.take_damage(weapon.damage * mult * damage_mult(), self, c.global_position, "primary")
+    if n > 0:
+        refresh_momentum()   # one refresh per swing, however many enemies it hit
     var col := Color(1, 0.85, 0.4) if final_hit else Color(0.9, 0.9, 1.0)
     Fx.ring(get_parent(), global_position + Vector3(0, 1.1, 0) + fwd * rng * 0.5, rng * 0.5, col, 0.15)
     return n
@@ -620,11 +706,72 @@ func effective_move_cfg() -> Dictionary:
         m["jump_velocity"] = 0.0
         m["gravity"] = 0.0
         return m
-    if slow_mult >= 1.0:
+    var bonus := momentum_mult()
+    if slow_mult >= 1.0 and bonus <= 1.0:
         return move_cfg
     var c := move_cfg.duplicate()
-    c["speed"] = float(move_cfg.get("speed", 7.0)) * slow_mult
+    c["speed"] = float(move_cfg.get("speed", 7.0)) * slow_mult * bonus   # slows multiply on top of the bonus
+    if bonus > 1.0:
+        c["accel_ground"] = float(move_cfg.get("accel_ground", 70.0)) * bonus
+        c["accel_air"] = float(move_cfg.get("accel_air", 18.0)) * bonus
     return c
+
+## Subtle speed trail while the on-hit bonus runs (all peers, from momentum_frac(): replicated state on clients).
+func _momentum_trail(dt: float) -> void:
+    var fr := momentum_frac()
+    if fr <= 0.05 or not is_inside_tree() or get_parent() == null:
+        return
+    _trail_t -= dt
+    if _trail_t > 0.0:
+        return
+    _trail_t = 0.06
+    var v := Vector3(velocity.x, 0, velocity.z)
+    if v.length() < 1.5:
+        return
+    var back := -v.normalized()
+    var c := Color(String(def.get("color", "#40e070"))).lerp(Color.WHITE, 0.4)
+    c.a = 0.35 + 0.4 * fr
+    ToonFx.streak(get_parent(), global_position + Vector3(0, 0.25, 0), global_position + Vector3(0, 0.25, 0) + back * (0.5 + 0.9 * fr), c, 0.05 + 0.05 * fr, 0.22)
+
+## Fraction (0..1) of the on-hit speed bonus left: host/offline from momentum_left, clients from the net prop.
+func momentum_frac() -> float:
+    if on_hit_speed.is_empty() or dead:
+        return 0.0
+    if net_role == "auth":
+        return clampf(momentum_left / maxf(float(on_hit_speed.get("decay", 1.0)), 0.001), 0.0, 1.0)
+    return MomentumLink.frac_of(net_id)
+
+## Current move speed / acceleration multiplier from the on-hit bonus (1 = none).
+func momentum_mult() -> float:
+    return 1.0 + float(on_hit_speed.get("bonus", 0.0)) * momentum_frac()
+
+## Host/offline: a primary attack hit >= 1 enemy hero -> full bonus again (one refresh per swing).
+func refresh_momentum() -> void:
+    if on_hit_speed.is_empty() or dead or not Net.is_authority():
+        return
+    momentum_left = float(on_hit_speed.get("decay", 1.0))
+    momentum_refreshes += 1
+    _sync_momentum_prop()
+
+func _tick_momentum(dt: float) -> void:
+    if momentum_left > 0.0:
+        momentum_left = maxf(0.0, momentum_left - dt)
+    _sync_momentum_prop()
+
+func _sync_momentum_prop() -> void:
+    if momentum_left > 0.0 and not dead and is_inside_tree() and get_parent() != null:
+        if not is_instance_valid(_momentum_prop):
+            _momentum_prop = MomentumLink.build_prop(MomentumLink.kind_for(self), Vector3.ONE * 0.1, Color.WHITE)
+            _momentum_prop.hero_id = -1   # the host reads momentum_left directly
+            _momentum_prop.add_to_group("net_props")
+            _momentum_prop.set_meta("net_kind", MomentumLink.kind_for(self))
+            _momentum_prop.set_meta("net_visual", MomentumLink.PATH)
+            get_parent().add_child(_momentum_prop)
+        _momentum_prop.global_position = global_position
+        _momentum_prop.rotation.y = MomentumLink.encode(momentum_frac())
+    elif is_instance_valid(_momentum_prop):
+        _momentum_prop.queue_free()
+        _momentum_prop = null
 
 ## Root for dur seconds (longer root wins). See root_left.
 func apply_root(dur: float) -> void:
@@ -677,25 +824,29 @@ func _flush_heals(dt: float, force := false) -> void:
 
 ## Splash damage to breakable cover (maps §6, group "destructible"), HitMath falloff on distance to the block.
 ## Host/offline only (cover.take_damage no-ops on clients). Does not charge ult.
-static func damage_destructibles(tree: SceneTree, center: Vector3, radius: float, dmg: float, source, kind: String, ability_id := "", exclude = null) -> void:
+## `los_from` (optional): only blocks with a clear line from that point are hit (Hero.los_clear).
+static func damage_destructibles(tree: SceneTree, center: Vector3, radius: float, dmg: float, source, kind: String, ability_id := "", exclude = null, los_from = null) -> void:
     for c in tree.get_nodes_in_group("destructible"):
         if not c.is_inside_tree() or c == exclude:
+            continue
+        if los_from is Vector3 and source is Node3D and not Hero.los_clear(source, los_from, c.global_position, c):
             continue
         var amt := HitMath.aoe_damage(center, radius, dmg, c.global_position)
         if amt > 0.0:
             c.take_damage(amt, source, c.global_position, kind, ability_id)
 
-## Area damage to enemies (used by abilities). Returns number of heroes hit.
+## Area damage to enemies (used by abilities: slams, novas). Returns number of heroes hit. Walls block it: a
+## target needs a clear line from my chest (can_hit; the abilities using this are centred on me).
 func aoe(center: Vector3, radius: float, dmg: float, kind: String, ability_id := "") -> int:
     var n := 0
     for h in get_tree().get_nodes_in_group("heroes"):
         if h == self or h.dead or h.team == team:
             continue
         var amt := HitMath.aoe_damage(center, radius, dmg, h.global_position + Vector3(0, 0.9, 0))
-        if amt > 0.0:
+        if amt > 0.0 and can_hit(h):
             h.take_damage(amt * damage_mult(), self, h.global_position + Vector3(0, 1.2, 0), kind, ability_id)
             n += 1
-    Hero.damage_destructibles(get_tree(), center, radius, dmg * damage_mult(), self, kind, ability_id)
+    Hero.damage_destructibles(get_tree(), center, radius, dmg * damage_mult(), self, kind, ability_id, null, chest())
     return n
 
 ## Damage contract (INTERFACES.md section 3). Returns damage actually applied.
@@ -740,12 +891,15 @@ func _die(killer, kind: String, ability_id := "") -> void:
     slow_mult = 1.0
     slow_left = 0.0
     root_left = 0.0
+    momentum_left = 0.0
+    _sync_momentum_prop()
     if _ride:
         _ride.end_ride("death")
     clear_buffs()
     Events.killed.emit({"killer": killer, "victim": self, "kind": kind, "ability_id": ability_id})
 
 func respawn() -> void:
+    _fire_buffered = false
     dead = false
     health.reset()
     weapon.ammo = weapon.mag_size

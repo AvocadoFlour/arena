@@ -134,3 +134,83 @@ locally and gets corrected by the host. Please replicate `root_left` (and ideall
 5. **AI (bot_brain.want_ability):** `ride` and `line_slash` are unknown types today, so bots never use Übel's Shift/E.
    Suggested: `ride` like `leap` (aimed, visible enemy within 10 m), `line_slash` like `charge` but dist < 6; while
    mounted (`h.mounted_on() != null`) keep swinging and don't jump.
+
+## Oct 19: 0.9.3 smoke FAIL arena01/ubel (ability1 = 0) - REQUEST core (src/main.gd smoke forcing), exact diff below
+Root cause: the smoke forces each unused slot exactly ONCE (at 60% of the run) and marks it "forced" whether or not
+it fired. Übel's Uninvited Guest is target-gated by design: ride.can_activate() needs an enemy within 10 m (head),
+inside the 30° aim cone, with line of sight; without one nothing happens, no cooldown is spent and no
+Events.ability_used fires (correct: a ride with no target is not a use). The autopilot (BotBrain) never casts the
+ride type, so the single forced press is the only chance. On master a0a9613 the run is deterministic and at that
+instant the nearest enemy is 13.9 m away (4.4° off the crosshair, clear line), on arena01 and arena02 alike, so
+ability1 stays 0 -> SMOKE FAIL on both maps (arena02/ubel fails too; the build stops at the first failure).
+dc183c9 passed only because positions at that instant differed before the 0.9.3 AI changes.
+Fix (smoke only, no gameplay change): keep retrying an unused slot every frame until it fires. Verified locally on
+a0a9613 with this diff: arena01/ubel and arena02/ubel SMOKE PASS (ability1 = 1).
+```diff
+diff --git a/src/main.gd b/src/main.gd
+index be2892a..03172fc 100644
+--- a/src/main.gd
++++ b/src/main.gd
+@@ -269,12 +269,13 @@ func _process(dt: float) -> void:
+     if args.has("smoke") and el >= float(args.smoke) * 0.6 and not player.dead:
+         # autopilot policy (src/ai) may skip situational abilities: exercise each unused slot once (retries while dead)
+         for slot in ["ability1", "ability2", "ultimate"]:
+-            if stats.get(slot, 0) == 0 and player.abilities.has(slot) and not stats.get("forced", []).has(slot):
++            if stats.get(slot, 0) == 0 and player.abilities.has(slot):   # retry until it fires (target-gated: ride)
+                 player.abilities[slot].cooldown.remaining = 0.0
+                 if slot == "ultimate":
+                     player.ult.add(player.ult.cost)
+                 player._use(slot)
+-                stats["forced"] = stats.get("forced", []) + [slot]
++                if not stats.get("forced", []).has(slot):
++                    stats["forced"] = stats.get("forced", []) + [slot]
+     if args.has("smoke") and el >= float(args.smoke):
+         _finish()
+     if args.has("demo") and args.demo != "1" and el >= float(args.demo):
+```
+**AI (optional, longer term):** let BotBrain cast `ride` (enemy within `range` in the aim cone) so the smoke would
+not need to force it at all.
+## Oct 19: melee / area damage no longer goes through walls (bug fix) - FYI core/AI
+Root cause: melee_swing (hits, lunge target search, breakable cover) and the close-range / area abilities used only
+distance + angle (MeleeMath.in_arc, in_box, radius) with no line-of-sight test, so they hit through world walls and
+deployed shield walls. New shared helper `Hero.los_clear(node, from, to, target)` / `hero.can_hit(target)`: a ray
+chest (feet + 1.2 m) to chest, default mask like hitscan, all heroes excluded; a breakable-cover target counts as
+clear when it is the first thing hit; the hero being ridden (Übel) is always reachable. Now required by Paper Cut /
+The Best / Niđo melee (+ lunge + cover hits), Clean Cut (line_slash, description no longer says "even behind
+cover"), Fearless Leap landing, Boulder Roll (charge), Quarry Quake (ground_slam via Hero.aoe), Last Smile (nova via
+Hero.aoe), Force Push (shockwave) and the breakable cover those hit (`damage_destructibles(..., los_from)`).
+Descriptions of these types end with "Walls, shield walls and cover block it." Host-only; walls are static and heroes
+are excluded from the ray, so lag-compensation rewind does not change the result.
+- **Physical path (user decision, Oct 19), not a vision check:** Niđo's Stand-up Meeting pull (chest -> target centre)
+  and projectile splash (Staccato Note; from the impact point nudged 0.1 m off the surface along its normal, to each
+  target; also used for breakable cover in the splash) use the same helper, so walls / shield walls block them;
+  `projectile_shot.splash_reaches()` is reusable for the Twin Tails ally-heal splash. Nothing reads the caster's
+  view, so a "blinded" caster (no such state exists yet) still hits.
+- **Left unchanged (not damage):** Grand Finale rally heal, No Limits team buff, Rollback.
+- **AI (optional):** bots may now swing / slam / ult at enemies behind cover and whiff; a LOS check
+  (`hero.can_hit(target)`) before melee or area casts would help.
+- **Core, `Hero.damage_destructibles` signature:** gained an optional last arg `los_from` (default null = old behaviour).
+
+## Oct 19: The Best "jumps again" when clicking during Fearless Leap (bug fix) - FYI AI/core
+Root cause: primary fire was not blocked during movement abilities, so melee_swing ran mid-leap; its lunge (enemy
+2.56-8.2 m ahead in a 30° cone) overwrote dash_vel / dash_time (0.15 s), and the dash branch in Hero._physics_process
+keeps velocity.y >= 0, so the leap arc became a flat burst + hover; the swing also hit in the air. Fix (hero.gd):
+no lunge while airborne, mounted, or while `movement_active()` (leap in the air, charge, any dash push incl. dash /
+lunge / hop-off); a melee click during a movement ability is buffered (one swing, dropped after 2 s) and runs once
+it is over and we are on the floor, after the landing impact. Applies to every melee hero (The Best, Niđo, Übel);
+Übel's mounted head attacks are unchanged (mounted is not movement). Host-only: client prediction never simulated
+the lunge or leap pushes, so nothing to match and no new rubber-banding (the old host-only lunge was the source).
+**AI (optional):** bots holding fire during a leap now get their swing on landing instead of mid-air.
+
+## Oct 19: Niđo Momentum (primary.on_hit_speed) - requests UI / core (optional)
+`primary.on_hit_speed: {bonus: 0.5, decay: 1.0}` (generic Hero hook): a primary melee swing that hits >= 1 enemy hero
+sets the bonus to full (+50% move speed and acceleration via effective_move_cfg), fading linearly to 0 over 1 s; each
+such swing refreshes it (one refresh per swing, no stacking); slows multiply on top; cleared on death. Host-only
+state; replicated with no core change through a `momentum:<net id>` net prop (yaw = fraction left x 3), read by
+`hero.momentum_frac()` / `momentum_mult()` on every peer (owner prediction uses it in effective_move_cfg, remote
+heroes show a faint speed trail from it).
+- **UI (request, approved by the user Oct 19):** there is no buff-icon system in the HUD. Please add a small buff indicator for the local hero;
+  `hero.momentum_frac()` (0..1) is the fill, `hero.def.primary.on_hit_speed` has the numbers. A generic
+  "buffs" list on the HUD would also suit damage_reductions / buff_mult / overheal later.
+- **Core (optional):** a snapshot field for the fraction (instead of the prop) would give per-tick precision for
+  owner prediction; the prop updates at the snapshot rate, which is close enough for a 1 s decay.

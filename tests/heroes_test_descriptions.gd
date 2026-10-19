@@ -58,6 +58,8 @@ func test_every_hero_slot_described_and_covered() -> void:
                 elif v is Dictionary:
                     if k == "slow":
                         check(desc.text.contains(HeroAbilities.pct(v.get("mult", 0))) and _has_num(desc.text, v.get("duration", 0)), "%s.%s: slow numbers in text" % [id, slot])
+                    elif k == "on_hit_speed":
+                        check(desc.text.contains("+" + HeroAbilities.pct(v.get("bonus", 0))) and _has_num(desc.text, v.get("decay", 0)), "%s.%s: on_hit_speed numbers in text" % [id, slot])
                     else:
                         check(false, "%s.%s: nested key %s not checked" % [id, slot, k])
             if slot != "primary":

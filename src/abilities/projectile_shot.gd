@@ -59,9 +59,11 @@ func _physics_process(dt: float) -> void:
                 ex.append(h.get_rid())   # passes through self and allies
         q.exclude = ex
     var hit := space.intersect_ray(q)
+    _hit_normal = Vector3.ZERO
     if not hit.is_empty():
         hit_something = true
         hit_pos = hit.position
+        _hit_normal = hit.normal
         if hit.collider is Hero:
             target = hit.collider
         elif hit.collider.is_in_group("destructible"):
@@ -88,6 +90,19 @@ func _physics_process(dt: float) -> void:
         queue_free()
 
 var _cover_hit = null   ## breakable cover hit directly (maps §6)
+var _hit_normal := Vector3.ZERO   ## surface normal of the impact (zero when it hit a hero / near-miss)
+const SPLASH_NUDGE := 0.1         ## splash path checks start this far off the impact surface
+
+## Where splash path checks start: the impact point nudged back off the surface (along the normal, else back along
+## the flight), so the wall that was hit does not block its own splash.
+func splash_origin(pos: Vector3) -> Vector3:
+    var n := _hit_normal if _hit_normal.length() > 0.5 else -vel.normalized()
+    return pos + n * SPLASH_NUDGE
+
+## Physical path for splash (damage and ally heal): walls / shield walls between the impact and `p` block it, heroes
+## do not (Hero.los_clear; not a vision check). `target` = the hero / cover block being reached.
+func splash_reaches(pos: Vector3, p: Vector3, target = null) -> bool:
+    return Hero.los_clear(self, splash_origin(pos), p, target)
 
 func _impact(pos: Vector3, target) -> void:
     exploded = true
@@ -104,12 +119,12 @@ func _impact(pos: Vector3, target) -> void:
     if is_instance_valid(_cover_hit) and dmg > 0.0:
         _cover_hit.take_damage(dmg * scale, src, pos, kind, String(def.get("id", def.get("type", ""))))
     if splash > 0.0 and src:
-        Hero.damage_destructibles(get_tree(), pos, splash, dmg * scale, src, kind, String(def.get("id", def.get("type", ""))), _cover_hit)
+        Hero.damage_destructibles(get_tree(), pos, splash, dmg * scale, src, kind, String(def.get("id", def.get("type", ""))), _cover_hit, splash_origin(pos))
         for h in get_tree().get_nodes_in_group("heroes"):
             if h == src or h.dead or h.team == src.team or victims.has(h):
                 continue
             var amt := HitMath.aoe_damage(pos, splash, dmg, h.global_position + Vector3(0, 0.9, 0))
-            if amt > 0.0:
+            if amt > 0.0 and splash_reaches(pos, h.global_position + Vector3(0, 0.9, 0), h):
                 victims.append(h)
                 h.take_damage(amt * scale, src, h.global_position + Vector3(0, 1.2, 0), kind, String(def.get("id", def.get("type", ""))))
         Fx.ring(get_parent(), pos, splash, Color(String(def.get("color", "#ffd040"))), 0.3)

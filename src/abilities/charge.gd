@@ -31,7 +31,7 @@ func tick(dt: float) -> void:
     for h in hero.get_tree().get_nodes_in_group("heroes"):
         if h == hero or h.dead or h.team == hero.team or hit.has(h):
             continue
-        if h.global_position.distance_to(hero.global_position) <= r:
+        if h.global_position.distance_to(hero.global_position) <= r and hero.can_hit(h):   # not through (shield) walls
             hit.append(h)
             h.take_damage(float(def.get("damage", 40.0)) * hero.damage_mult(), hero, h.global_position + Vector3(0, 1.2, 0), "charge", id)
             var kb: Vector3 = hero.dash_vel.normalized() * float(def.get("knockback", 8.0))

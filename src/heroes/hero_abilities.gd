@@ -18,7 +18,7 @@ const COMMON := ["cooldown", "needs_ult"]
 ## Stat keys each template reads. Add the key here AND use it in _text_<type> when a script gains one.
 const TEMPLATES := {
     "hitscan": ["damage", "fire_rate", "mag", "reload_time", "spread_deg", "range", "burst", "burst_delay"],
-    "melee": ["damage", "fire_rate", "mag", "reload_time", "spread_deg", "range", "arc_deg", "combo", "combo_window", "finisher_knockback", "lunge"],
+    "melee": ["damage", "fire_rate", "mag", "reload_time", "spread_deg", "range", "arc_deg", "combo", "combo_window", "finisher_knockback", "lunge", "on_hit_speed"],
     "charge": ["distance", "duration", "damage", "hit_radius", "knockback"],
     "shield_wall": ["width", "height", "thickness", "distance", "duration"],
     "ground_slam": ["radius", "damage", "dive_speed"],
@@ -36,6 +36,9 @@ const TEMPLATES := {
     "ride": ["range", "cone_deg", "leap_time", "ride_time", "hop_range", "hop_off_speed"],
     "line_slash": ["damage", "length", "width", "height", "knockback"],
 }
+## Close-range / area damage that needs a clear line (Hero.can_hit): walls, shield walls and cover block it.
+const LOS_TYPES := ["melee", "line_slash", "leap", "charge", "ground_slam", "nova", "shockwave", "pull"]
+const LOS_TEXT := "Walls, shield walls and cover block it."
 ## Types that always consume the full ultimate meter, even without "needs_ult".
 const ULT_TYPES := ["rally", "nova", "shockwave"]
 const MELEE_LUNGE_CONE_DEG := 30.0      # hero.gd melee_swing lunge search cone
@@ -108,6 +111,8 @@ static func describe_def(hero: Dictionary, slot: String) -> Dictionary:
         "ride": text = _text_ride(d, stats)
         "line_slash": text = _text_line_slash(d, stats)
         _: text = _text_generic(d)
+    if t in LOS_TYPES:
+        text += " " + LOS_TEXT
     if slot != "primary":
         text += " " + _cost_text(hero, d, t, stats, slot)
     return {"name": nm, "slot": slot, "type": t, "text": text.strip_edges(), "stats": stats}
@@ -185,6 +190,10 @@ static func _text_melee(d: Dictionary, s: Dictionary) -> String:
         n(d.get("arc_deg", 100)), n(d.get("range", 3)), n(d.get("fire_rate", 1)), combo.size(), " / ".join(hits), " / ".join(mults), n(d.get("combo_window", 0.8)), n(d.get("finisher_knockback", 6))]
     if float(d.get("lunge", 0)) > 0.0:
         txt += " Lunges up to %s m extra to reach an enemy in a %s° cone ahead." % [n(d.get("lunge", 0)), n(MELEE_LUNGE_CONE_DEG)]
+    var ohs: Dictionary = d.get("on_hit_speed", {})
+    if float(ohs.get("bonus", 0)) > 0.0:
+        txt += " Momentum: a swing that hits at least one enemy hero gives you +%s move speed and acceleration, fading linearly to 0 over %s s; every such swing refreshes it to the full +%s (no stacking; slows still apply on top)." % [
+            pct(ohs.get("bonus", 0)), n(ohs.get("decay", 1)), pct(ohs.get("bonus", 0))]
     if int(d.get("mag", 999)) < 999:
         txt += " %s swings, then a %s s reload." % [n(d.get("mag", 0)), n(d.get("reload_time", 0))]
     else:
@@ -233,7 +242,7 @@ static func _text_projectile(d: Dictionary, s: Dictionary) -> String:
         n(d.get("speed", 20)), n(d.get("lifetime", 3)), n(rng), ("arcing with %s m/s² gravity" % n(g)) if g > 0.0 else "flying straight", n(d.get("hit_radius", 0.3)), n(d.get("damage", 0))]
     var sp := float(d.get("splash_radius", 0))
     if sp > 0.0:
-        txt += ", plus splash to other enemies within %s m (linear falloff to %d%% at the edge)" % [n(sp), AOE_EDGE_PCT]
+        txt += ", plus splash to other enemies within %s m (linear falloff to %d%% at the edge; walls and shield walls between the impact and a target block the splash)" % [n(sp), AOE_EDGE_PCT]
     txt += "."
     if float(d.get("root", 0)) > 0.0:
         s["root"] = float(d.get("root", 0))
@@ -275,7 +284,7 @@ static func _text_ride(d: Dictionary, s: Dictionary) -> String:
         n(d.get("leap_time", 0.3)), n(d.get("range", 10)), n(d.get("cone_deg", 30)), n(d.get("ride_time", 4)), n(d.get("hop_off_speed", 7)), n(d.get("hop_range", 8))]
 
 static func _text_line_slash(d: Dictionary, s: Dictionary) -> String:
-    var txt := "One straight cut along your aim: every enemy in a %s m long, %s m wide, %s m high strip ahead takes %s damage, even behind cover; breakable cover in the strip is damaged too. From an enemy's head the cut also reaches the ground and always hits the enemy you ride." % [
+    var txt := "One straight cut along your aim: every enemy in a %s m long, %s m wide, %s m high strip ahead takes %s damage; breakable cover in the strip is damaged too. From an enemy's head the cut also reaches the ground and always hits the enemy you ride." % [
         n(d.get("length", 6)), n(d.get("width", 1.2)), n(d.get("height", 2.5)), n(d.get("damage", 60))]
     if float(d.get("knockback", 0)) > 0.0:
         txt += " Knocks enemies forward at %s m/s." % n(d.get("knockback", 0))
