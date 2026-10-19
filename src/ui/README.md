@@ -108,3 +108,11 @@ Team colours by relation (TeamPalette, one place): the kill feed (names + abilit
 green/red; FFA all but self red) and the capture bars (own team green, other red, neutral grey, contested yellow)
 follow the local player like the overhead bars; the HUD keeps their `player` / `mode` current across hero swaps.
 Mode: host/offline MatchRules, else (client) capture zones on the map = Control (`TeamPalette.mode_near`).
+
+Hero sounds for every hero (`hero_sfx.gd`): the local player's own sounds and the team cues stay non-positional
+at full level on reserved voices that are never stolen; every other hero's fire / Shift / E / Q plays from an
+AudioStreamPlayer3D at that hero (inverse distance, unit_size 15 m, ultimates 40 m, max_distance 0 = no cutoff,
+distance low-pass and doppler off). Pool `pool_size` (default 32) steals the quietest/farthest non-ult voice;
+ultimates get +6 dB per-play volume_db, are never stolen and layer (extra ult-only voices when needed). Rate
+limits are per hero instance. VOLUME_GAIN (Cob / The Best 0.6, Niđo 0.5) still applies. No bus effects or
+processing. Online clients get casts from the replicated `Events.ability_used` and shots from snapshot ammo.
