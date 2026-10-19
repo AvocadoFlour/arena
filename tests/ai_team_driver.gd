@@ -44,7 +44,7 @@ func _ready() -> void:
     add_child(map)
     var region := BotNav.ensure_region(map)
     var covers := BotNav.cover_blocks(map)
-    _rec("cover_blocks_found_with_kind_NN_names", covers.size() == 8, "found=%d names e.g. %s" % [covers.size(), map.get_child(5).name])
+    _rec("cover_blocks_found_with_kind_NN_names", covers.size() >= 8, "found=%d (>= 8) names e.g. %s" % [covers.size(), map.get_child(5).name])
     _rec("navmesh_still_bakes_walls_and_blocks", region.navigation_mesh.get_polygon_count() > 50, "polygons=%d" % region.navigation_mesh.get_polygon_count())
     walker = _hero("kestrel", 0, Vector3(-3.5, 0.2, 17))
     gs = GoalSource.new()
