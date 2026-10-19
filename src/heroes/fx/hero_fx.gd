@@ -18,6 +18,7 @@ const DUST := Color("#d9d2c3")
 const AMBER := Color("#f59a33")
 const AMBER_LT := Color("#ffc75c")
 const MOSS := Color("#809e5c")
+const UBEL_GREEN := Color("#5f9e7e")
 
 var hero
 var _shots := -1
@@ -105,6 +106,18 @@ func _on_shot(w: Node) -> void:
                 var xf := base * Transform3D(Basis(Vector3.FORWARD, tilt), Vector3.ZERO)
                 _count(ToonFx.arc(w, xf, WHITE, 200, 340, 1.0, 2.0, 0.2))
                 _count(ToonFx.arc(w, xf.translated_local(Vector3(0, 0.05, 0)), RED, 215, 325, 1.75, 2.05, 0.2))
+        "ubel":         # thin staff-blade sweeps (pale green edge); the finisher is a downward vertical cut
+            var y: float = hero.rotation.y
+            var base := Transform3D(Basis(Vector3.UP, y), hero.global_position + Vector3(0, 1.15, 0))
+            if hero._anim_finisher:
+                var v := base * Transform3D(Basis(Vector3.BACK, PI * 0.5), Vector3(0, -0.1, 0.45))
+                _count(ToonFx.arc(w, v, WHITE, 210, 330, 1.5, 1.75, 0.24))
+                _count(ToonFx.arc(w, v.translated_local(Vector3(0, 0.02, 0)), UBEL_GREEN, 220, 320, 1.72, 1.82, 0.24))
+            else:
+                var tilt := 0.25 if hero._anim_shots % 2 == 1 else -0.25
+                var xf := base * Transform3D(Basis(Vector3.FORWARD, tilt), Vector3.ZERO)
+                _count(ToonFx.arc(w, xf, WHITE, 205, 335, 1.55, 1.85, 0.18))
+                _count(ToonFx.arc(w, xf.translated_local(Vector3(0, 0.03, 0)), UBEL_GREEN, 215, 325, 1.82, 1.9, 0.18))
         "cob":          # amber crystal shard flies from the shooter crystal
             var o: Vector3 = hero.beam_origin()
             var c := ToonFx.crystal(w, o, AMBER_LT if hero._anim_shots % 2 == 0 else AMBER, 0.32, 0.12, 0.22)
@@ -163,6 +176,21 @@ func _on_cast(w: Node, ab) -> void:
             var c: Vector3 = pos + f * float(d.get("distance", 1.8))
             # the crystals themselves are the wall's prop visual (prop_visuals.gd); here only the burst
             _count(ToonFx.chunks(w, c, STONE, 8, 0.22, 3.5, 4.0, 0.6))
+        "clean_cut":    # one long, very thin straight cut along the aim at chest height
+            var f := _fwd()
+            var a: Vector3 = pos + Vector3(0, 1.15, 0) - f * 0.3
+            var b: Vector3 = a + f * (float(d.get("length", 6.0)) + 0.3)
+            _count(ToonFx.streak(w, a, b, WHITE, 0.07, 0.3))
+            _count(ToonFx.streak(w, a + Vector3(0, 0.05, 0), b + Vector3(0, 0.05, 0), UBEL_GREEN, 0.03, 0.3))
+            _count(ToonFx.burst(w, b, WHITE, 5, 0.5, 0.2, f, 0.12))
+        "uninvited_guest":   # take-off puff; the arrival burst comes when the ride starts (MountLink)
+            _count(ToonFx.puff(w, pos + Vector3(0, 0.3, 0), DUST, 0.5, 0.35))
+            _count(ToonFx.ring(w, pos + Vector3(0, 0.08, 0), 1.0, WHITE, 0.3, 0.08))
+        "last_smile":   # spin cut: two flat rings sweep out at blade height + a white burst
+            var r := float(d.get("radius", 6.0))
+            _count(ToonFx.ring(w, pos + Vector3(0, 1.1, 0), r, WHITE, 0.5, 0.1))
+            _count(ToonFx.ring(w, pos + Vector3(0, 1.2, 0), r * 0.85, UBEL_GREEN, 0.45, 0.06))
+            _count(ToonFx.burst(w, pos + Vector3(0, 1.1, 0), WHITE, 12, r * 0.5, 0.3, Vector3.UP, 0.12))
         "quarry_quake":
             _timers.append({"kind": "quake", "t": 0.0, "end": 2.0, "y0": pos.y, "low": pos.y, "r": float(d.get("radius", 9.0))})
 
@@ -254,6 +282,8 @@ func _on_damage(ev: Dictionary) -> void:
     match String(ev.get("ability_id", "")):
         "staccato_note":
             _count(ToonFx.burst(w, p, ICE, 7, 0.6, 0.25, Vector3.BACK, 0.2))
+        "clean_cut":
+            _count(ToonFx.burst(w, p, WHITE, 6, 0.7, 0.22, Vector3.BACK, 0.14))
         "fearless_leap", "boulder_roll":
             _count(ToonFx.burst(w, p, WHITE, 6, 0.7, 0.25, Vector3.BACK, 0.24))
         "":

@@ -16,6 +16,8 @@ const TYPES := {
     "shockwave": preload("res://src/abilities/shockwave.gd"),
     "pull": preload("res://src/abilities/pull.gd"),
     "rollback": preload("res://src/abilities/rollback.gd"),
+    "ride": preload("res://src/abilities/ride.gd"),
+    "line_slash": preload("res://src/abilities/line_slash.gd"),
 }
 
 static func create(hero, d: Dictionary) -> Ability:

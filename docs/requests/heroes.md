@@ -115,3 +115,22 @@ shooting and other abilities work. Distinct from slows (slow_mult stays 1). Proj
 **Core (net.gd):** root_left (like slow_mult today) is not in the snapshot, so a client-predicted own hero keeps walking
 locally and gets corrected by the host. Please replicate `root_left` (and ideally `slow_mult`) for `_predict_step`.
 **AI:** bots may still try movement abilities while rooted (harmless: _use() refuses).
+
+## Oct 13: Übel (id `ubel`, user-approved fan character) - roster, core, AI, docs
+1. **docs/ROSTER.md (lead):** please add Übel with exactly this line:
+   'Fan character based on Übel (Frieren). Fine for private play; must be replaced with an original design before any commercial release.'
+   (Also in src/heroes/ubel/README.md.)
+2. **tests/core_test_roster.gd (core-owned):** edited in this branch the same way tomo 4c4aee1 / nidjo f5b6f50 did
+   (adds "ubel" / "Übel" to the expected roster), because adding src/heroes/ubel.json otherwise fails the build.
+   Please keep or redo it on master as you prefer.
+3. **New ability types (INTERFACES §2.2):** `ride` (src/abilities/ride.gd) and `line_slash` (src/abilities/line_slash.gd).
+   New Hero API: `mounted_on()`, `cancel_ride(why)` (stuns / hard CC should call it; knockback and root already end a
+   ride), `ridden_by` (host), `_ride`. HeroModel drive key `riding` -> "ride" pose.
+4. **Net (core, optional improvement):** the ride replicates without core changes through a net prop
+   (`net_kind "mount:<rider>:<victim>"`, `net_visual` res://src/abilities/mount_link.gd). A proper snapshot field
+   (rider -> victim id + ride time left) would remove the dependency on the reliable prop spawn order and let the
+   client predict the hop-off on jump (today the hop-off waits for the host). Also: while mounted the client-predicted
+   rider sits on the *interpolated* victim, so reconcile counts rise during rides (harmless, the predicted step re-seats).
+5. **AI (bot_brain.want_ability):** `ride` and `line_slash` are unknown types today, so bots never use Übel's Shift/E.
+   Suggested: `ride` like `leap` (aimed, visible enemy within 10 m), `line_slash` like `charge` but dist < 6; while
+   mounted (`h.mounted_on() != null`) keep swinging and don't jump.

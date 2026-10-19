@@ -33,6 +33,8 @@ const TEMPLATES := {
     "shockwave": ["radius", "arc_deg", "damage", "knockback", "lift"],
     "pull": ["radius", "pull_speed", "up_speed", "stop_distance", "slow", "slow_duration"],
     "rollback": ["radius", "window", "sample", "damage_reduction", "dr_duration"],
+    "ride": ["range", "cone_deg", "leap_time", "ride_time", "hop_range", "hop_off_speed"],
+    "line_slash": ["damage", "length", "width", "height", "knockback"],
 }
 ## Types that always consume the full ultimate meter, even without "needs_ult".
 const ULT_TYPES := ["rally", "nova", "shockwave"]
@@ -103,6 +105,8 @@ static func describe_def(hero: Dictionary, slot: String) -> Dictionary:
         "shockwave": text = _text_shockwave(d, stats)
         "pull": text = _text_pull(d, stats)
         "rollback": text = _text_rollback(d, stats)
+        "ride": text = _text_ride(d, stats)
+        "line_slash": text = _text_line_slash(d, stats)
         _: text = _text_generic(d)
     if slot != "primary":
         text += " " + _cost_text(hero, d, t, stats, slot)
@@ -265,6 +269,17 @@ static func _text_pull(d: Dictionary, s: Dictionary) -> String:
 static func _text_rollback(d: Dictionary, s: Dictionary) -> String:
     return "Restores you and allies within %s m to the health each of you had %s s ago (HP sampled every %s s; only heals, never undoes a death). Then for %s s you take %s less damage (applied before overheal and health, so it can survive a lethal hit)." % [
         n(d.get("radius", 10)), n(d.get("window", 4)), n(d.get("sample", 0.25)), n(d.get("dr_duration", 4)), pct(d.get("damage_reduction", 0.35))]
+
+static func _text_ride(d: Dictionary, s: Dictionary) -> String:
+    return "Leaps (%s s) onto the head of the enemy closest to your crosshair within %s m (%s° cone, line of sight) and rides it for up to %s s. The enemy keeps moving and carries you; you can still swing and cast, and your attacks always reach it. Jump or press again to hop off (up at %s m/s); pressing again with another enemy within %s m hops onto that head instead (the ride time carries over). Knockback, roots, stuns, the timer or either death end the ride. Cooldown starts at the leap." % [
+        n(d.get("leap_time", 0.3)), n(d.get("range", 10)), n(d.get("cone_deg", 30)), n(d.get("ride_time", 4)), n(d.get("hop_off_speed", 7)), n(d.get("hop_range", 8))]
+
+static func _text_line_slash(d: Dictionary, s: Dictionary) -> String:
+    var txt := "One straight cut along your aim: every enemy in a %s m long, %s m wide, %s m high strip ahead takes %s damage, even behind cover; breakable cover in the strip is damaged too. From an enemy's head the cut also reaches the ground and always hits the enemy you ride." % [
+        n(d.get("length", 6)), n(d.get("width", 1.2)), n(d.get("height", 2.5)), n(d.get("damage", 60))]
+    if float(d.get("knockback", 0)) > 0.0:
+        txt += " Knocks enemies forward at %s m/s." % n(d.get("knockback", 0))
+    return txt
 
 ## Unknown type: still precise, just generic ("Type: key value, ..."). uncovered_keys() flags it.
 static func _text_generic(d: Dictionary) -> String:
