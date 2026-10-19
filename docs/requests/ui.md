@@ -165,8 +165,8 @@ Live (composition root main.gd; host/offline only, like `set_bot_count`):
    to players.
 3. **Optional: a shot event.** Primary-fire sounds detect a shot UI-side from the local player's `weapon.ammo`
    dropping (no event exists). If core adds `Events.shot_fired(hero)` (or includes the primary in `ability_used`
-   with slot "primary"), HeroSfx will switch to it. Only the local player's own casts and shots play for now
-   (non-positional); hearing other heroes' abilities positionally would need hero-side players and is out of scope.
+   with slot "primary"), HeroSfx will switch to it. (Since 0.9.4 every hero's casts and shots play, other heroes
+   positionally from UI-side AudioStreamPlayer3D voices; no hero-side players needed.)
 
 ## Online rematch hook (match-end screen; adapter src/ui/rematch_control.gd)
 Today the match-end "Play again" → `_restart(true)`, which closes Net when online, so a host can't rematch with the
@@ -187,3 +187,19 @@ when the client built the map's CaptureZone nodes, else ffa" (matches INTERFACES
 - `func match_mode() -> String` on the composition root, every side ("ffa" | "control"; host/offline:
   `rules.mode`; client: from the welcome info, e.g. `info.mode`). The UI uses it as soon as it exists.
 Please add to INTERFACES §8.1/§9 when implemented.
+
+## ability3 input (right mouse) — core: src/core/actions.gd, input_frame.gd, net input (TEAM.md: core-owned)
+Heroes is adding a HeroAbilities slot `ability3` between ability2 and ultimate. The UI is ready (HUD cooldown slot,
+controls hint, Esc Controls page, hero select / tooltips / kill feed, all hidden or skipped for heroes without one)
+and registers the `ability3` action itself until core does (`Keybinds.PENDING_MOUSE`, MOUSE_BUTTON_RIGHT,
+rebindable, saved in user://keybinds.cfg; skipped automatically once Actions defines it). The press does not reach
+gameplay yet. Requested:
+1. `Actions.MOUSE_BINDINGS["ability3"] = [MOUSE_BUTTON_RIGHT]`.
+2. `InputFrame.ability3` (edge) and `f.ability3 = Input.is_action_just_pressed("ability3")` in `Actions.poll`.
+3. Online: append an a3 press counter to the client input packet (`client_input.gd` edges, `remote_input.gd`
+   counters) and "ability3" to `Net.SLOTS` (cooldowns in snapshots) — heroes/AI then read `f.ability3`.
+4. Smoke `forced` / stats slots and BotBrain (AI) use of the new slot as you see fit.
+5. INTERFACES §1 (actions list) + §2.2 when implemented.
+Right mouse is unused elsewhere today (no aim/zoom); while the cursor is free any mouse button (incl. right)
+recaptures it in main.gd, and the first-match controls hint closes on any mouse button — same as left click.
+
