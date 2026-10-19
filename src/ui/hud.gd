@@ -219,6 +219,14 @@ func _process(dt: float) -> void:
         return
     if hero_sfx != null:
         hero_sfx.player = player   # follows hero swaps (main.gd reassigns hud.player)
+    # kill feed / scoreboard / capture bars colour by relation to the local player: follow swaps + mode
+    kill_feed.player = player
+    kill_feed.mode = bar_mode()
+    if scoreboard != null:
+        scoreboard.player = player
+        scoreboard.mode = kill_feed.mode
+    if capture_widget != null:
+        capture_widget.player = player
     var fps := Engine.get_frames_per_second()
     fps_label.text = "FPS %d" % fps
     fps_samples.append(fps)
@@ -249,18 +257,53 @@ func _process(dt: float) -> void:
     center_label.text = ("RESPAWNING IN %.1f" % player.respawn_left) if player.dead else ""
     _update_bars()
 
+## Match mode for the bar colours (TeamPalette.mode_of on the composition root), re-read once a second.
+var mode_root: Node = null   ## tests set it; default = our parent (main.gd)
+var _mode := ""
+var _mode_t := 0.0
+func bar_mode() -> String:
+    var now := Time.get_ticks_msec() / 1000.0
+    if _mode == "" or now - _mode_t > 1.0:
+        _mode = TeamPalette.mode_of(mode_root if mode_root != null else get_parent())
+        _mode_t = now
+    return _mode
+
+## Overhead bar + name for every real hero, including the local player's own (blue). Colours follow the
+## authoritative `hero.team` every frame, so a team change (re-spawned hero) or a local hero swap recolours at once.
 func _update_bars() -> void:
+    for k in _bars.keys():
+        if not is_instance_valid(k):
+            _bars.erase(k)
+    var mode := bar_mode()
     for h in get_tree().get_nodes_in_group("heroes"):
-        if h == player or not (h is Node3D) or not ("dead" in h and "health" in h):
+        if not (h is Node3D) or not ("dead" in h and "health" in h):
             continue   # only real 3D heroes get a bar (tests / tools may put other nodes in the group)
         if not _bars.has(h):
             _bars[h] = _make_bar(h)
         var b: Node3D = _bars[h]
         b.visible = not h.dead
         b.get_child(1).scale.x = maxf(0.001, h.health.fraction())
+        set_bar_relation(b, TeamPalette.relation(h, player, mode))
+
+## Colours one bar: fill + name text (outlined). No-op if unchanged.
+static func set_bar_relation(b: Node3D, rel: String) -> void:
+    if b.get_meta("relation", "") == rel:
+        return
+    b.set_meta("relation", rel)
+    b.scale = Vector3.ONE * (TeamPalette.SELF_SCALE if rel == "self" else 1.0)   # own bar sits near the camera
+    var c := TeamPalette.color(rel)
+    ((b.get_child(1) as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = c
+    var name_l: Label3D = b.get_child(2)
+    name_l.modulate = c
+    name_l.outline_modulate = TeamPalette.OUTLINE
+    name_l.outline_size = TeamPalette.OUTLINE_SIZE
+
+static func bar_relation(b: Node3D) -> String:
+    return String(b.get_meta("relation", ""))
 
 func _make_bar(h) -> Node3D:
     var root := Node3D.new()
+    root.name = "OverheadBar"
     root.position = Vector3(0, 2.25, 0)
     for i in 2:
         var mi := MeshInstance3D.new()
@@ -273,7 +316,7 @@ func _make_bar(h) -> Node3D:
         m.billboard_keep_scale = true
         m.no_depth_test = true
         m.render_priority = i
-        m.albedo_color = Color(0, 0, 0, 0.7) if i == 0 else Color("#ff4848")
+        m.albedo_color = Color(0, 0, 0, 0.7) if i == 0 else TeamPalette.ENEMY
         m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
         mi.material_override = m
         mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -284,7 +327,8 @@ func _make_bar(h) -> Node3D:
     name_l.no_depth_test = true
     name_l.pixel_size = 0.006
     name_l.font_size = 40
-    name_l.outline_size = 8
+    name_l.outline_size = TeamPalette.OUTLINE_SIZE
+    name_l.outline_modulate = TeamPalette.OUTLINE
     name_l.position = Vector3(0, 0.22, 0)
     root.add_child(name_l)
     h.add_child(root)

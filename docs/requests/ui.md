@@ -178,3 +178,12 @@ same players. UI shows: offline "Play again"; online host "Rematch" (disabled un
   The UI enables "Rematch" as soon as `rematch()` exists on main.gd (no UI change needed).
 - Optional: `Events.rematch_started` (or a Net signal) so the client end screen can say "Starting rematch...".
 Please add to INTERFACES §9/§10 when implemented.
+
+## Match mode on every peer (overhead team colours; src/ui/team_palette.gd)
+Overhead bars colour heroes self / ally / enemy from the authoritative `hero.team` (replicated in `Net.hero_info`;
+team changes and hero swaps re-spawn the node, so that's covered). In FFA everyone but the local player is an enemy,
+so the UI needs the match mode on clients too, where no MatchRules exists. Today the UI falls back to "control
+when the client built the map's CaptureZone nodes, else ffa" (matches INTERFACES §9). Requested (core: main.gd):
+- `func match_mode() -> String` on the composition root, every side ("ffa" | "control"; host/offline:
+  `rules.mode`; client: from the welcome info, e.g. `info.mode`). The UI uses it as soon as it exists.
+Please add to INTERFACES §8.1/§9 when implemented.

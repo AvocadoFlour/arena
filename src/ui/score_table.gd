@@ -3,15 +3,28 @@ extends HBoxContainer
 ## Team-column score table shared by the Tab scoreboard and the match-end summary.
 ## One panel per team; each row: badge (hero initials), player name, K, D, damage, healing.
 ## Rows are >= 52 px tall (touch-friendly); the local player's row is highlighted.
+## Colours come from TeamPalette, seen from the local player: own row self blue, the own team's panel ally green,
+## other teams' panels red; other players' names + badge rings ally green / enemy red (FFA: everyone but self red).
+## Rebuilt on every refresh (Tab scoreboard 4 Hz), so a team change or hero swap recolours at once.
 const COLS := ["", "Player", "K", "D", "Damage", "Healing"]
 const ROW_H := 52.0
-const HIGHLIGHT := Color(1, 0.85, 0.3)
+const HIGHLIGHT := TeamPalette.SELF   ## the local player's own row
 var row_total := 0
 
 static func team_title(team: int) -> String:
     return "Team %d" % (team + 1) if team >= 0 else "No team"
 
-func build(stats: MatchStats, heroes: Array, player) -> void:
+## Panel colour of team `t` (rows = its MatchStats rows): ally/enemy by TeamPalette.team_relation; in FFA a
+## panel holding only the local player is self blue.
+static func panel_color(t: int, rows: Array, player, mode: String) -> Color:
+    if player != null and is_instance_valid(player) and not rows.is_empty() and rows.all(func(r): return r.hero == player):
+        return TeamPalette.SELF if mode == "ffa" else TeamPalette.ALLY
+    return TeamPalette.color(TeamPalette.team_relation(t, player, mode))
+
+## `mode` "" = resolve from the composition root (TeamPalette.mode_near).
+func build(stats: MatchStats, heroes: Array, player, mode := "") -> void:
+    if mode == "":
+        mode = TeamPalette.mode_near(self)
     for c in get_children():
         remove_child(c)
         c.queue_free()
@@ -27,7 +40,8 @@ func build(stats: MatchStats, heroes: Array, player) -> void:
         panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
         var sb := StyleBoxFlat.new()
         sb.bg_color = Color(0.03, 0.05, 0.1, 0.85)
-        sb.border_color = HeroBadge.TEAM_COLORS.get(t, Color.WHITE)
+        sb.border_color = panel_color(t, groups[t], player, mode)
+        panel.set_meta("relation_color", sb.border_color)
         sb.border_width_top = 4
         sb.set_corner_radius_all(10)
         sb.set_content_margin_all(16)
@@ -48,9 +62,11 @@ func build(stats: MatchStats, heroes: Array, player) -> void:
         for r in groups[t]:
             var me: bool = player != null and r.hero == player
             var col := HIGHLIGHT if me else Color.WHITE
+            var rel_col := TeamPalette.color(TeamPalette.relation(r.hero, player, mode))
             var badge := HeroBadge.for_hero(r.hero, 44)
+            badge.ring = rel_col
             grid.add_child(badge)
-            var nm := _cell(r.name, col, 22)
+            var nm := _cell(r.name, HIGHLIGHT if me else rel_col, 22)
             nm.custom_minimum_size = Vector2(200, ROW_H)
             nm.clip_text = true
             grid.add_child(nm)

@@ -1,7 +1,8 @@
 class_name KillFeed
 extends VBoxContainer
 ## Kill feed (top right). Driven by Events.killed {killer, victim, kind, ability_id}: killer name, ability
-## badge (initials, HeroBadge style), victim name; names in team colours. Newest on top, at most MAX
+## badge (initials, HeroBadge style), victim name; names + badge ring in TeamPalette colours seen from the local
+## player (self blue, ally green, enemy red; FFA: everyone but self red), recoloured live on team change / hero swap. Newest on top, at most MAX
 ## entries, each lasts LIFETIME s (fades over the last FADE s). Local player kills/deaths get a neutral
 ## panel highlight (white / grey border) so team colours stay readable.
 const MAX := 5
@@ -10,6 +11,9 @@ const FADE := 0.6
 ## Legacy only (events without ability_id): damage kind -> ability types that produce it (INTERFACES §2.2/§3), used to name the ability.
 const KIND_TYPES := {"slam": ["ground_slam", "leap"], "charge": ["charge"], "projectile": ["projectile"], "ultimate": ["nova"]}
 var player
+var mode := ""   ## "" = resolve from the composition root (TeamPalette.mode_near); the HUD keeps it current
+const RECOLOR_EVERY := 0.25
+var _recolor_t := 0.0
 
 func _ready() -> void:
     mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -85,7 +89,7 @@ static func entry_text(ev: Dictionary) -> String:
 
 ## Ability "icon": the weapon/ability label's initials in a HeroBadge-style circle, filled with the
 ## ability's def colour (if any) else the killer hero's colour, ringed in the killer's team colour.
-static func ability_badge(killer, kind: String, ability_id = null, size := 34.0) -> HeroBadge:
+static func ability_badge(killer, kind: String, ability_id = null, size := 34.0, ring = null) -> HeroBadge:
     var label := weapon_name(killer, kind, ability_id)
     var b := HeroBadge.new()
     b.initials = HeroBadge.initials_for(label)
@@ -96,18 +100,50 @@ static func ability_badge(killer, kind: String, ability_id = null, size := 34.0)
     if slot != "" and str(d.abilities[slot].get("color", "")).begins_with("#"):
         fill = Color(str(d.abilities[slot].color))
     b.fill = fill
-    b.ring = team_color(killer)
+    b.ring = ring if ring is Color else (TeamPalette.ENEMY if _valid(killer) else TeamPalette.NEUTRAL)
     b.custom_minimum_size = Vector2(size, size)
     b.mouse_filter = Control.MOUSE_FILTER_IGNORE
     b.tooltip_text = label
     b.set_meta("label", label)
     return b
 
-## Name colour = team colour (HeroBadge.TEAM_COLORS); no hero / unknown team = light grey.
-static func team_color(h) -> Color:
-    if h == null or not is_instance_valid(h):
-        return Color(0.8, 0.8, 0.8)
-    return HeroBadge.TEAM_COLORS.get(int(h.get("team")), Color(0.8, 0.8, 0.8))
+static func _valid(h) -> bool:
+    return h != null and is_instance_valid(h)
+
+func feed_mode() -> String:
+    return mode if mode != "" else TeamPalette.mode_near(self)
+
+## Name / ring colour of `h` seen from the local player (TeamPalette); no hero (World) = neutral grey.
+func name_color(h, m := "") -> Color:
+    if not _valid(h):
+        return TeamPalette.NEUTRAL
+    return TeamPalette.color(TeamPalette.relation(h, player, m if m != "" else feed_mode()))
+
+## Re-apply colours to the live rows (team change, local hero swap, mode known later). A hero node that is gone
+## (re-spawned on its own team change / swap) keeps the colour it had.
+func recolor() -> void:
+    var m := feed_mode()
+    for row in get_children():
+        if not row.has_meta("feed_row"):
+            continue
+        var k = row.get_meta("killer_ref").get_ref() if row.has_meta("killer_ref") else null
+        var v = row.get_meta("victim_ref").get_ref() if row.has_meta("victim_ref") else null
+        var kl = row.find_child("Killer", true, false)
+        var vl = row.find_child("Victim", true, false)
+        var b = row.find_child("Ability", true, false)
+        if _valid(k) and kl != null:
+            kl.label_settings.font_color = name_color(k, m)
+            if b != null:
+                b.ring = kl.label_settings.font_color
+                b.queue_redraw()
+        if _valid(v) and vl != null:
+            vl.label_settings.font_color = name_color(v, m)
+
+func _process(dt: float) -> void:
+    _recolor_t += dt
+    if _recolor_t >= RECOLOR_EVERY:
+        _recolor_t = 0.0
+        recolor()
 
 ## Player highlight that never clashes with team colours: a neutral bright panel with a white
 ## (kill) or dark-outlined grey (death) border plus a leading marker; names keep their team colour.
@@ -162,15 +198,21 @@ func on_kill(ev: Dictionary) -> PanelContainer:
     h.mouse_filter = Control.MOUSE_FILTER_IGNORE
     row.add_child(h)
     var kname: String = k.display_name if k != null and is_instance_valid(k) else "World"
-    var kl := _name_label(kname, team_color(k))
+    var m := feed_mode()
+    var kl := _name_label(kname, name_color(k, m))
     kl.name = "Killer"
     h.add_child(kl)
-    var badge := ability_badge(k, str(ev.get("kind", "")), ev.get("ability_id"))
+    var badge := ability_badge(k, str(ev.get("kind", "")), ev.get("ability_id"), 34.0, name_color(k, m))
     badge.name = "Ability"
     h.add_child(badge)
-    var vl := _name_label(victim.display_name, team_color(victim))
+    var vl := _name_label(victim.display_name, name_color(victim, m))
     vl.name = "Victim"
     h.add_child(vl)
+    row.set_meta("feed_row", true)
+    if _valid(k):
+        row.set_meta("killer_ref", weakref(k))
+    if _valid(victim):
+        row.set_meta("victim_ref", weakref(victim))
     row.set_meta("text", entry_text(ev))
     row.tooltip_text = row.get_meta("text")
     add_child(row)
