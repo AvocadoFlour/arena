@@ -31,6 +31,9 @@ var control: RematchControl
 var quit_fn := func(): get_tree().quit()   ## tests replace it
 
 ## Highlight card: plain label ("Top damage"), hero badge, player name and value.
+var _player = null   ## local hero of the shown results (highlight badge rings by relation)
+var _mode := ""
+
 func _highlight_card(hl: Dictionary) -> PanelContainer:
     var pc := PanelContainer.new()
     pc.name = "Card"
@@ -43,7 +46,7 @@ func _highlight_card(hl: Dictionary) -> PanelContainer:
     var h := HBoxContainer.new()
     h.add_theme_constant_override("separation", 12)
     pc.add_child(h)
-    var badge := HeroBadge.for_hero(hl.hero, 56)
+    var badge := HeroBadge.for_hero(hl.get("hero"), 56, _player, _mode if _mode != "" else TeamPalette.mode_near(self))
     badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
     h.add_child(badge)
     var v := VBoxContainer.new()
@@ -173,11 +176,13 @@ func show_results(result: Dictionary, stats: MatchStats = null, player = null) -
     for c in highlights_row.get_children():
         highlights_row.remove_child(c)
         c.queue_free()
+    _player = player
+    _mode = TeamPalette.mode_near(self)
     if stats:
         var heroes := get_tree().get_nodes_in_group("heroes")
         for hl in stats.highlights(heroes):
             highlights_row.add_child(_highlight_card(hl))
-        table.build(stats, heroes, player)
+        table.build(stats, heroes, player, _mode)
         var tt := stats.team_totals(heroes)
         var parts := []
         var ts := tt.keys()

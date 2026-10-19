@@ -230,3 +230,45 @@ func test_hud_keeps_widgets_on_the_local_player() -> void:
     var src := FileAccess.get_file_as_string("res://src/ui/hud.gd")
     for s in ["kill_feed.player = player", "kill_feed.mode = bar_mode()", "scoreboard.player = player", "scoreboard.mode = kill_feed.mode", "capture_widget.player = player"]:
         check(src.contains(s), "HUD follows swaps: " + s)
+
+func test_hero_badge_ring_by_relation() -> void:
+    var hs := _heroes()
+    var me = hs[0]; var ally = hs[1]; var foe = hs[2]
+    check(HeroBadge.for_hero(me, 44, me, "control").ring == TeamPalette.SELF, "self badge blue")
+    check(HeroBadge.for_hero(ally, 44, me, "control").ring == TeamPalette.ALLY, "ally badge green")
+    check(HeroBadge.for_hero(foe, 44, me, "control").ring == TeamPalette.ENEMY, "enemy badge red")
+    check(HeroBadge.for_hero(ally, 44, me, "ffa").ring == TeamPalette.ENEMY and HeroBadge.for_hero(me, 44, me, "ffa").ring == TeamPalette.SELF, "FFA: all but self red")
+    check(HeroBadge.for_hero(ally).ring == TeamPalette.ENEMY, "no local player given: enemy, never a team-number colour")
+    check(not FileAccess.get_file_as_string("res://src/ui/hero_badge.gd").contains("TEAM_COLORS"), "team-number colour table removed")
+    for b in get_tree_badges():
+        b.free()
+    _free(hs)
+
+func get_tree_badges() -> Array:
+    return tree.root.find_children("*", "HeroBadge", true, false)
+
+func _card_ring(scr: MatchEndScreen, h) -> Color:
+    var card := scr._highlight_card({"label": "Most kills", "name": "x", "value": 3, "hero": h})
+    var b: HeroBadge = card.find_children("*", "HeroBadge", true, false)[0]
+    var c := b.ring
+    card.free()
+    return c
+
+func test_match_end_highlight_cards_by_relation() -> void:
+    var hs := _heroes()
+    var me = hs[0]; var ally = hs[1]; var foe = hs[2]
+    for mode in ["control", "ffa"]:
+        var root := _host(mode)
+        var scr := MatchEndScreen.new()
+        root.add_child(scr)
+        scr.show_results({"winner_team": 0, "reason": "score"}, MatchStats.new(), me)
+        check(_card_ring(scr, me) == TeamPalette.SELF, mode + ": my card blue")
+        check(_card_ring(scr, ally) == (TeamPalette.ALLY if mode == "control" else TeamPalette.ENEMY), mode + ": ally card")
+        check(_card_ring(scr, foe) == TeamPalette.ENEMY, mode + ": enemy card red")
+        me.team = 1 if mode == "control" else 0   # team change before the next results: rebuilt from the current team
+        scr.show_results({"winner_team": 0, "reason": "score"}, MatchStats.new(), me)
+        if mode == "control":
+            check(_card_ring(scr, foe) == TeamPalette.ALLY and _card_ring(scr, ally) == TeamPalette.ENEMY, "after team change: rings follow")
+        scr.free(); root.free()
+    Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+    _free(hs)

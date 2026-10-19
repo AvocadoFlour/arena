@@ -63,8 +63,7 @@ func build(stats: MatchStats, heroes: Array, player, mode := "") -> void:
             var me: bool = player != null and r.hero == player
             var col := HIGHLIGHT if me else Color.WHITE
             var rel_col := TeamPalette.color(TeamPalette.relation(r.hero, player, mode))
-            var badge := HeroBadge.for_hero(r.hero, 44)
-            badge.ring = rel_col
+            var badge := HeroBadge.for_hero(r.hero, 44, player, mode)
             grid.add_child(badge)
             var nm := _cell(r.name, HIGHLIGHT if me else rel_col, 22)
             nm.custom_minimum_size = Vector2(200, ROW_H)

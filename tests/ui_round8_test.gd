@@ -44,7 +44,7 @@ func test_badge_initials_and_colour() -> void:
     check(HeroBadge.color_for_def({"model": [{"color": "team"}]}) == Color(0.4, 0.4, 0.45), "team-only -> grey")
     var h := FakeHero.new("Bot 1 (Cob)", 1, cob)
     var b := HeroBadge.for_hero(h)
-    check(b.initials == "CO" and b.ring == HeroBadge.TEAM_COLORS[1], "uses def name + team ring")
+    check(b.initials == "CO" and b.ring == TeamPalette.ENEMY, "uses def name + relation ring (no local player: enemy)")
     check(b.custom_minimum_size.x >= 44, "badge size")
     b.free()
     h.free()
