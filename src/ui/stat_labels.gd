@@ -69,6 +69,14 @@ const LABELS := {
     "gravity": ["Gravity", " m/s²"],
     "lifetime": ["Lifetime", " s"],
     "max_range": ["Max range", " m"],
+    "root": ["Root", " s"],
+    "leap_time": ["Leap time", " s"],
+    "ride_time": ["Ride time", " s"],
+    "hop_range": ["Hop range", " m"],
+    "hop_off_speed": ["Hop-off speed", " m/s"],
+    "length": ["Length", " m"],
+    "line_slash:width": ["Strip width", " m"],
+    "line_slash:height": ["Strip height", " m"],
 }
 ## Two keys shown as one phrase: [value key, duration key, builder].
 const PAIRS := [
@@ -82,8 +90,9 @@ const HIDDEN := ["needs_ult", "sample"]
 const ORDER := ["damage", "finisher_damage", "burst_damage", "dps", "heal", "hps", "total_heal", "overheal",
     "fire_rate", "burst", "burst_delay", "combo_hits", "combo_window", "range", "max_range", "arc_deg", "lunge",
     "radius", "distance", "width", "height", "thickness", "hit_radius", "splash_radius", "cone_deg",
-    "slow", "slow_mult", "damage_reduction", "damage_mult", "bonus_mult", "bonus_shots", "bonus_window",
+    "slow", "slow_mult", "root", "damage_reduction", "damage_mult", "bonus_mult", "bonus_shots", "bonus_window",
     "duration", "window", "knockback", "finisher_knockback", "knockback_immune", "pull_speed", "stop_distance",
+    "length", "leap_time", "ride_time", "hop_range", "hop_off_speed",
     "forward_speed", "up_speed", "air_time", "lift", "dive_speed", "speed", "lifetime", "gravity",
     "mag", "reload_time", "spread_deg", "cooldown", "ult_cost"]
 const ORDINALS := ["First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth"]
