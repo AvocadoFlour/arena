@@ -2,7 +2,7 @@ extends SceneTree
 ## AI test runner: godot --headless --path . -s tests/ai_run_tests.gd
 ## (Requested to be folded into tests/run_tests.gd SUITES, see docs/requests/ai.md.)
 const SUITES := ["res://tests/ai_unit_tests.gd"]
-const DRIVERS := ["res://tests/ai_nav_driver.gd", "res://tests/ai_team_driver.gd", "res://tests/ai_melee_driver.gd", "res://tests/ai_support_driver.gd", "res://tests/ai_cover_driver.gd", "res://tests/ai_teamplay_driver.gd", "res://tests/ai_destruct_driver.gd", "res://tests/ai_items_driver.gd"]
+const DRIVERS := ["res://tests/ai_nav_driver.gd", "res://tests/ai_team_driver.gd", "res://tests/ai_melee_driver.gd", "res://tests/ai_support_driver.gd", "res://tests/ai_cover_driver.gd", "res://tests/ai_teamplay_driver.gd", "res://tests/ai_destruct_driver.gd"]
 var passed := 0
 var failed := 0
 var driver

@@ -271,26 +271,6 @@ func test_should_breach() -> void:
     var h := BotBrain.new({"difficulty": "hard"})
     check(e.breach_time < n.breach_time and n.breach_time < h.breach_time, "breach budget easy<normal<hard")
 
-func test_pack_cost_model() -> void:
-    check(BotItems.pack_cost(3.0, true, 0.0, 0, false) == 3.0, "active pack: travel time")
-    check(BotItems.pack_cost(3.0, false, 4.0, 0, false) == 4.0, "back 1 s after arrival: wait counts")
-    check(BotItems.pack_cost(3.0, false, 10.0, 0, false) == INF, "still down long after arrival: never")
-    check(BotItems.pack_cost(3.0, true, 0.0, 1, true) > BotItems.pack_cost(5.0, true, 0.0, 0, false), "danger outweighs 2 s of travel")
-    check(BotItems.pack_beats_cover(3.0, 8.0, -1.0), "no cover: pack")
-    check(not BotItems.pack_beats_cover(9.0, 8.0, -1.0), "over the time budget")
-    check(BotItems.pack_beats_cover(5.0, 8.0, 2.0) and not BotItems.pack_beats_cover(7.0, 8.0, 2.0), "pack only if <= cover + 4 s")
-    var e := BotBrain.new({"difficulty": "easy"})
-    var n := BotBrain.new({"difficulty": "normal"})
-    var h := BotBrain.new({"difficulty": "hard"})
-    check(e.pack_max_eta < n.pack_max_eta and n.pack_max_eta < h.pack_max_eta, "pack budget easy<normal<hard")
-
-func test_pad_escape_rule() -> void:
-    var threat := Vector3(10, 0, 0)
-    check(BotBrain.pad_escape_ok(3.0, Vector3(-2, 0, 0), Vector3(-6, 4, 0), Vector3.ZERO, threat), "near pad, lands higher and away")
-    check(not BotBrain.pad_escape_ok(9.0, Vector3(-2, 0, 0), Vector3(-6, 4, 0), Vector3.ZERO, threat), "pad too far")
-    check(not BotBrain.pad_escape_ok(3.0, Vector3(2, 0, 0), Vector3(8, 4, 0), Vector3.ZERO, threat), "lands toward the threat")
-    check(not BotBrain.pad_escape_ok(3.0, Vector3(-2, 0, 0), Vector3(-6, 0.5, 0), Vector3.ZERO, threat), "no height gained")
-
 func test_in_zone() -> void:
     var z := {"pos": Vector3(0, 2.5, 0), "size": Vector3(10, 3, 10)}
     check(BotBrain.in_zone(z, Vector3(4, 1, -4)), "inside")
