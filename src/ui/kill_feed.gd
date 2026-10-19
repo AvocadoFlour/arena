@@ -25,15 +25,15 @@ static func def_of(h):
     var d = h.get("def")
     return d if d is Dictionary else null
 
-## Slot ("ability1"/"ability2"/"ultimate") whose ability has this id (or, per INTERFACES §3, this type).
+## Slot ("ability1"/"ability2"/"ability3"/"ultimate") whose ability has this id (or, per INTERFACES §3, this type).
 static func slot_of(def, ability_id: String) -> String:
     if not def is Dictionary or ability_id == "":
         return ""
     var abs: Dictionary = def.get("abilities", {})
-    for slot in ["ability1", "ability2", "ultimate"]:
+    for slot in ["ability1", "ability2", "ability3", "ultimate"]:
         if abs.has(slot) and str(abs[slot].get("id", "")) == ability_id:
             return slot
-    for slot in ["ability1", "ability2", "ultimate"]:
+    for slot in ["ability1", "ability2", "ability3", "ultimate"]:
         if abs.has(slot) and str(abs[slot].get("type", "")) == ability_id:
             return slot
     return ""
@@ -75,7 +75,7 @@ static func _legacy_name(d, kind: String) -> String:
         if kind == "ultimate" and abs.has("ultimate"):
             return str(abs.ultimate.get("name", "Ultimate"))
         var cands: Array = []
-        for slot in ["ability1", "ability2", "ultimate"]:
+        for slot in ["ability1", "ability2", "ability3", "ultimate"]:
             if abs.has(slot) and KIND_TYPES.get(kind, []).has(str(abs[slot].get("type", ""))):
                 cands.append(abs[slot])
         if cands.size() == 1:   # only name it when unambiguous

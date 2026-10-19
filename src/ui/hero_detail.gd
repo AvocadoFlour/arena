@@ -5,7 +5,7 @@ extends BoxContainer
 ## Horizontal when wide; on narrow screens (< NARROW px) the preview stacks above the info.
 ## All text comes from the hero def / HeroAbilities (no new names).
 const NARROW := 900.0
-const SLOT_LABELS := {"ability1": "Ability 1", "ability2": "Ability 2", "ultimate": "Ultimate"}
+const SLOT_LABELS := {"ability1": "Ability 1", "ability2": "Ability 2", "ability3": "Ability 3", "ultimate": "Ultimate"}
 var preview: HeroPreview
 var info: VBoxContainer
 var def: Dictionary = {}

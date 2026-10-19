@@ -8,10 +8,11 @@ extends RefCounted
 ## Every entry is normalised to {name, slot, type, text, stats: Dictionary, description, source}.
 ## `description` is the def's own optional "description" text; `source` is "api" or "json".
 
-const SLOTS := ["primary", "ability1", "ability2", "ultimate", "passive"]
-const SLOT_LABELS := {"primary": "Primary", "ability1": "Ability 1", "ability2": "Ability 2", "ultimate": "Ultimate", "passive": "Passive"}
+## ability3 (right mouse) sits between ability2 and ultimate; heroes without it simply have no entry.
+const SLOTS := ["primary", "ability1", "ability2", "ability3", "ultimate", "passive"]
+const SLOT_LABELS := {"primary": "Primary", "ability1": "Ability 1", "ability2": "Ability 2", "ability3": "Ability 3", "ultimate": "Ultimate", "passive": "Passive"}
 ## Slot -> input action whose live binding is shown (Hud.key_label). Passive has no key.
-const SLOT_ACTIONS := {"primary": "fire", "ability1": "ability1", "ability2": "ability2", "ultimate": "ultimate"}
+const SLOT_ACTIONS := {"primary": "fire", "ability1": "ability1", "ability2": "ability2", "ability3": "ability3", "ultimate": "ultimate"}
 const HERO_DIR := "res://src/heroes/"
 
 ## Path of the heroes API script (tests point it elsewhere to force the JSON fallback).
