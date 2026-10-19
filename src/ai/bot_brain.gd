@@ -6,9 +6,9 @@ extends RefCounted
 ## spawner from spread_deg) plus difficulty-dependent aim jitter and reaction delay.
 
 const DIFFICULTY := {
-    "easy":   {"breach_time": 0.0, "spread_deg": 14.0, "turn_rate": 2.2, "fire_cone": 0.30, "reaction_time": 0.75, "aim_jitter": 0.18, "fire_duty": 0.65, "ability_delay": 2.0, "focus_slack": 0.0, "low_hp_frac": 0.20, "cover_time": 2.0, "peek_time": 1.4, "hide_min": 1.6, "hide_max": 2.4, "peek_side_mode": "same"},
-    "normal": {"breach_time": 6.0, "fire_duty": 1.0, "spread_deg": 6.0,  "turn_rate": 4.0, "fire_cone": 0.15, "reaction_time": 0.35, "aim_jitter": 0.05, "ability_delay": 0.6, "focus_slack": 8.0, "low_hp_frac": 0.35, "cover_time": 3.0, "peek_time": 1.0, "hide_min": 1.0, "hide_max": 1.8, "peek_side_mode": "random"},
-    "hard":   {"breach_time": 8.0, "fire_duty": 1.0, "spread_deg": 3.0,  "turn_rate": 7.0, "fire_cone": 0.10, "reaction_time": 0.15, "aim_jitter": 0.015, "ability_delay": 0.2, "focus_slack": 12.0, "low_hp_frac": 0.30, "cover_time": 3.5, "peek_time": 0.7, "hide_min": 0.5, "hide_max": 1.3, "peek_side_mode": "mixed"},
+    "easy":   {"pack_hp_frac": 0.35, "pack_max_eta": 5.0, "breach_time": 0.0, "spread_deg": 14.0, "turn_rate": 2.2, "fire_cone": 0.30, "reaction_time": 0.75, "aim_jitter": 0.18, "fire_duty": 0.65, "ability_delay": 2.0, "focus_slack": 0.0, "low_hp_frac": 0.20, "cover_time": 2.0, "peek_time": 1.4, "hide_min": 1.6, "hide_max": 2.4, "peek_side_mode": "same"},
+    "normal": {"pack_hp_frac": 0.5, "pack_max_eta": 8.0, "breach_time": 6.0, "fire_duty": 1.0, "spread_deg": 6.0,  "turn_rate": 4.0, "fire_cone": 0.15, "reaction_time": 0.35, "aim_jitter": 0.05, "ability_delay": 0.6, "focus_slack": 8.0, "low_hp_frac": 0.35, "cover_time": 3.0, "peek_time": 1.0, "hide_min": 1.0, "hide_max": 1.8, "peek_side_mode": "random"},
+    "hard":   {"pack_hp_frac": 0.55, "pack_max_eta": 10.0, "breach_time": 8.0, "fire_duty": 1.0, "spread_deg": 3.0,  "turn_rate": 7.0, "fire_cone": 0.10, "reaction_time": 0.15, "aim_jitter": 0.015, "ability_delay": 0.2, "focus_slack": 12.0, "low_hp_frac": 0.30, "cover_time": 3.5, "peek_time": 0.7, "hide_min": 0.5, "hide_max": 1.3, "peek_side_mode": "mixed"},
 }
 const ULT_RANGE := 8.0        ## Nova radius is 10; stay inside with margin
 const SLAM_RANGE := 4.5       ## grounded slam radius is 5
@@ -41,6 +41,18 @@ var fire_duty := 1.0         ## fraction of each 1.6 s burst cycle the trigger m
 var _burst_t := 0.0
 var breach_time := 6.0       ## s: shoot breakable cover an unseen target hides behind if our DPS breaks it this fast (0 = never)
 var breaching := false        ## this tick: shooting a destructible cover block (tests)
+var use_packs := true         ## health packs (BotItems): hurt bots weigh a pack against cover
+var use_pads := true          ## jump pads as navmesh links (routing) and escapes
+var pack_hp_frac := 0.5       ## in a fight, go for a pack under this HP fraction (out of combat: 0.8)
+var pack_max_eta := 8.0       ## s: max pack cost (travel + respawn wait + danger)
+var packs_taken := 0          ## tests/debug
+var pad_escapes := 0          ## tests/debug
+var _pack = null              ## pickup dictionary we are heading for
+var _pack_eval := 0.0
+var _pack_left := 0.0
+var _pack_hp0 := 0.0
+var _esc = null               ## pad link {id, start, end} used for an escape
+var _esc_left := 0.0
 var focus_slack := 8.0       ## m: how much farther a shared focus target may be than the nearest (easy 0 = ignores calls)
 var team_play := true         ## shared focus target, grouping, tank holds the control point
 var _seen_now: Array = []
@@ -110,6 +122,8 @@ func poll(h) -> InputFrame:
             BotNav.ensure_region(_map_root)
     if use_navmesh and _map_root and is_instance_valid(_map_root):
         BotNav.sync_dynamic(_map_root)   # once per frame for all bots: broken cover / shield walls rebake even while nobody paths
+        if use_pads:
+            BotItems.ensure_pad_links(_map_root)
     _think -= dt
     _cover_cd -= dt
     _react_left -= dt
@@ -131,13 +145,23 @@ func poll(h) -> InputFrame:
             _lost = 0.0
         target = t
     var low: bool = h.health.hp < h.health.max_hp * low_hp_frac
-    if target and seek_cover and _cover_cd <= 0.0 and state != "cover":
+    _pack_eval -= dt
+    if use_packs and _pack_eval <= 0.0 and not (state in ["pack", "escape", "support"]):
+        _pack_eval = 0.5
+        _consider_pack(h)
+    if target and seek_cover and _cover_cd <= 0.0 and not (state in ["cover", "pack", "escape"]):
         var holding: bool = team_play and BotTeam.is_tank(h) and objective_zone(h) != null
         var hurt_ranged: bool = opportunistic_cover and not holding and melee_range(h) == 0.0 and h.health.hp < h.health.max_hp * 0.7
-        if low or hurt_ranged:
+        if low and not holding and use_pads and _try_pad_escape(h):
+            pass
+        elif low or hurt_ranged:
             _enter_cover(h, target, 6.0 if holding or not low else INF)   # point-holding tank: only cover next to the point
     breaching = breaching and state == "chase" and target != null
-    if _do_support(h, f, dt):
+    if state == "pack":
+        _do_pack(h, f, dt)
+    elif state == "escape":
+        _do_escape(h, f, dt)
+    elif _do_support(h, f, dt):
         pass
     elif state == "cover":
         _do_cover(h, f, dt)
@@ -154,6 +178,165 @@ func poll(h) -> InputFrame:
     if h.weapon.ammo == 0:
         f.reload = true
     return f
+
+## Health packs: hurt bots pick the cheapest usable pack (travel time over the navmesh incl. pad links,
+## respawn wait, enemies near it, target closer to it than us), skip packs a teammate claimed, and take
+## it over cover only when it is not much slower than reaching cover.
+func _consider_pack(h) -> void:
+    var frac: float = h.health.hp / h.health.max_hp
+    var fighting: bool = target != null
+    if frac >= (pack_hp_frac if fighting else 0.8) or h.health.max_hp - h.health.hp < 20.0:
+        return
+    var holding: bool = team_play and BotTeam.is_tank(h) and objective_zone(h) != null
+    var max_eta := minf(pack_max_eta, 4.0) if holding else (pack_max_eta if fighting else pack_max_eta * 1.5)
+    var best = _best_pack(h, max_eta)
+    if best == null:
+        return
+    if fighting and seek_cover:
+        var cover_eta := -1.0
+        if state == "cover" and _cphase != "travel":
+            cover_eta = 0.0
+        else:
+            var blk = BotNav.best_cover_block(BotNav.cover_blocks(_map_root), h.global_position, target.global_position, 1.4, INF)
+            if blk != null:
+                var cp := BotNav.cover_point(blk, target.global_position)
+                cover_eta = Vector2(cp.x - h.global_position.x, cp.z - h.global_position.z).length() / _speed(h)
+        if not BotItems.pack_beats_cover(best.cost, max_eta, cover_eta):
+            return
+    _start_pack(h, best)
+
+func _speed(h) -> float:
+    return maxf(1.0, float(h.move_cfg.get("speed", 7.0)) if "move_cfg" in h else 7.0)
+
+func _best_pack(h, max_eta: float):
+    var objs := BotItems.objects(_map_root)
+    if objs == null:
+        return null
+    var best = null
+    var spd := _speed(h)
+    for p in objs.pickups:
+        if String(p.kind) != "health" or BotItems.claimed_by_mate(h, _map_root, int(p.id)):
+            continue
+        var flat := Vector2(p.pos.x - h.global_position.x, p.pos.z - h.global_position.z).length()
+        if flat / spd > max_eta:
+            continue
+        var len := flat
+        if use_navmesh:
+            var path := BotNav.path(h, p.pos)
+            if path.size() >= 2 and path[path.size() - 1].distance_to(p.pos) < 1.5:
+                len = BotItems.path_length(path)
+            elif BotNav.ready_for(h):
+                continue   # not reachable on the navmesh
+        var eta := len / spd
+        var danger := 0
+        for o in h.get_tree().get_nodes_in_group("heroes"):
+            if o.get_world_3d() == h.get_world_3d() and not o.dead and o.team != h.team and o.global_position.distance_to(p.pos) < BotItems.DANGER_R:
+                danger += 1
+        var nearer: bool = target != null and is_instance_valid(target) and target.global_position.distance_to(p.pos) < h.global_position.distance_to(p.pos)
+        var c := BotItems.pack_cost(eta, bool(p.active), float(p.left), danger, nearer)
+        if c <= max_eta and (best == null or c < best.cost):
+            best = {"pack": p, "cost": c, "eta": eta}
+    return best
+
+func _start_pack(h, best: Dictionary) -> void:
+    if state == "cover":
+        _cover = null
+        _cover_block = null
+        _cphase = ""
+    state = "pack"
+    _pack = best.pack
+    _pack_left = best.eta * 2.0 + 3.0
+    _pack_hp0 = h.health.hp
+    BotItems.claim(h, _map_root, int(_pack.id))
+
+func _end_pack(h, reeval: float) -> void:
+    if _pack != null:
+        BotItems.release(h, _map_root, int(_pack.id))
+    _pack = null
+    state = "chase" if target else "wander"
+    _pack_eval = reeval
+
+func _do_pack(h, f: InputFrame, dt: float) -> void:
+    if h.health.hp > _pack_hp0 + 1.0 and (_pack == null or not _pack.active):
+        packs_taken += 1
+        _end_pack(h, 1.0)   # healed (pack consumed)
+        return
+    if _pack == null or h.health.hp >= h.health.max_hp * 0.95:
+        _end_pack(h, 1.0)
+        return
+    var pos: Vector3 = _pack.pos
+    var flat := Vector2(pos.x - h.global_position.x, pos.z - h.global_position.z).length()
+    _pack_left -= dt
+    # someone else took it and it will not be back in time (respawn timer), or we ran out of time: re-plan
+    if (not _pack.active and float(_pack.left) > flat / _speed(h) + BotItems.PACK_WAIT) or _pack_left <= 0.0:
+        _end_pack(h, 0.0 if _pack_left > 0.0 else 3.0)
+        return
+    BotItems.claim(h, _map_root, int(_pack.id))
+    f.move = _follow(h, pos) if flat > 0.3 else Vector2.ZERO
+    var seen: bool = target != null and is_instance_valid(target) and _visible(h, target)
+    if seen:
+        var to: Vector3 = (target.global_position + Vector3(0, 1.1, 0)) - h.eye_position()
+        var err := _aim(h, f, to, dt, true)
+        f.fire = err < fire_cone and _react_left <= 0.0
+    else:
+        var d := _move_world(h, f.move)
+        d.y = -h.pitch * 3.0
+        _aim(h, f, d, dt, false)
+    if use_abilities and target != null and flat > 5.0:
+        var ctx := _ctx(h, true, true)
+        ctx.moving = f.move.length() > 0.5
+        _apply_abilities(f, decide_abilities(ctx), dt)
+
+## Low-HP escape over a jump pad: a nearby pad whose landing is higher and farther from the threat,
+## used when no cover is closer.
+func _try_pad_escape(h) -> bool:
+    if _map_root == null or not _map_root.has_meta("bot_pad_links"):
+        return false
+    var tpos: Vector3 = target.global_position
+    var pick = null
+    var pd := INF
+    for l in _map_root.get_meta("bot_pad_links"):
+        var d := Vector2(l.start.x - h.global_position.x, l.start.z - h.global_position.z).length()
+        if pad_escape_ok(d, l.start, l.end, h.global_position, tpos) and d < pd:
+            pd = d
+            pick = l
+    if pick == null:
+        return false
+    var blk = BotNav.best_cover_block(BotNav.cover_blocks(_map_root), h.global_position, tpos, 1.4, INF)
+    if blk != null:
+        var cp := BotNav.cover_point(blk, tpos)
+        var cl := Vector2(cp.x - h.global_position.x, cp.z - h.global_position.z).length()
+        var cpath := BotNav.path(h, cp) if use_navmesh else PackedVector3Array()
+        if cpath.size() >= 2:
+            cl = BotItems.path_length(cpath)   # e.g. cover up on a ledge is not "close" from below
+        if cl <= pd + 3.0:
+            return false   # cover is about as close: use it
+    _esc = pick
+    _esc_left = 5.0
+    state = "escape"
+    pad_escapes += 1
+    return true
+
+## Pure (unit-tested): is a pad at flat distance `d` with link start/end a sensible escape from `threat`?
+static func pad_escape_ok(d: float, start: Vector3, end: Vector3, pos: Vector3, threat: Vector3) -> bool:
+    return d <= 8.0 and end.y > start.y + 1.5 and end.distance_to(threat) >= pos.distance_to(threat) + 3.0
+
+func _do_escape(h, f: InputFrame, dt: float) -> void:
+    _esc_left -= dt
+    if _esc == null or _esc_left <= 0.0 or (h.is_on_floor() and h.global_position.y > _esc.start.y + 1.5):
+        _esc = null
+        state = "chase" if target else "wander"
+        _cover_cd = 0.0   # landed: pick cover / a pack from up here
+        return
+    f.move = _follow(h, _esc.end)
+    var seen: bool = target != null and is_instance_valid(target) and _visible(h, target)
+    if seen:
+        var err := _aim(h, f, (target.global_position + Vector3(0, 1.1, 0)) - h.eye_position(), dt, true)
+        f.fire = err < fire_cone and _react_left <= 0.0
+    else:
+        var d := _move_world(h, f.move)
+        d.y = -h.pitch * 3.0
+        _aim(h, f, d, dt, false)
 
 func _do_chase(h, f: InputFrame, dt: float, low: bool) -> void:
     state = "chase"
