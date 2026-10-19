@@ -226,3 +226,54 @@ Requests:
    half wall / slab and the arena02 low walls as `cover` (better bot cover use). The flipped dais ramps change mid
    pathing slightly; teamplay still passes at seed 4242, but it remains a single-seed check (see queue 3 note).
 2. **Core (FYI)**: no hooks needed. INTERFACES §6 could note "ramp ends must be flush (≤ 0.1 m)" and the scan tools.
+
+## Maps queue (1.0) item 3 — out-of-bounds kill volumes + fall recovery (maps side done; works offline/host now)
+`src/maps/map_bounds.gd` (`MapBounds`, map root child `Bounds`, added by `MapLoader.build` on every map, also in low
+quality; no physics bodies, no visuals, collision golden unchanged). Host/offline `step(heroes)` in its own
+`_physics_process` over group `heroes` (same pattern as `Objects`); clients no-op. Map JSON (proposed INTERFACES §6 key):
+```json
+"out_of_bounds": {
+  "bounds":  {"min": [x, y, z], "max": [x, y, z]},      // x/z = inside faces of the outer walls, min.y = kill plane, max.y = ceiling
+  "below":   {"mode": "recover"|"kill", "damage": 10},  // feet below min.y
+  "outside": {"mode": "recover"|"kill", "damage": 10},  // outside the walls in x/z, or above the ceiling
+  "credit_window": 4.0,
+  "volumes": [{"id", "pos", "size", "mode", "damage"?, "stand"?: bool, "dwell"?: s}]
+}
+```
+- recover: teleport to the nearest safe point (1 m MapGrid inside the box; flat, 0.8 m clear of every block, reachable
+  from the spawns; never in spawn rooms/barriers/spawn areas/zones/pickups/pads/volumes or next to a spawn; not on a point
+  another living hero stands on) nearest the hero's last in-bounds position; velocity and dash reset; then `damage`
+  via `take_damage(d, credit_if_lethal, pos, "fall")`. kill: `take_damage(1e6, credit, pos, "fall")`; if refused
+  (immune/shielded) the hero is recovered instead. No safe point (broken data) -> kill.
+- Credit: Bounds listens to `Events.damage_dealt` (host) and credits the last ENEMY that damaged the hero within
+  `credit_window` s (else killer = null = environment). Non-lethal penalties are never credited (no ult charge).
+- Signal `out_of_bounds({hero, mode, reason: below|outside|ceiling|volume, volume_id, from, to, damage, credit, killed})`,
+  also emitted on `Events.out_of_bounds` once that signal exists.
+- Data: arena01 box ±20 × ±20, kill plane −3, ceiling 10; arena02 box ±40 × ±32, −3, ceiling 14. Both maps: below/outside
+  = recover, 10 damage (the floors are solid, so falling under them is a clip, not a pit; there are no real pits/void, so
+  no kill volumes in current data; mode "kill" is supported and tested on a synthetic pit). Stand-only recover volumes
+  (|vy| < 0.5 for 0.25 s, so flying past never counts): a 0.7 m rim inside each outer wall from 0.3 m below the wall top
+  to the ceiling (perching on the wall edge), and on arena02 the 8 spawn-room wall tops (no camping above a spawn).
+- Findings (tests/maps_oob_sim.gd, Jolt, Tomo-sized capsules): jump pads never leave bounds (8 + 16 launches, holding air
+  control in 8 directions). A Force Push (15 m/s + 5.5 lift) on a standing hero never needs a recovery on either map,
+  but a hero that JUMPS at the moment of the push (8.8 + 5.5 up) next to arena01's 4.5 m outer walls clears the wall:
+  130 / 181 such worst-case pushes on arena01 and 16 / 1117 on arena02 (from the spires) left the box and were all
+  recovered the same tick; every probe ends standing inside. Ceiling: highest walkable surface + strongest stacked launch
+  (arena01 7.8 m, arena02 11.8 m) stays below it (tested).
+
+Requests:
+1. **Core (event/net hook)**: add `signal out_of_bounds(ev)` to Events (payload above; `hero`, `credit` as heroes) and put it
+   in `Net.EVENT_SIGNALS` (reliable) so clients can play an FX/sound and the UI can show "Out of bounds". On the client
+   whose own predicted hero was recovered (`mode == "recover"`), hard-snap prediction to `ev.to` (clear the input replay
+   buffer) instead of a smoothed correction; until then normal reconciliation snaps it (> 0.15 m) one RTT later.
+2. **Core (credit)**: kills go through `take_damage(..., kind "fall")`, so `Events.killed.killer` is already the last enemy
+   within 4 s (or null). If core adds its own last-attacker tracking (e.g. `hero.last_attacker(window)`), Bounds can use
+   it instead of listening to `damage_dealt`. A lethal credited penalty also charges the pusher's ult through
+   `on_damage_dealt`; say if "fall" damage should not charge ult and I'll pass the credit only to `killed` (needs a core
+   hook to set the killer without the damage source).
+3. **Core (FYI)**: `hero.gd` still kills at y < −25 (kind "fall"); Bounds recovers at −3 first, so that is only a backstop.
+   The spawn shield, once hooked into damage, makes kill-mode volumes fall back to recovery for shielded heroes (by design).
+4. **UI (optional)**: kill feed already handles kind "fall"; a credited fall could read "<killer> knocked <victim> off".
+5. **AI (FYI)**: bots never walk into any volume (all walkable surfaces are in bounds, tested); a recovered bot just
+   re-plans from its new position.
+6. **INTERFACES §6**: document the `out_of_bounds` key and the `Bounds` child (text above).
