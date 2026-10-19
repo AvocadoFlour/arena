@@ -1,6 +1,7 @@
 extends Node3D
 ## HeroSfx on the real composition root (main.tscn, offline) as Niđo: a real ability cast (Events.ability_used
-## from hero.gd), a real weapon shot (ammo drop) and an enemy hit on the player play the mapped LibreQuake files.
+## from hero.gd), a real weapon shot (ammo drop) and an enemy hit on the player play the mapped LibreQuake files
+## (the bots' own sounds play alongside, positionally).
 var results: Array = []
 var done := false
 var m
@@ -35,7 +36,8 @@ func _physics_process(dt: float) -> void:
             m.player.weapon.try_fire()  # a swing: ammo drops; HeroSfx sees it on its next poll
             step = 1
         1:
-            _rec("fire_sound", s.play_count.get("nidjo/fire", 0) == 1 and s.last_file.ends_with("player/axhit1.wav"), s.last_file)
+            # bots' sounds play too now (a bot Niđo shares the per-hero count): check the local instance's own key
+            _rec("fire_sound", s.last_play.has(HeroSfx.rate_key(m.player, "fire")) and s.play_count.get("nidjo/fire", 0) >= 1 and HeroSfx.path_for("nidjo", "fire").ends_with("player/axhit1.wav"), str(s.play_count.get("nidjo/fire", 0)))
             var foe = null
             for h in get_tree().get_nodes_in_group("heroes"):
                 if h.team != m.player.team:

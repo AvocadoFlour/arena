@@ -73,7 +73,7 @@ func test_slots_are_the_actions_bindings() -> void:
     for s in ["fire", "ability1", "ability2", "ultimate"]:
         check(InputMap.has_action(s), "action exists: " + s)
 
-func test_ability_used_plays_own_hero_sound_on_sfx_bus() -> void:
+func test_ability_used_plays_hero_sounds_on_sfx_bus() -> void:
     var s := _sfx()
     var bus := MockBus.new()
     tree.root.add_child(bus)
@@ -83,9 +83,9 @@ func test_ability_used_plays_own_hero_sound_on_sfx_bus() -> void:
     s.player = me
     check(s.players.all(func(p): return p.bus == "SFX"), "SFX bus")
     bus.ability_used.emit(me, "ability2", "geode_wall")
-    check(s.last_file == HeroSfx.path_for("cob", "ability2") and s.play_count.get("cob/ability2", 0) == 1, "own E sound: " + s.last_file)
+    check(s.last_file == HeroSfx.path_for("cob", "ability2") and s.play_count.get("cob/ability2", 0) == 1 and s.last_player is AudioStreamPlayer, "own E sound, non-positional: " + s.last_file)
     bus.ability_used.emit(other, "ultimate", "x")
-    check(s.play_count.get("tomo/ultimate", 0) == 0, "other heroes' casts don't play")
+    check(s.play_count.get("tomo/ultimate", 0) == 1 and s.last_player is AudioStreamPlayer3D, "other heroes' casts play too (positional)")
     me.def = {"id": "nidjo"}
     bus.ability_used.emit(me, "ultimate", "rollback")
     check(s.last_file.ends_with("items/health1.wav"), "keyed by hero id (Niđo): " + s.last_file)
@@ -117,7 +117,7 @@ func test_primary_fire_detected_from_ammo_and_rate_limited() -> void:
     s.poll()
     tomo.weapon.ammo = 9
     s.poll()
-    s.last_play["tomo/fire"] = Time.get_ticks_msec() / 1000.0 - 0.2
+    s.last_play[HeroSfx.rate_key(tomo, "fire")] = Time.get_ticks_msec() / 1000.0 - 0.2
     tomo.weapon.ammo = 8
     s.poll()
     check(s.play_count.get("tomo/fire", 0) == 1, "Tomo: one sound per burst (gap %.2f s)" % HeroSfx.FIRE_GAP.tomo)
