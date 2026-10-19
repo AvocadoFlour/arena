@@ -32,14 +32,31 @@ echo "[2/5] tests (auto-discovered unit suites + integration sims incl. abilitie
 echo "[3/5] smoke (every map x every hero)"
 : > build/smoke.log
 SMOKE_S=${SMOKE_S:-35}
+SMOKE_T0=$(date +%s); SMOKE_RUNS=0
+echo "    smoke start: $(TZ=Europe/Warsaw date '+%Y-%m-%d %H:%M:%S %Z')"
+# Timing never fails the build: it only prints, warns and appends to build/smoke_durations.csv / smoke_alerts.log.
+smoke_timing() {
+  local dur=$(( $(date +%s) - SMOKE_T0 )) ts; ts=$(TZ=Europe/Warsaw date '+%Y-%m-%dT%H:%M:%S%z')
+  echo "    smoke end: $(TZ=Europe/Warsaw date '+%Y-%m-%d %H:%M:%S %Z')  total ${dur}s, ${SMOKE_RUNS} runs"
+  [ -f build/smoke_durations.csv ] || echo "timestamp,version,runs,seconds" > build/smoke_durations.csv
+  echo "$ts,$VER,$SMOKE_RUNS,$dur" >> build/smoke_durations.csv
+  if [ "$dur" -gt 600 ]; then
+    echo "WARNING: SMOKE SLOW: ${dur}s > 600s (${SMOKE_RUNS} map x hero runs)"
+    echo "$ts version=$VER duration=${dur}s runs=$SMOKE_RUNS" >> build/smoke_alerts.log
+  fi
+  return 0
+}
 for m in $(ls src/maps/*.json | xargs -n1 basename | sed 's/\.json$//'); do
 for h in $(ls src/heroes/*.json | xargs -n1 basename | sed 's/\.json$//'); do
   L=build/smoke_${m}_$h.log
+  RUN_T0=$(date +%s)
   timeout 180 "$GODOT" --headless --path . -- --smoke=$SMOKE_S --force_end=$((SMOKE_S - 3)) --hero="$h" --map="$m" > $L 2>&1 || true
+  SMOKE_RUNS=$((SMOKE_RUNS + 1))
   cat $L >> build/smoke.log
-  echo "  $m/$h: $(grep -E '^SMOKE' $L || echo 'SMOKE MISSING')  $(grep -E '^STATS' $L)"
-  grep -q "SMOKE PASS" $L || { echo "!! smoke failed for $m/$h"; exit 1; }
+  echo "  $m/$h: $(grep -E '^SMOKE' $L || echo 'SMOKE MISSING')  ($(( $(date +%s) - RUN_T0 ))s)  $(grep -E '^STATS' $L)"
+  grep -q "SMOKE PASS" $L || { echo "!! smoke failed for $m/$h"; smoke_timing; exit 1; }
 done; done
+smoke_timing
 fail_on_errors build/smoke.log
 echo "[3b/5] network: 2 headless instances (host + client) on localhost"
 OUT=build/net ./tools/net_test.sh | tee build/net_test.log; grep -q "NET TEST PASS" build/net_test.log
