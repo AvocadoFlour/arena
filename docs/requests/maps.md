@@ -277,3 +277,42 @@ Requests:
 5. **AI (FYI)**: bots never walk into any volume (all walkable surfaces are in bounds, tested); a recovered bot just
    re-plans from its new position.
 6. **INTERFACES §6**: document the `out_of_bounds` key and the `Bounds` child (text above).
+
+## Maps queue (1.0) item 4 — perf pass (maps side done; 60 fps in low quality is NOT reachable from maps code)
+Changes (visual output unchanged: fixed-camera renders master vs branch are pixel-identical in normal quality and
+within 1/255 in low quality, `tests/maps_still_render.gd`; collision golden unchanged):
+- Static blocks: one merged MeshInstance3D per (material, shadow) under map child `Blocks` (`blocks_<mat>_<s|n>`,
+  meta `block_count`); block StaticBody3Ds keep collision, names, metas (`mesh_group` = their merged mesh). Destructible
+  cover keeps its own mesh + hull (it is freed on break). Block meshes 18 -> 6 (arena01) and 60 -> 15 (arena02); map
+  geometry instances 45 -> 33 / 36 -> 24 lq (arena01), 98 -> 53 / 85 -> 40 lq (arena02).
+- Low quality: palette materials use `src/maps/toon/map_toon_lq.gdshader` (unshaded, 2-tone decided per vertex from
+  `sun_to`, sRGB-exact match of the lit shader's shadow tone/emission), so the map skips the light pass. Normal quality
+  keeps `map_toon.gdshader`.
+- Host scripts per 60 Hz tick, 10 heroes on arena02: SpawnRooms ~50 us, Bounds ~26 us, Objects ~13 us, CaptureZone
+  ~2 us (~0.1 ms total, < 1 % of a 16.7 ms frame): no caching needed (tested < 1 ms).
+Measured (Linux export, Xvfb 1280x720, opengl3, screenshot run --delay=6, fps_avg, master vs branch interleaved, 3 runs
+each; load average 4-7 on 8 cores from other bots' sims during the runs, so ±15 % noise):
+| map / quality | master | branch |
+|---|---|---|
+| arena01 normal | 30.2 / 24.2 / 24.3 (26.2) | 29.0 / 29.0 / 26.9 (28.3) |
+| arena01 low    | 55.6 / 56.0 / 51.3 (54.3) | 54.0 / 52.0 / 50.6 (52.2) |
+| arena02 normal | 23.8 / 24.6 / 24.5 (24.3) | 22.4 / 22.5 / 23.9 (22.9) |
+| arena02 low    | 31.3 / 43.4 / 45.3 (40.0) | 43.0 / 44.8 / 41.8 (43.2) |
+What limits it (`tests/maps_perf_probe.gd`, paired windows "all" vs "X hidden", arena02, low quality): hiding the
+whole map +1..5 % fps, the sky +4 %, but hiding the heroes +63..71 % (10 toon GLB heroes ≈ 60-80k of ~80k primitives
+in frame) and hiding the HUD CanvasLayers +31..34 %. Normal quality: whole map +79 % (sun shadows + props + fog; kept,
+no visual regression allowed), heroes +82 %.
+
+Requests:
+1. **Heroes**: low-quality hero path (the dominant cost): a low-poly LOD / decimated GLB or fewer outline hulls for
+   heroes beyond ~15 m, `visibility_range_end` on hero outline meshes, and skipping per-frame tail/cape bone sim in low
+   quality. Hiding all heroes takes arena02 low quality from ~40 to ~65-75 fps.
+2. **UI**: HUD costs ~30 % of the frame under software GL (hiding the CanvasLayers +31-34 %): check per-frame redraws
+   (labels/minimap/ability icons rebuilt every frame?) and update them only on change; consider fewer transparent
+   panels in low quality.
+3. **Core (FYI)**: `window/vsync/vsync_mode=1`; arena01 low quality sits at ~55 fps, close to a 60 Hz cap, so a
+   "60 fps" target should be measured with vsync off (`--disable-vsync`) to see headroom. Running
+   `tests/maps_perf_probe.gd` with `-s` logs a UI parse error ("StatLabels not declared", class cache order in
+   script mode); harmless for the probe but worth a look.
+4. **INTERFACES §6**: note the `Blocks` merged meshes (block bodies have no MeshInstance3D child unless destructible;
+   use `mesh_group` meta) and the low-quality shader.
