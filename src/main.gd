@@ -269,12 +269,13 @@ func _process(dt: float) -> void:
     if args.has("smoke") and el >= float(args.smoke) * 0.6 and not player.dead:
         # autopilot policy (src/ai) may skip situational abilities: exercise each unused slot once (retries while dead)
         for slot in ["ability1", "ability2", "ultimate"]:
-            if stats.get(slot, 0) == 0 and player.abilities.has(slot) and not stats.get("forced", []).has(slot):
+            if stats.get(slot, 0) == 0 and player.abilities.has(slot):   # retry until it fires (target-gated: ride)
                 player.abilities[slot].cooldown.remaining = 0.0
                 if slot == "ultimate":
                     player.ult.add(player.ult.cost)
                 player._use(slot)
-                stats["forced"] = stats.get("forced", []) + [slot]
+                if not stats.get("forced", []).has(slot):
+                    stats["forced"] = stats.get("forced", []) + [slot]
     if args.has("smoke") and el >= float(args.smoke):
         _finish()
     if args.has("demo") and args.demo != "1" and el >= float(args.demo):
