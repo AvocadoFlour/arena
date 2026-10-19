@@ -4,6 +4,9 @@ extends CanvasLayer
 ## options-only mode), Leave match. main.gd opens it on the "pause" action (INTERFACES §1).
 ## Offline: pauses the tree. Online (`Net.is_online()`, §10): never pauses the simulation; only shows
 ## the overlay and blocks gameplay input (`Actions.gameplay_enabled = false`).
+## "Controls": read-only reference of every action and its current bindings (KeybindScreen in
+## read_only mode); its "Change key bindings" opens the options' rebind screen, whose Back (or Esc)
+## returns to the Controls page.
 ## Esc while open: closes the settings sub-screen first, then the overlay. The key-rebinding screen
 ## consumes its own Esc in _input (capture cancel), so it never reaches here.
 signal leave_requested
@@ -14,6 +17,9 @@ var paused_tree := false   ## whether *we* paused the tree (offline only)
 var match_page: MatchPage
 var match_ctl: MatchControl
 var swap_layer: CanvasLayer  ## holds match_page.countdown; own layer so it stays up after the overlay closes
+var controls_bg: ColorRect      ## holds controls_page (opaque, like the menu screens)
+var controls_page: KeybindScreen ## read-only Controls reference
+var _from_controls := false      ## rebind screen was opened from the Controls page
 var _match_end_hook = null ## fallback leave route: the HUD match-end screen's documented main_menu signal
 
 func _ready() -> void:
@@ -42,7 +48,7 @@ func _ready() -> void:
     note.name = "OnlineNote"
     note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     v.add_child(note)
-    for item in [["Resume", close], ["Match", open_match], ["Settings", open_settings], ["Leave match", leave]]:
+    for item in [["Resume", close], ["Match", open_match], ["Settings", open_settings], ["Controls", open_controls], ["Leave match", leave]]:
         var b := MenuStyle.button(item[0], item[1])
         b.name = item[0].replace(" ", "")
         b.custom_minimum_size = Vector2(360, 72)
@@ -63,6 +69,20 @@ func _ready() -> void:
     options.options_only = true
     options.options_closed.connect(_on_options_closed)
     add_child(options)
+    options.screens.keybinds.back.connect(_on_rebind_back)
+    controls_bg = ColorRect.new()
+    controls_bg.name = "ControlsPage"
+    controls_bg.color = Color(0.04, 0.06, 0.1, 0.92)
+    controls_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+    controls_bg.visible = false
+    dim.add_child(controls_bg)
+    controls_page = KeybindScreen.new()
+    controls_page.read_only = true
+    controls_bg.add_child(controls_page)
+    controls_bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    controls_page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    controls_page.back.connect(close_controls)
+    controls_page.rebind_requested.connect(open_rebind)
     visible = false
 
 ## Swap the Match page's adapter (tests pass mocks; default = parent composition root + Net).
@@ -78,6 +98,33 @@ func open_match() -> void:
 func close_match() -> void:
     match_page.visible = false
     panel.visible = true
+
+func open_controls() -> void:
+    panel.visible = false
+    controls_bg.visible = true
+    controls_page.refresh()
+
+func close_controls() -> void:
+    controls_bg.visible = false
+    panel.visible = true
+
+func controls_open() -> bool:
+    return controls_bg != null and controls_bg.visible
+
+## "Change key bindings": the existing rebind screen (options, keybinds).
+func open_rebind() -> void:
+    _from_controls = true
+    controls_bg.visible = false
+    panel.visible = false
+    options.show_screen("keybinds")
+
+## Rebind screen Back: return to the Controls page when we came from it (after its own -> settings).
+func _on_rebind_back() -> void:
+    if not _from_controls:
+        return
+    _from_controls = false
+    options.show_screen("main")   # hides options -> options_closed -> panel
+    open_controls()
 
 func match_open() -> bool:
     return match_page != null and match_page.visible
@@ -102,6 +149,9 @@ func close() -> void:
         options.visible = false
     if match_page:
         match_page.visible = false
+    if controls_bg:
+        controls_bg.visible = false
+    _from_controls = false
     visible = false
     if paused_tree:
         get_tree().paused = false
@@ -128,8 +178,13 @@ func handle_escape() -> bool:
     if match_open():
         close_match()
         return true
+    if controls_open():
+        close_controls()
+        return true
     if settings_open():
-        if options.current == "settings":
+        if options.current == "keybinds" and _from_controls:
+            _on_rebind_back()
+        elif options.current == "settings":
             options.show_screen("main")    # -> options_closed -> back to the pause panel
         elif options.current == "keybinds":
             options.show_screen("settings")

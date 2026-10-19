@@ -119,6 +119,11 @@ func setup(p) -> void:
     hero_sfx.player = p
     add_child(hero_sfx)
     hero_sfx.bind(Events)
+    controls_hint = ControlsHint.new()
+    controls_hint.hud = self
+    add_child(controls_hint)
+    if ControlsHint.should_show():
+        controls_hint.show_hint()   # first match start (Settings.controls_hint_seen)
     center_label = _label(34)
     center_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     _place(center_label, 0.5, 0.35, 0.5, 0.35, -300, -30, 300, 30)
@@ -130,6 +135,7 @@ func setup(p) -> void:
     Settings.apply_fov(get_viewport().get_camera_3d())   # player camera exists (rig set up before HUD)
 
 var tooltip: AbilityTooltip
+var controls_hint: ControlsHint   ## first-time controls overlay (src/ui/controls_hint.gd)
 var hero_sfx: HeroSfx   ## LibreQuake hero ability sounds + team cues (src/ui/hero_sfx.gd)
 var _entries := {}
 
