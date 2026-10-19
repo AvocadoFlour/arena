@@ -290,6 +290,13 @@ func _settings_screen() -> Control:
     v.add_child(dn)
     v.add_child(MenuStyle.button("Audio", func(): show_screen("audio")))
     v.add_child(MenuStyle.button("Controls / key bindings", func(): show_screen("keybinds")))
+    var sh_note := MenuStyle.label("", 18)
+    sh_note.name = "ControlsHintNote"
+    var sh := MenuStyle.button("Show controls hint", func():
+        sh_note.text = "" if ControlsHint.request_show(get_tree()) else "The controls hint will show at the start of the next match.")
+    sh.name = "ShowControlsHint"
+    v.add_child(sh)
+    v.add_child(sh_note)
     v.add_child(MenuStyle.button("Back", func(): show_screen("main")))
     return rv[0]
 
