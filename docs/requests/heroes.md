@@ -105,3 +105,13 @@ HUD wants a DR indicator on clients, net.gd would need to send `damage_taken_mul
 `primary.burst` (> 1 rounds per burst) and `primary.burst_delay` (s between bursts; `fire_rate` = rate inside a burst).
 `Hero._build` creates a `BurstWeapon` for it; `_physics_process` calls `BurstWeapon.continue_burst(self)` each auth tick
 before the fire input, so a started burst completes. Hotfix (blink.gd) no longer installs/drives it. Please document.
+
+## Oct 19: real root hook (tomo.md #6 done) - for the lead (INTERFACES) and core net
+`Hero.apply_root(dur)`, `Hero.rooted()`, `Hero.root_left`; `Hero.ROOT_BLOCKS = ["dash", "blink", "leap", "charge"]`.
+While rooted (host/offline): no walking, no jumping, horizontal velocity zeroed (knockback/pull can't move it), no upward
+launch, a running dash/leap is cancelled, movement abilities in ROOT_BLOCKS can't be cast (no cooldown spent); aiming,
+shooting and other abilities work. Distinct from slows (slow_mult stays 1). Projectile defs take `"root": seconds`
+(projectile_shot.gd). Breakpoint now uses `"root": 1.1` instead of `slow {mult 0}`. Cleared on death.
+**Core (net.gd):** root_left (like slow_mult today) is not in the snapshot, so a client-predicted own hero keeps walking
+locally and gets corrected by the host. Please replicate `root_left` (and ideally `slow_mult`) for `_predict_step`.
+**AI:** bots may still try movement abilities while rooted (harmless: _use() refuses).

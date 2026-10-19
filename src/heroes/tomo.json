@@ -9,7 +9,7 @@
   "ultimate_cost": 500,
   "abilities": {
     "ability1": {"id": "hotfix", "type": "blink", "name": "Hotfix", "cooldown": 7.0, "distance": 6.0, "duration": 0.1, "bonus_mult": 1.5, "bonus_shots": 3, "bonus_window": 4.0, "color": "#ff4a4a"},
-    "ability2": {"id": "breakpoint", "type": "projectile", "name": "Breakpoint", "cooldown": 10.0, "speed": 34.0, "damage": 25, "gravity": 0.0, "lifetime": 1.0, "hit_radius": 0.35, "splash_radius": 0.0, "slow": {"mult": 0.0, "duration": 1.1}, "kind": "projectile", "color": "#ff3a3a", "size": 0.16, "visual": "res://src/abilities/breakpoint_visual.gd"},
+    "ability2": {"id": "breakpoint", "type": "projectile", "name": "Breakpoint", "cooldown": 10.0, "speed": 34.0, "damage": 25, "gravity": 0.0, "lifetime": 1.0, "hit_radius": 0.35, "splash_radius": 0.0, "root": 1.1, "kind": "projectile", "color": "#ff3a3a", "size": 0.16, "visual": "res://src/abilities/breakpoint_visual.gd"},
     "ultimate": {"id": "force_push", "type": "shockwave", "name": "Force Push", "cooldown": 1.0, "radius": 9.0, "arc_deg": 120, "damage": 130, "knockback": 15.0, "lift": 5.5, "color": "#ff4a4a"}
   },
   "model_scene": {"path": "res://src/heroes/models/tomo/tomo.glb", "yaw_deg": 180, "outline": 0.011, "no_outline": ["eye", "mouth", "vneck", "sticker"], "tails": ["pony_"], "fx_anchor": "Muzzle", "casts": {"ability1": {"anim": "blink", "full": true}, "ability2": {"anim": "throw", "full": true}, "ultimate": {"anim": "push", "full": true}}},

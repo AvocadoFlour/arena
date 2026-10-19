@@ -29,6 +29,10 @@ var last_wish := Vector3.ZERO
 var move_cfg: Dictionary = {}
 var slow_mult := 1.0                 ## movement speed multiplier from slows (1 = none)
 var slow_left := 0.0
+## Root (host/offline): while root_left > 0 the hero cannot walk, jump, be pushed horizontally or use the movement
+## abilities in ROOT_BLOCKS; aiming, shooting and other abilities still work. Distinct from slow_mult.
+var root_left := 0.0
+const ROOT_BLOCKS := ["dash", "blink", "leap", "charge"]
 var charge_hits: Array = []          ## heroes already hit by the current charge
 var buff_mult := 1.0                 ## outgoing damage multiplier from buffs (stacks with damage_scale)
 var buff_left := 0.0
@@ -359,7 +363,17 @@ func _physics_process(dt: float) -> void:
         slow_left -= dt
         if slow_left <= 0.0:
             slow_mult = 1.0
-    velocity = Motion.step_velocity(velocity, wish, is_on_floor(), f.jump, effective_move_cfg(), dt)
+    var jump := f.jump
+    if root_left > 0.0:
+        root_left = maxf(0.0, root_left - dt)
+        wish = Vector3.ZERO
+        jump = false
+        dash_time = 0.0   # a root cancels a running dash / leap
+    velocity = Motion.step_velocity(velocity, wish, is_on_floor(), jump, effective_move_cfg(), dt)
+    if rooted():
+        velocity.x = 0.0
+        velocity.z = 0.0
+        velocity.y = minf(velocity.y, 0.0)   # no upward launch (jump, knockback lift); gravity still applies
     if dash_time > 0.0:
         dash_time -= dt
         velocity.x = dash_vel.x
@@ -397,6 +411,8 @@ func _predict_step(dt: float) -> void:
         input_source.record_pos(global_position)
 
 func _use(slot: String) -> void:
+    if rooted() and abilities.has(slot) and String(abilities[slot].def.get("type", "")) in ROOT_BLOCKS:
+        return   # movement abilities are locked while rooted
     if abilities.has(slot) and abilities[slot].activate():
         Events.ability_used.emit(self, slot, abilities[slot].id)
 
@@ -563,6 +579,16 @@ func effective_move_cfg() -> Dictionary:
     c["speed"] = float(move_cfg.get("speed", 7.0)) * slow_mult
     return c
 
+## Root for dur seconds (longer root wins). See root_left.
+func apply_root(dur: float) -> void:
+    if dead or dur <= 0.0:
+        return
+    root_left = maxf(root_left, dur)
+    dash_time = 0.0
+
+func rooted() -> bool:
+    return root_left > 0.0 and not dead
+
 ## Slow movement to mult x speed for dur seconds. Stronger/longer slow wins.
 func apply_slow(mult: float, dur: float) -> void:
     if dead:
@@ -664,6 +690,7 @@ func _die(killer, kind: String, ability_id := "") -> void:
     respawn_left = RESPAWN_TIME
     slow_mult = 1.0
     slow_left = 0.0
+    root_left = 0.0
     clear_buffs()
     Events.killed.emit({"killer": killer, "victim": self, "kind": kind, "ability_id": ability_id})
 

@@ -26,7 +26,7 @@ const TEMPLATES := {
     "dash": ["distance", "duration"],
     "team_buff": ["radius", "duration", "damage_mult", "knockback_immune", "overheal"],
     "heal_beam": ["duration", "hps", "range", "cone_deg"],
-    "projectile": ["speed", "damage", "gravity", "lifetime", "hit_radius", "splash_radius", "slow"],
+    "projectile": ["speed", "damage", "gravity", "lifetime", "hit_radius", "splash_radius", "slow", "root"],
     "rally": ["radius", "heal"],
     "nova": ["radius", "damage"],
     "blink": ["distance", "duration", "bonus_mult", "bonus_shots", "bonus_window"],
@@ -231,6 +231,9 @@ static func _text_projectile(d: Dictionary, s: Dictionary) -> String:
     if sp > 0.0:
         txt += ", plus splash to other enemies within %s m (linear falloff to %d%% at the edge)" % [n(sp), AOE_EDGE_PCT]
     txt += "."
+    if float(d.get("root", 0)) > 0.0:
+        s["root"] = float(d.get("root", 0))
+        txt += " Every enemy hit is rooted for %s s: can't walk, jump, be pushed or use movement abilities, but can still aim, shoot and cast." % n(d.get("root", 0))
     var slow: Dictionary = d.get("slow", {})
     if not slow.is_empty():
         s["slow_mult"] = float(slow.get("mult", 0.6))

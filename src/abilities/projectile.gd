@@ -1,7 +1,7 @@
 extends Ability
 ## Projectile weapon ability: spawns a travelling shot (not hitscan).
 ## Params: speed, damage, gravity, lifetime, hit_radius, splash_radius (0 = direct only),
-## slow {mult, duration} (optional), kind, color, size.
+## slow {mult, duration} (optional), root (s, optional: hero.apply_root), kind, color, size.
 const Shot := preload("res://src/abilities/projectile_shot.gd")
 
 func _do() -> bool:
