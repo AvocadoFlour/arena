@@ -97,3 +97,7 @@ Hero sounds (1.0): `hero_sfx.gd` (`HeroSfx`, owned by the HUD) plays LibreQuake 
 see `src/ui/audio/LICENSES.md`) on the SFX bus, keyed by hero id x Actions slot (fire, ability1/Shift, ability2/E,
 ultimate/Q, ult_ready) plus 4 team cues (enemy hits me / a teammate, teammate kill, teammate killed). UiSfx keeps its
 procedural "hit" (my hit marker) and "kill" (my kill). Tests: ui_round17_test.gd, ui_hero_sfx_sim.gd.
+
+Overhead health bars / names (`hud.gd` `_update_bars`): coloured by relation to the local player with
+`team_palette.gd` (self blue, ally green, enemy red; FFA = every other hero red), from the authoritative
+`hero.team`, re-evaluated every frame. Tests: `tests/ui_round22_test.gd`.
