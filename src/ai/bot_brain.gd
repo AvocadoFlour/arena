@@ -192,6 +192,8 @@ func _consider_pack(h) -> void:
     if grouped and _healer_near(h, 20.0):
         return   # a teammate's heal beam is close: stay with the group
     var holding: bool = team_play and BotTeam.is_tank(h) and objective_zone(h) != null
+    if holding:
+        return
     var max_eta := minf(pack_max_eta, 4.0) if holding else (pack_max_eta if fighting else pack_max_eta * 1.5)
     if grouped:
         max_eta *= 0.6
