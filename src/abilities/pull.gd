@@ -2,6 +2,7 @@ extends Ability
 ## Pulls every enemy within `radius` toward the hero and slows them (Niđo's Stand-up Meeting).
 ## Params: radius, pull_speed (max horizontal pull velocity), up_speed (small hop so the pull clears the floor),
 ## stop_distance (targets aim to end about this far from the hero), slow (speed multiplier), slow_duration, color.
+## Walls and shield walls between Niđo's chest and a target's centre block it (Hero.los_clear; heroes do not).
 ## Uses only the hero API: knockback() (ignored while knockback_immune) and apply_slow(). No damage.
 var last_pulled := 0   ## heroes pulled by the latest cast (tests / bots)
 
@@ -20,6 +21,8 @@ func _do() -> bool:
         var dist := d.length()
         if dist > r:
             continue
+        if not Hero.los_clear(hero, hero.chest(), h.global_position + Vector3(0, 0.9, 0), h):
+            continue   # physical path, chest to centre: walls / shield walls block the pull (not a vision check)
         if dist > stop and dist > 0.01:
             # speed scales with the gap so near targets are not flung past the hero
             h.knockback(d / dist * minf(spd, (dist - stop) * 4.0) + Vector3(0, float(def.get("up_speed", 3.0)), 0))

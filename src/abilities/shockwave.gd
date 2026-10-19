@@ -23,7 +23,7 @@ func _do() -> bool:
         away = away.normalized() if away.length() > 0.01 else fwd
         h.knockback(away * float(def.get("knockback", 15.0)) + Vector3(0, float(def.get("lift", 5.5)), 0))
     for c in hero.get_tree().get_nodes_in_group("destructible"):
-        if c.is_inside_tree() and MeleeMath.in_arc(o, fwd, c.global_position, r, arc):
+        if c.is_inside_tree() and MeleeMath.in_arc(o, fwd, c.global_position, r, arc) and hero.can_hit(c):
             var ca := HitMath.aoe_damage(o, r, dmg, c.global_position)
             if ca > 0.0:
                 c.take_damage(ca * hero.damage_mult(), hero, c.global_position, "ultimate", id)
@@ -41,6 +41,6 @@ static func targets(h, r: float, half_arc: float, fwd: Vector3) -> Array:
             continue
         if o.get_world_3d() != h.get_world_3d():
             continue
-        if MeleeMath.in_arc(h.global_position, fwd, o.global_position, r, half_arc):
+        if MeleeMath.in_arc(h.global_position, fwd, o.global_position, r, half_arc) and h.can_hit(o):   # walls block it
             out.append(o)
     return out

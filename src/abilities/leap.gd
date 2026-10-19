@@ -31,7 +31,7 @@ func on_landed() -> void:
         if h == hero or h.dead or h.team == hero.team:
             continue
         var amt := HitMath.aoe_damage(hero.global_position, r, dmg, h.global_position + Vector3(0, 0.9, 0))
-        if amt > 0.0:
+        if amt > 0.0 and hero.can_hit(h):   # walls / shield walls block the landing impact
             h.take_damage(amt * hero.damage_mult(), hero, h.global_position + Vector3(0, 1.2, 0), "charge", id)
             var away: Vector3 = h.global_position - hero.global_position
             away.y = 0
