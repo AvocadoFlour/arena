@@ -1,6 +1,6 @@
 class_name AbilityTooltip
 extends PanelContainer
-## HUD ability tooltip: name + live key binding (Hud.key_label), precise text and compact stats of the slot
+## HUD ability tooltip: name + live key binding (Hud.key_label), precise text and labelled stats (one per line) of the slot
 ## under the pointer. Shown on mouse hover (cursor visible, i.e. not captured) or on a touch long-press
 ## (LONG_PRESS s without dragging more than DRAG_CANCEL px). Never blocks input: it is MOUSE_FILTER_IGNORE
 ## everywhere and only *observes* events in feed() (the HUD calls it from _input, never marks them handled).
@@ -138,7 +138,7 @@ func refresh() -> void:
     if String(e.get("description", "")) != "" and e.description != e.text:
         body.text += ("\n" if body.text != "" else "") + String(e.description)
     body.visible = body.text != ""
-    stats.text = AbilityInfo.stats_line(e.get("stats", {}), 6)
+    stats.text = AbilityInfo.stats_text(e)
     stats.visible = stats.text != ""
     place()
 

@@ -1,7 +1,7 @@
 class_name HeroDetail
 extends BoxContainer
 ## Hero-select detail: 3D preview + info (name, role, HP, then every slot in order via AbilityList: slot with its
-## live key, name, precise text from HeroAbilities (JSON fallback: type/cooldown/"description"), compact stats).
+## live key, name, precise text from HeroAbilities (JSON fallback: type/cooldown/"description"), labelled stats one per line (StatLabels)).
 ## Horizontal when wide; on narrow screens (< NARROW px) the preview stacks above the info.
 ## All text comes from the hero def / HeroAbilities (no new names).
 const NARROW := 900.0
