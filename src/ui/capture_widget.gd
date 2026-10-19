@@ -6,7 +6,13 @@ extends Control
 ##   capture_completed(ev: {zone_id: String, team: int})
 ## Events has neither yet, so bind(Events) is a no-op and the widget stays hidden; MockCaptureSource
 ## drives it in tests.
-const TEAM_COLORS := {-1: Color(0.7, 0.7, 0.7), 0: Color("#3ea0ff"), 1: Color("#ff4848")}
+## Bar colour = owner/capturing team seen from the local player (TeamPalette): own team ally green, other
+## teams enemy red, neutral grey; contested yellow. Redrawn when the local player's hero or team changes.
+const NEUTRAL := Color(0.7, 0.7, 0.7)
+const CONTESTED := Color(1, 0.8, 0.2)
+var player    ## local hero (HUD keeps it current across hero swaps / team changes)
+var mode := "control"   ## capture zones only exist in Control
+var _seen := []
 var zones := {}   ## zone_id -> {team, progress, contested, owner}
 var row: HBoxContainer
 
@@ -49,6 +55,19 @@ func on_completed(ev: Dictionary) -> void:
     z.contested = false
     _redraw()
 
+func zone_color(team: int) -> Color:
+    if team < 0:
+        return NEUTRAL
+    return TeamPalette.color(TeamPalette.team_relation(team, player, mode))
+
+func _process(_dt: float) -> void:
+    var sig := [player.get_instance_id() if player != null and is_instance_valid(player) else 0,
+        int(player.team) if player != null and is_instance_valid(player) else -999, mode]
+    if sig != _seen:
+        _seen = sig
+        if not zones.is_empty():
+            _redraw()
+
 func _zone(id: String) -> Dictionary:
     if not zones.has(id):
         zones[id] = {"team": -1, "progress": 0.0, "contested": false, "owner": -1}
@@ -81,7 +100,7 @@ func _redraw() -> void:
         bar.max_value = 1.0
         bar.value = z.progress
         var fg := StyleBoxFlat.new()
-        fg.bg_color = Color(1, 0.8, 0.2) if z.contested else TEAM_COLORS.get(z.team, Color.WHITE)
+        fg.bg_color = CONTESTED if z.contested else zone_color(int(z.team))
         var bg := StyleBoxFlat.new()
         bg.bg_color = Color(0, 0, 0, 0.55)
         bar.add_theme_stylebox_override("fill", fg)
