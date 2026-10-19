@@ -97,8 +97,9 @@ func setup(p) -> void:
     row.alignment = BoxContainer.ALIGNMENT_CENTER
     row.add_theme_constant_override("separation", 14)
     _place(row, 0.5, 1, 0.5, 1, -330, -110, 330, -30)
-    for slot in ["ability1", "ability2", "ultimate"]:
+    for slot in ["ability1", "ability2", "ability3", "ultimate"]:   # ability3 = right mouse, hidden if the hero has none
         var pc := PanelContainer.new()
+        pc.name = "Slot_" + slot
         pc.custom_minimum_size = Vector2(150, 70)
         var sb := StyleBoxFlat.new()
         sb.bg_color = Color(0.05, 0.07, 0.12, 0.7)
@@ -237,7 +238,9 @@ func _process(dt: float) -> void:
     ammo_label.visible = shows_ammo(player.def)
     ammo_label.text = ("RELOADING" if w.reloading() else "%d / %d" % [w.ammo, w.mag_size])
     for slot in ab_labels:
-        if not player.abilities.has(slot):
+        var has: bool = player.abilities.has(slot)
+        ab_labels[slot][0].get_parent().visible = has   # e.g. no ability3 yet; follows hero swaps
+        if not has:
             continue
         var ab = player.abilities[slot]
         var l: Label = ab_labels[slot][0]
