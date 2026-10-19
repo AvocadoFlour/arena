@@ -185,11 +185,10 @@ func poll(h) -> InputFrame:
 func _consider_pack(h) -> void:
     var frac: float = h.health.hp / h.health.max_hp
     var fighting: bool = target != null
-    var grouped: bool = team_play and not BotTeam.mates(h).is_empty()   # team play: don't leave the group to top up
-    if frac >= (pack_hp_frac if fighting else (0.6 if grouped else 0.8)) or h.health.max_hp - h.health.hp < 20.0:
+    if frac >= (pack_hp_frac if fighting else 0.8) or h.health.max_hp - h.health.hp < 20.0:
         return
     var holding: bool = team_play and BotTeam.is_tank(h) and objective_zone(h) != null
-    var max_eta := minf(pack_max_eta, 4.0) if holding else (pack_max_eta if fighting or grouped else pack_max_eta * 1.5)
+    var max_eta := minf(pack_max_eta, 4.0) if holding else (pack_max_eta if fighting else pack_max_eta * 1.5)
     var best = _best_pack(h, max_eta)
     if best == null:
         return
