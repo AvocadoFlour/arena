@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 GODOT="${GODOT:-$HOME/godot/godot}"
-VER=0.9
+VER=0.9.1
 LOG=build/build.log
 mkdir -p build dist/windows dist/linux
 : > "$LOG"
@@ -65,12 +65,14 @@ fi
 [ -f "$WIN_TPL" ] && cp build/export_presets.cfg.bak export_presets.cfg && trap - EXIT
 test -s dist/windows/Arena.exe && test -s dist/windows/Arena.pck
 echo "[5/5] zip"
+# third-party audio licences (BSD-3 etc.) ship next to Arena.exe
+cp src/ui/audio/LICENSES.md dist/windows/LICENSES-audio.md
 rm -f dist/arena-$VER-windows.zip
-python3 -c "import zipfile,sys;z=zipfile.ZipFile(sys.argv[1],'w',zipfile.ZIP_DEFLATED,compresslevel=9);[z.write('dist/windows/'+f,'Arena/'+f) for f in ('Arena.exe','Arena.pck')]" dist/arena-$VER-windows.zip
+python3 -c "import zipfile,sys;z=zipfile.ZipFile(sys.argv[1],'w',zipfile.ZIP_DEFLATED,compresslevel=9);[z.write('dist/windows/'+f,'Arena/'+f) for f in ('Arena.exe','Arena.pck','LICENSES-audio.md')]" dist/arena-$VER-windows.zip
 ls -la dist/arena-$VER-windows.zip
 rm -f dist/arena-$VER-windows.7z
 if command -v 7z >/dev/null; then
-  (cd dist/windows && 7z a -mx=9 ../arena-$VER-windows.7z Arena.exe Arena.pck >/dev/null)
+  (cd dist/windows && 7z a -mx=9 ../arena-$VER-windows.7z Arena.exe Arena.pck LICENSES-audio.md >/dev/null)
   SZ=$(stat -c %s dist/arena-$VER-windows.7z); echo "    7z: $SZ bytes"
   [ "$SZ" -lt 23000000 ] || echo "!! WARNING: Windows 7z package >= 23 MB"
 fi
