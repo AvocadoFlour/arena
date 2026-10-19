@@ -8,6 +8,9 @@ extends Control
 signal back
 signal rebind_requested
 var read_only := false
+var hero_def := {}   ## read-only page: the local hero's def -> ability rows named "Ability 3: <name>"; no ability3 row without one
+var labels := {}     ## action -> name Label
+const ABILITY_ACTIONS := ["ability1", "ability2", "ability3", "ultimate"]
 var values := {}   ## read-only: action -> Label
 var buttons := {}
 var waiting := ""
@@ -38,6 +41,7 @@ func _ready() -> void:
         var l := MenuStyle.label(Keybinds.pretty(a), 22)
         l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
         grid.add_child(l)
+        labels[a] = l
         if read_only:
             var val := MenuStyle.label("", 22)
             val.custom_minimum_size.x = 260
@@ -60,7 +64,33 @@ func _ready() -> void:
     row.add_child(MenuStyle.button("Back", func(): waiting = ""; back.emit()))
     v.add_child(row)
     visibility_changed.connect(refresh)
+    _apply_labels()
     refresh()
+
+## Read-only page: label ability rows with the hero's ability names (AbilityInfo); hide ability3 if the hero has none.
+func set_hero_def(d) -> void:
+    hero_def = d if d is Dictionary else {}
+    _apply_labels()
+    refresh()
+
+static func action_label(a: String, d: Dictionary) -> String:
+    var base := Keybinds.pretty(a)
+    if d.is_empty() or not a in ABILITY_ACTIONS:
+        return base
+    var nm := String(AbilityInfo.describe(String(d.get("id", "")), a, d).get("name", ""))
+    return base if nm == "" or nm == base else "%s: %s" % [base, nm]
+
+static func shows_action(a: String, d: Dictionary) -> bool:
+    return a != "ability3" or d.is_empty() or d.get("abilities", {}).has("ability3")
+
+## Names are resolved once per hero (set_hero_def), not every frame.
+func _apply_labels() -> void:
+    for a in labels:
+        labels[a].text = action_label(a, hero_def) if read_only else Keybinds.pretty(a)
+        var on := shows_action(a, hero_def) if read_only else true
+        labels[a].visible = on
+        if values.has(a):
+            values[a].visible = on
 
 func refresh() -> void:
     for a in values:

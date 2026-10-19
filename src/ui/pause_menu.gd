@@ -102,7 +102,8 @@ func close_match() -> void:
 func open_controls() -> void:
     panel.visible = false
     controls_bg.visible = true
-    controls_page.refresh()
+    var p = get_parent().get("player") if get_parent() != null else null
+    controls_page.set_hero_def(p.def if p != null and is_instance_valid(p) and p.get("def") is Dictionary else {})
 
 func close_controls() -> void:
     controls_bg.visible = false

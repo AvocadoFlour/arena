@@ -81,9 +81,11 @@ static func rows(def, entry_for := Callable()) -> Array:
         return String(e.get("name", ""))
     var move := " ".join(["move_forward", "move_left", "move_back", "move_right"].map(func(a): return Hud.key_label(a)))
     var out := [["Move", move, ""], ["Look", "MOUSE", ""], ["Jump", Hud.key_label("jump"), ""]]
-    for slot in ["primary", "ability1", "ability2", "ultimate"]:
+    for slot in ["primary", "ability1", "ability2", "ability3", "ultimate"]:
         var label: String = AbilityInfo.SLOT_LABELS[slot]
         var nm: String = name_of.call(slot)
+        if slot == "ability3" and (nm == "" or not d.get("abilities", {}).has("ability3")):
+            continue   # hero without a right-click ability yet: no row
         out.append([label, Hud.key_label(AbilityInfo.SLOT_ACTIONS[slot]), "" if nm == label else nm])
     if Hud.shows_ammo(d):
         out.append(["Reload", Hud.key_label("reload"), ""])
