@@ -134,3 +134,45 @@ locally and gets corrected by the host. Please replicate `root_left` (and ideall
 5. **AI (bot_brain.want_ability):** `ride` and `line_slash` are unknown types today, so bots never use Übel's Shift/E.
    Suggested: `ride` like `leap` (aimed, visible enemy within 10 m), `line_slash` like `charge` but dist < 6; while
    mounted (`h.mounted_on() != null`) keep swinging and don't jump.
+
+## Oct 19: melee / area damage no longer goes through walls (bug fix) - FYI core/AI
+Root cause: melee_swing (hits, lunge target search, breakable cover) and the close-range / area abilities used only
+distance + angle (MeleeMath.in_arc, in_box, radius) with no line-of-sight test, so they hit through world walls and
+deployed shield walls. New shared helper `Hero.los_clear(node, from, to, target)` / `hero.can_hit(target)`: a ray
+chest (feet + 1.2 m) to chest, default mask like hitscan, all heroes excluded; a breakable-cover target counts as
+clear when it is the first thing hit; the hero being ridden (Übel) is always reachable. Now required by Paper Cut /
+The Best / Niđo melee (+ lunge + cover hits), Clean Cut (line_slash, description no longer says "even behind
+cover"), Fearless Leap landing, Boulder Roll (charge), Quarry Quake (ground_slam via Hero.aoe), Last Smile (nova via
+Hero.aoe), Force Push (shockwave) and the breakable cover those hit (`damage_destructibles(..., los_from)`).
+Descriptions of these types end with "Walls, shield walls and cover block it." Host-only; walls are static and heroes
+are excluded from the ray, so lag-compensation rewind does not change the result.
+- **Left unchanged (not damage):** Stand-up Meeting pull, Grand Finale rally heal, No Limits team buff, Rollback.
+  Projectile splash (Breakpoint has none; Staccato Note splash) starts at the impact point and is also unchanged.
+  Say if the pull or splash should need line of sight too.
+- **AI (optional):** bots may now swing / slam / ult at enemies behind cover and whiff; a LOS check
+  (`hero.can_hit(target)`) before melee or area casts would help.
+- **Core, `Hero.damage_destructibles` signature:** gained an optional last arg `los_from` (default null = old behaviour).
+
+## Oct 19: The Best "jumps again" when clicking during Fearless Leap (bug fix) - FYI AI/core
+Root cause: primary fire was not blocked during movement abilities, so melee_swing ran mid-leap; its lunge (enemy
+2.56-8.2 m ahead in a 30° cone) overwrote dash_vel / dash_time (0.15 s), and the dash branch in Hero._physics_process
+keeps velocity.y >= 0, so the leap arc became a flat burst + hover; the swing also hit in the air. Fix (hero.gd):
+no lunge while airborne, mounted, or while `movement_active()` (leap in the air, charge, any dash push incl. dash /
+lunge / hop-off); a melee click during a movement ability is buffered (one swing, dropped after 2 s) and runs once
+it is over and we are on the floor, after the landing impact. Applies to every melee hero (The Best, Niđo, Übel);
+Übel's mounted head attacks are unchanged (mounted is not movement). Host-only: client prediction never simulated
+the lunge or leap pushes, so nothing to match and no new rubber-banding (the old host-only lunge was the source).
+**AI (optional):** bots holding fire during a leap now get their swing on landing instead of mid-air.
+
+## Oct 19: Niđo Momentum (primary.on_hit_speed) - requests UI / core (optional)
+`primary.on_hit_speed: {bonus: 0.5, decay: 1.0}` (generic Hero hook): a primary melee swing that hits >= 1 enemy hero
+sets the bonus to full (+50% move speed and acceleration via effective_move_cfg), fading linearly to 0 over 1 s; each
+such swing refreshes it (one refresh per swing, no stacking); slows multiply on top; cleared on death. Host-only
+state; replicated with no core change through a `momentum:<net id>` net prop (yaw = fraction left x 3), read by
+`hero.momentum_frac()` / `momentum_mult()` on every peer (owner prediction uses it in effective_move_cfg, remote
+heroes show a faint speed trail from it).
+- **UI (request):** there is no buff-icon system in the HUD. Please add a small buff indicator for the local hero;
+  `hero.momentum_frac()` (0..1) is the fill, `hero.def.primary.on_hit_speed` has the numbers. A generic
+  "buffs" list on the HUD would also suit damage_reductions / buff_mult / overheal later.
+- **Core (optional):** a snapshot field for the fraction (instead of the prop) would give per-tick precision for
+  owner prediction; the prop updates at the snapshot rate, which is close enough for a 1 s decay.

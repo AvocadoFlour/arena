@@ -5,7 +5,8 @@
   "max_hp": 300,
   "movement": {"speed": 6.6, "accel_ground": 65, "accel_air": 12, "jump_velocity": 8.0, "gravity": 22},
   "collider": {"radius": 0.5, "height": 1.85},
-  "primary": {"type": "melee", "name": "Ping Hammer", "damage": 30, "fire_rate": 1.6, "mag": 999, "reload_time": 0.1, "spread_deg": 0, "range": 3.0, "arc_deg": 120, "combo": [1.0, 1.0, 1.4], "combo_window": 1.0, "finisher_knockback": 5.0, "lunge": 3.0},
+  "primary": {"type": "melee", "name": "Ping Hammer", "damage": 30, "fire_rate": 1.6, "mag": 999, "reload_time": 0.1, "spread_deg": 0, "range": 3.0, "arc_deg": 120, "combo": [1.0, 1.0, 1.4], "combo_window": 1.0, "finisher_knockback": 5.0, "lunge": 3.0,
+    "on_hit_speed": {"bonus": 0.5, "decay": 1.0}},
   "ultimate_cost": 600,
   "abilities": {
     "ability1": {"id": "firewall", "type": "shield_wall", "name": "Firewall", "cooldown": 10.0, "width": 3.4, "height": 2.4, "thickness": 0.3, "distance": 1.5, "duration": 3.5, "color": "#40e070"},

@@ -1,8 +1,8 @@
 extends Ability
 ## Line slash: one instant cut along the aim (flat), hitting every enemy inside a thin box in front of the hero:
-## `length` m long, `width` m wide, from the hero's feet up to `height` m. The cut goes through cover (enemies
-## behind a wall are still hit) and also damages breakable cover in the box. A rider (ride ability) always cuts
-## the victim below her. Params: damage, length, width, height, knockback, cooldown.
+## `length` m long, `width` m wide, from the hero's feet up to `height` m. It also damages breakable cover in the box. A rider (ride ability) always cuts
+## the victim below her. Walls, shield walls and breakable cover block it (Hero.can_hit: clear line from her
+## chest; the block in the way is still cut); the ridden victim is always hit. Params: damage, length, width, height, knockback, cooldown.
 static func in_box(origin: Vector3, fwd: Vector3, p: Vector3, length: float, width: float, height: float) -> bool:
     var to := p - origin
     if to.y < -0.5 or to.y > height:
@@ -33,12 +33,12 @@ func _do() -> bool:
         if h == hero or h.dead or h.team == hero.team or h.get_world_3d() != hero.get_world_3d():
             continue
         var pos: Vector3 = h.global_position
-        if h == under or in_box(o, fwd, pos, ln, w, hgt) or in_box(o, fwd, pos + Vector3(0, 1.0, 0), ln, w, hgt):
+        if h == under or ((in_box(o, fwd, pos, ln, w, hgt) or in_box(o, fwd, pos + Vector3(0, 1.0, 0), ln, w, hgt)) and hero.can_hit(h)):
             h.take_damage(dmg, hero, pos + Vector3(0, 1.2, 0), "ability", id)
             var kb := float(def.get("knockback", 0.0))
             if kb > 0.0 and h != under:
                 h.knockback(fwd * kb)
     for c in hero.get_tree().get_nodes_in_group("destructible"):
-        if c.is_inside_tree() and in_box(o, fwd, c.global_position, ln, w + 0.6, hgt + 0.5):
+        if c.is_inside_tree() and in_box(o, fwd, c.global_position, ln, w + 0.6, hgt + 0.5) and hero.can_hit(c):
             c.take_damage(dmg, hero, c.global_position, "ability", id)
     return true
