@@ -1,7 +1,8 @@
 class_name HeroSfx
 extends Node
 ## Hero ability sounds + team cues from LibreQuake (src/ui/audio/LICENSES.md), played on the "SFX" bus.
-## Files are used exactly as shipped by LibreQuake (no pitch/volume processing; player volume stays 0 dB).
+## Files are used exactly as shipped by LibreQuake (no pitch/volume processing of the WAVs). Playback level is
+## set per hero/slot on the player only (VOLUME_GAIN, applied when the sound plays; anything not listed: 0 dB).
 ## Keyed by hero id, so a hero's sounds activate as soon as its JSON is on the branch (Niđo: "nidjo").
 ## Slot keys are the Actions action names, i.e. the real bindings: fire (Left mouse), ability1 (Shift),
 ## ability2 (E), ultimate (Q); plus "ult_ready" when the ultimate meter becomes full.
@@ -27,6 +28,14 @@ const HERO := {
     "twin_tails": {"fire": "misc/menu2.wav", "ability1": "weapons/lstart.wav", "ability2": "misc/menu3.wav",
         "ultimate": "misc/secret.wav", "ult_ready": "items/inv1.wav"},
 }
+## Playback level per hero/slot as a linear amplitude gain, converted when the sound plays
+## (AudioStreamPlayer.volume_db = linear_to_db(gain)); missing entries and cues play at 1.0 (0 dB).
+## The left-click sounds below were too loud next to the rest (user request): 60% amplitude (about -4.44 dB).
+const VOLUME_GAIN := {
+    "cob": {"fire": 0.6},        # weapons/ric1
+    "nidjo": {"fire": 0.6},      # player/axhit1
+    "the_best": {"fire": 0.6},   # knight/sword1
+}
 const CUES := {"hit_me": "player/pain1.wav", "hit_teammate": "player/pain5.wav",
     "team_kill": "player/death3.wav", "teammate_killed": "player/death1.wav"}
 const SLOTS := ["fire", "ability1", "ability2", "ultimate", "ult_ready"]
@@ -43,6 +52,7 @@ var last_play := {}
 var play_count := {}               ## key -> plays (tests)
 var last_key := ""
 var last_file := ""
+var last_player: AudioStreamPlayer = null   ## voice used by the last play (tests)
 var _seen = null                   ## hero the polled state below belongs to
 var _ammo := -1
 var _ult_full = null
@@ -50,6 +60,10 @@ var _ult_full = null
 static func path_for(hero_id: String, slot: String) -> String:
     var m: Dictionary = HERO.get(hero_id, {})
     return BASE + String(m[slot]) if m.has(slot) else ""
+
+static func volume_db_for(hero_id: String, slot: String) -> float:
+    var g := float(VOLUME_GAIN.get(hero_id, {}).get(slot, 1.0))
+    return 0.0 if g == 1.0 else linear_to_db(g)
 
 static func cue_path(cue: String) -> String:
     return BASE + String(CUES[cue]) if CUES.has(cue) else ""
@@ -86,7 +100,7 @@ func _stream(path: String) -> AudioStream:
     return streams[path]
 
 ## Play `path` under rate-limit key `key`; true if it started.
-func _play(key: String, path: String, gap: float) -> bool:
+func _play(key: String, path: String, gap: float, volume_db := 0.0) -> bool:
     if path == "" or players.is_empty():
         return false
     var s := _stream(path)
@@ -105,7 +119,9 @@ func _play(key: String, path: String, gap: float) -> bool:
         p = players[play_count.get("_rr", 0) % players.size()]
         play_count["_rr"] = int(play_count.get("_rr", 0)) + 1
     p.stream = s
+    p.volume_db = volume_db   # set on every play: pooled voices are shared by all keys
     p.play()
+    last_player = p
     play_count[key] = int(play_count.get(key, 0)) + 1
     last_key = key
     last_file = path
@@ -114,7 +130,7 @@ func _play(key: String, path: String, gap: float) -> bool:
 func play_hero(slot: String) -> bool:
     var id := _hero_id(player)
     var gap: float = FIRE_GAP.get(id, MIN_GAP.fire) if slot == "fire" else float(MIN_GAP.get(slot, 0.1))
-    return _play(id + "/" + slot, path_for(id, slot), gap)
+    return _play(id + "/" + slot, path_for(id, slot), gap, volume_db_for(id, slot))
 
 func play_cue(cue: String) -> bool:
     return _play(cue, cue_path(cue), float(MIN_GAP.get(cue, 0.3)))
