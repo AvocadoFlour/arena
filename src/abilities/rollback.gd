@@ -1,15 +1,13 @@
 extends Ability
 ## Ultimate (use with "needs_ult": true): restores the hero and allies within `radius` to the health they had
 ## `window` seconds ago (only ever heals: the gap between that HP and the current HP), then the hero takes
-## `damage_reduction` (fraction) less damage for `dr_duration` s. Niđo's Rollback.
+## `damage_reduction` (fraction) less damage for `dr_duration` s via hero.apply_damage_reduction (pre-damage, so it
+## also softens a single lethal hit). Niđo's Rollback.
 ## HP history: every `sample` s the ability records the HP of every living hero on its team (all peers; only the
-## host/offline heal() applies). Damage reduction refunds that fraction of each HP drop on the next tick (heal(),
-## so it cannot save the hero from a single lethal hit) - hero.gd has no damage-reduction hook to use instead.
+## host/offline heal() applies).
 var _hist := {}        ## hero instance id -> Array of [time, hp] (oldest first)
 var _t := 0.0
 var _acc := 0.0
-var dr_left := 0.0
-var _dr_hp := 0.0
 var last_restored := {}   ## hero -> HP restored by the latest cast (tests)
 
 func tick(dt: float) -> void:
@@ -19,15 +17,6 @@ func tick(dt: float) -> void:
     if _acc >= float(def.get("sample", 0.25)):
         _acc = 0.0
         _record()
-    if dr_left > 0.0:
-        dr_left -= dt
-        if hero.dead:
-            dr_left = 0.0
-        else:
-            var hp: float = hero.health.hp
-            if hp < _dr_hp:
-                hero.heal((_dr_hp - hp) * float(def.get("damage_reduction", 0.35)), hero, id)
-            _dr_hp = hero.health.hp
 
 func _record() -> void:
     if hero == null or not hero.is_inside_tree():
@@ -70,7 +59,10 @@ func _do() -> bool:
         var p := past_hp(h)
         if p > h.health.hp:
             last_restored[h] = h.heal(p - h.health.hp, hero, id)
-    dr_left = float(def.get("dr_duration", 4.0))
-    _dr_hp = hero.health.hp
+    hero.apply_damage_reduction(float(def.get("damage_reduction", 0.35)), float(def.get("dr_duration", 4.0)), "rollback")
     Fx.ring(hero.get_parent(), hero.global_position + Vector3(0, 1, 0), r, Color(String(def.get("color", "#40e070"))), 0.7)
     return true
+
+## Seconds of damage reduction left on the caster (HUD/tests).
+func dr_left() -> float:
+    return hero.damage_reduction_left("rollback")

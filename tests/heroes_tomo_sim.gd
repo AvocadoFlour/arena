@@ -108,7 +108,7 @@ func _physics_process(_dt: float) -> void:
             _rec("breakpoint_activates", tomo.abilities["ability2"].activate(), "")
         180:
             _rec("breakpoint_hits", absf(hp0 - foe.health.hp - 25.0) < 0.01, "dmg=%.1f" % (hp0 - foe.health.hp))
-            _rec("breakpoint_roots", foe.slow_mult == 0.0 and foe.slow_left > 0.5, "mult=%.2f left=%.2f" % [foe.slow_mult, foe.slow_left])
+            _rec("breakpoint_roots", foe.rooted() and foe.root_left > 0.5 and foe.slow_mult == 1.0, "root=%.2f slow=%.2f" % [foe.root_left, foe.slow_mult])
             p0 = foe.global_position
         215:
             var drift := Vector2(foe.global_position.x - p0.x, foe.global_position.z - p0.z).length()
@@ -116,7 +116,7 @@ func _physics_process(_dt: float) -> void:
             p0 = foe.global_position
         270:
             var walked := Vector2(foe.global_position.x - p0.x, foe.global_position.z - p0.z).length()
-            _rec("root_wears_off", foe.slow_mult == 1.0 and walked > 1.0, "walked=%.2f" % walked)
+            _rec("root_wears_off", not foe.rooted() and walked > 1.0, "walked=%.2f" % walked)
             foe.input_source = Idle.new()
             # Force Push: foe in front, foe2 behind
             _place(tomo, Vector3(0, 0, 0))

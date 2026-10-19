@@ -25,7 +25,7 @@ func test_def_and_kit() -> void:
     var a: Dictionary = d.abilities
     check(a.ability1.name == "Hotfix" and a.ability1.type == "blink", "Hotfix = blink")
     check(a.ability2.name == "Breakpoint" and a.ability2.type == "projectile", "Breakpoint = projectile")
-    check(float(a.ability2.slow.mult) == 0.0 and float(a.ability2.slow.duration) >= 1.0, "Breakpoint roots")
+    check(float(a.ability2.get("root", 0)) >= 1.0 and not a.ability2.has("slow"), "Breakpoint roots (real root, not a 0% slow)")
     check(float(a.ability2.splash_radius) == 0.0, "Breakpoint hits only the first enemy")
     check(a.ultimate.name == "Force Push" and a.ultimate.type == "shockwave", "Force Push = shockwave")
     check(d.primary.type == "hitscan" and int(d.primary.burst) == 3, "Packet Burst: 3-round hitscan burst")
@@ -167,3 +167,39 @@ func test_breakpoint_visual() -> void:
     check(v != null and v.get_child_count() == 3, "marker visual")
     check(v.find_children("*", "CollisionObject3D", true, false).is_empty(), "visual only")
     v.free()
+
+func test_burst_is_built_into_hero() -> void:
+    var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(DEF)).duplicate(true)
+    d.abilities = {}   # no Hotfix: burst fire must not depend on any ability
+    var h := Hero.new()
+    h.def = d
+    h._build()
+    check(h.weapon is BurstWeapon and h.weapon.burst_size == 3, "hero.gd builds a BurstWeapon from primary.burst")
+    h.free()
+    var c := Hero.from_def("res://src/heroes/cob.json")
+    check(not (c.weapon is BurstWeapon), "no burst key -> plain Weapon")
+    c.free()
+    var src := FileAccess.get_file_as_string("res://src/abilities/blink.gd")
+    check(not src.contains("BurstWeapon.install") and not src.contains("continue_burst"), "Hotfix no longer installs/drives the burst")
+
+func test_root_hook_locks_movement_not_aim() -> void:
+    var h := Hero.from_def("res://src/heroes/the_best.json")   # has leap + dash
+    h.apply_root(1.0)
+    check(h.rooted() and h.slow_mult == 1.0, "rooted, and distinct from a slow")
+    h.abilities.ability2.cooldown.remaining = 0.0
+    h._use("ability2")
+    check(h.dash_time <= 0.0 and h.abilities.ability2.cooldown.remaining <= 0.0, "dash locked while rooted (no cooldown spent)")
+    h.apply_root(0.5)
+    near(h.root_left, 1.0, 0.001, "longer root wins")
+    h.knockback(Vector3(10, 0, 0))
+    h.root_left = 0.0
+    check(not h.rooted(), "root ends")
+    h._use("ability2")
+    check(h.dash_time > 0.0, "dash works again after the root")
+    h.free()
+    var c := Hero.from_def("res://src/heroes/cob.json")
+    c.apply_root(1.0)
+    c._use("ability2")   # Geode Wall is not a movement ability (needs the tree to spawn; must not be blocked)
+    check(c.abilities.ability2.cooldown.remaining > 0.0 or not c.is_inside_tree(), "non-movement abilities allowed")
+    check(not ("shield_wall" in Hero.ROOT_BLOCKS) and "blink" in Hero.ROOT_BLOCKS and "leap" in Hero.ROOT_BLOCKS, "root block list")
+    c.free()

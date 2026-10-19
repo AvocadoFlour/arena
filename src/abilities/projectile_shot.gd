@@ -116,6 +116,11 @@ func _impact(pos: Vector3, target) -> void:
     if glyph:   # toon pop: flat ring + white star burst (visual only)
         ToonFx.ring(get_parent(), pos, maxf(splash, 1.0), Color(String(def.get("color", "#d8ecff"))), 0.35, 0.12)
         ToonFx.burst(get_parent(), pos, Color("#9ecff5"), 8, 0.8, 0.3, Vector3.UP, 0.22)
+    var root_t := float(def.get("root", 0.0))
+    if root_t > 0.0:
+        for v in victims:
+            if is_instance_valid(v) and v.has_method("apply_root"):
+                v.apply_root(root_t)
     var slow: Dictionary = def.get("slow", {})
     if not slow.is_empty():
         for v in victims:

@@ -17,6 +17,7 @@ var wand_tip: Node3D
 var _shot_seq := -1
 var _cast_seq := -1
 var _aim := 0.0
+var _ride_w := 0.0                    ## 0..1 weight of the mounted "ride" pose
 var _arm_r: Array = []
 var _arm_l: Array = []
 var cfg: Dictionary = {}
@@ -196,6 +197,14 @@ func _build_tree() -> void:
     bt.add_node("move", move, Vector2(400, 50))
     bt.connect_node("move", 0, "idle")
     bt.connect_node("move", 1, "run_speed")
+    var top := "move"
+    if anim_player.has_animation("ride"):   # mounted pose (ride ability), blended over idle/run
+        bt.add_node("ride_pose", _anim("ride"), Vector2(400, 400))
+        var ride := AnimationNodeBlend2.new()
+        bt.add_node("ride", ride, Vector2(500, 50))
+        bt.connect_node("ride", 0, "move")
+        bt.connect_node("ride", 1, "ride_pose")
+        top = "ride"
     var has_aim := anim_player.has_animation("aim")
     bt.add_node("aim_pose", _anim("aim" if has_aim else "idle"), Vector2(400, 250))
     var aim := AnimationNodeBlend2.new()
@@ -204,7 +213,7 @@ func _build_tree() -> void:
     for p in _arm_r:
         aim.set_filter_path(p, true)
     bt.add_node("aim", aim, Vector2(600, 100))
-    bt.connect_node("aim", 0, "move")
+    bt.connect_node("aim", 0, top)
     bt.connect_node("aim", 1, "aim_pose")
     _arm_l = cfg.get("cast_bones", ARM_L_HEAD)
     _oneshot(bt, "cast", "cast" if anim_player.has_animation("cast") else "idle", _arm_l, "aim", Vector2(800, 100))
@@ -227,13 +236,16 @@ func play_oneshot(slot: String, anim: String) -> void:
     last_anim = anim
 
 ## Per-frame visual update from replicated hero state (see Hero._process).
-## st: run (0..1.5), fwd, side, air, shots (cumulative shot count), finisher (bool, from replicated combo_step),
+## st: run (0..1.5), riding (bool: mounted on a head -> "ride" pose), fwd, side, air, shots (cumulative shot count), finisher (bool, from replicated combo_step),
 ## casts (cumulative), cast_slot (ability slot of the latest cast), healing (bool)
 func drive(st: Dictionary, dt: float) -> void:
     if tree:
         var run: float = clampf(float(st.get("run", 0.0)), 0.0, 1.5)
         tree.set("parameters/move/blend_amount", clampf(run * 1.4, 0.0, 1.0))
         tree.set("parameters/run_speed/scale", maxf(0.6, run))
+        if anim_player.has_animation("ride"):
+            _ride_w = move_toward(_ride_w, 1.0 if bool(st.get("riding", false)) else 0.0, dt / 0.12)
+            tree.set("parameters/ride/blend_amount", _ride_w)
         var shots := int(st.get("shots", 0))
         if _shot_seq >= 0 and shots != _shot_seq:
             var melee: Dictionary = cfg.get("melee", {})

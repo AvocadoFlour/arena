@@ -93,3 +93,44 @@ Test auto-discovery, hero API docs, damage kinds, mixed bot roster.
 ## FYI (Oct 19): ability descriptions API (no core change needed)
 `HeroAbilities.describe(hero_id, slot)` / `describe_all(hero_id)` in src/heroes/hero_abilities.gd (global class_name, pure JSON data).
 UI can call it directly; nothing to wire in core. See src/heroes/README.md.
+
+## Oct 19: damage-reduction hook (hero.gd) - for the lead (INTERFACES §1/§3)
+`Hero.apply_damage_reduction(frac, dur, key := "default")`, `Hero.damage_taken_mult()`, `Hero.damage_reduction_left(key)`,
+`Hero.damage_reductions` (key -> [frac, secs]). Applied in `take_damage` BEFORE overheal and HP (host/offline only), so it
+can stop a one-shot; keys stack multiplicatively, same key refreshes (max frac / max time); cleared by `clear_buffs()`.
+Niđo's Rollback now uses it (no next-tick refund). Please document it in INTERFACES. Not replicated (HP is); if the
+HUD wants a DR indicator on clients, net.gd would need to send `damage_taken_mult()` (core).
+
+## Oct 19: burst fire built into hero.gd (tomo.md #1 done) - for the lead (INTERFACES §2.1)
+`primary.burst` (> 1 rounds per burst) and `primary.burst_delay` (s between bursts; `fire_rate` = rate inside a burst).
+`Hero._build` creates a `BurstWeapon` for it; `_physics_process` calls `BurstWeapon.continue_burst(self)` each auth tick
+before the fire input, so a started burst completes. Hotfix (blink.gd) no longer installs/drives it. Please document.
+
+## Oct 19: real root hook (tomo.md #6 done) - for the lead (INTERFACES) and core net
+`Hero.apply_root(dur)`, `Hero.rooted()`, `Hero.root_left`; `Hero.ROOT_BLOCKS = ["dash", "blink", "leap", "charge"]`.
+While rooted (host/offline): no walking, no jumping, horizontal velocity zeroed (knockback/pull can't move it), no upward
+launch, a running dash/leap is cancelled, movement abilities in ROOT_BLOCKS can't be cast (no cooldown spent); aiming,
+shooting and other abilities work. Distinct from slows (slow_mult stays 1). Projectile defs take `"root": seconds`
+(projectile_shot.gd). Breakpoint now uses `"root": 1.1` instead of `slow {mult 0}`. Cleared on death.
+**Core (net.gd):** root_left (like slow_mult today) is not in the snapshot, so a client-predicted own hero keeps walking
+locally and gets corrected by the host. Please replicate `root_left` (and ideally `slow_mult`) for `_predict_step`.
+**AI:** bots may still try movement abilities while rooted (harmless: _use() refuses).
+
+## Oct 13: Übel (id `ubel`, user-approved fan character) - roster, core, AI, docs
+1. **docs/ROSTER.md (lead):** please add Übel with exactly this line:
+   'Fan character based on Übel (Frieren). Fine for private play; must be replaced with an original design before any commercial release.'
+   (Also in src/heroes/ubel/README.md.)
+2. **tests/core_test_roster.gd (core-owned):** edited in this branch the same way tomo 4c4aee1 / nidjo f5b6f50 did
+   (adds "ubel" / "Übel" to the expected roster), because adding src/heroes/ubel.json otherwise fails the build.
+   Please keep or redo it on master as you prefer.
+3. **New ability types (INTERFACES §2.2):** `ride` (src/abilities/ride.gd) and `line_slash` (src/abilities/line_slash.gd).
+   New Hero API: `mounted_on()`, `cancel_ride(why)` (stuns / hard CC should call it; knockback and root already end a
+   ride), `ridden_by` (host), `_ride`. HeroModel drive key `riding` -> "ride" pose.
+4. **Net (core, optional improvement):** the ride replicates without core changes through a net prop
+   (`net_kind "mount:<rider>:<victim>"`, `net_visual` res://src/abilities/mount_link.gd). A proper snapshot field
+   (rider -> victim id + ride time left) would remove the dependency on the reliable prop spawn order and let the
+   client predict the hop-off on jump (today the hop-off waits for the host). Also: while mounted the client-predicted
+   rider sits on the *interpolated* victim, so reconcile counts rise during rides (harmless, the predicted step re-seats).
+5. **AI (bot_brain.want_ability):** `ride` and `line_slash` are unknown types today, so bots never use Übel's Shift/E.
+   Suggested: `ride` like `leap` (aimed, visible enemy within 10 m), `line_slash` like `charge` but dist < 6; while
+   mounted (`h.mounted_on() != null`) keep swinging and don't jump.

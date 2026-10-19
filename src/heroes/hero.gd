@@ -29,10 +29,20 @@ var last_wish := Vector3.ZERO
 var move_cfg: Dictionary = {}
 var slow_mult := 1.0                 ## movement speed multiplier from slows (1 = none)
 var slow_left := 0.0
+## Root (host/offline): while root_left > 0 the hero cannot walk, jump, be pushed horizontally or use the movement
+## abilities in ROOT_BLOCKS; aiming, shooting and other abilities still work. Distinct from slow_mult.
+var root_left := 0.0
+const ROOT_BLOCKS := ["dash", "blink", "leap", "charge", "ride"]
+const MountLink := preload("res://src/abilities/mount_link.gd")
+var ridden_by = null                 ## HOST: the hero riding on our head (ride ability), or null
+var _ride = null                     ## the hero's ride ability (Übel's Shift), if any: host-side mount state machine
 var charge_hits: Array = []          ## heroes already hit by the current charge
 var buff_mult := 1.0                 ## outgoing damage multiplier from buffs (stacks with damage_scale)
 var buff_left := 0.0
 var knockback_immune := false        ## set while a buff grants it; knockback() is ignored
+## Incoming damage reduction (host/offline): key -> [fraction 0..1, seconds left]. Applied in take_damage BEFORE
+## overheal and HP, so it can stop a one-shot. Several keys stack multiplicatively; the same key refreshes.
+var damage_reductions := {}
 var overheal := 0.0                  ## temporary HP above max, absorbed before health, decays
 var overheal_decay := 0.0            ## overheal lost per second
 var combo_step := 0                  ## melee primary: index in the combo
@@ -81,11 +91,15 @@ func _build() -> void:
     display_name = def.get("name", "Hero")
     move_cfg = def.get("movement", {})
     health = Health.new(float(def.get("max_hp", 200)))
-    weapon = Weapon.new(def.get("primary", {}))
+    var prim: Dictionary = def.get("primary", {})
+    # Built-in burst fire: "burst" > 1 -> BurstWeapon (fire_rate inside a burst, burst_delay between bursts)
+    weapon = BurstWeapon.new(prim) if int(prim.get("burst", 1)) > 1 else Weapon.new(prim)
     ult = UltMeter.new(float(def.get("ultimate_cost", 500)))
     var abl: Dictionary = def.get("abilities", {})
     for slot in abl:
         abilities[slot] = AbilityRegistry.create(self, abl[slot])
+        if abilities[slot].has_method("riding"):
+            _ride = abilities[slot]
     var col: Dictionary = def.get("collider", {})
     var cs := CollisionShape3D.new()
     var cap := CapsuleShape3D.new()
@@ -105,6 +119,18 @@ func _build() -> void:
 ## Model parts (INTERFACES §2 "model"), plus optional visual-only keys:
 ## "rot":[x,y,z] degrees, "scale":[x,y,z], "pivot":[x,y,z] (part rotates about this point),
 ## "anim": "tail" | "weapon" | "leg_l" | "leg_r" | "arm_l" | "arm_r" | "head".
+## Mounted on another hero (ride ability): host/offline from the ride state, clients from the replicated
+## MountLink prop. Returns the victim hero or null.
+func mounted_on():
+    if net_role == "auth" and _ride != null:
+        return _ride.victim if _ride.busy() and is_instance_valid(_ride.victim) else null
+    return MountLink.victim_of(self)
+
+## Ends a ride early (stuns and other hard crowd control should call this; knockback and root already do).
+func cancel_ride(why := "cancel") -> void:
+    if _ride:
+        _ride.end_ride(why)
+
 func _build_model(parts: Array) -> void:
     _vis = Node3D.new()
     _vis.name = "Visual"
@@ -192,7 +218,8 @@ func _process(dt: float) -> void:
             if ab.has_method("channel_visible") and ab.channel_visible():
                 healing = true
         model.drive({"run": run, "fwd": fwd, "side": side, "air": air, "shots": _anim_shots,
-            "finisher": _anim_finisher, "casts": _anim_casts, "cast_slot": _anim_cast_slot, "healing": healing}, dt)
+            "finisher": _anim_finisher, "casts": _anim_casts, "cast_slot": _anim_cast_slot, "healing": healing,
+            "riding": mounted_on() != null}, dt)
     var lean_x := -fwd * 0.16 - 0.3 * _anim_dash - (0.2 * sin(_anim_atk * PI) if _anim_finisher else 0.0)
     var lean_z := side * 0.12
     _vis.rotation.x = lerpf(_vis.rotation.x, lean_x, minf(1.0, dt * 10.0))
@@ -354,18 +381,42 @@ func _physics_process(dt: float) -> void:
         slow_left -= dt
         if slow_left <= 0.0:
             slow_mult = 1.0
-    velocity = Motion.step_velocity(velocity, wish, is_on_floor(), f.jump, effective_move_cfg(), dt)
+    var jump := f.jump
+    if _ride and _ride.busy():
+        _ride.physics(dt, jump)   # leaping onto / riding a head: position comes from the victim
+    if _ride and _ride.busy():
+        dash_time = 0.0
+        root_left = maxf(0.0, root_left - dt)
+        if weapon is BurstWeapon:
+            BurstWeapon.continue_burst(self)
+        if f.fire:
+            _try_fire()   # mounted: attacks (and casts above) still work
+        return
+    if root_left > 0.0:
+        root_left = maxf(0.0, root_left - dt)
+        wish = Vector3.ZERO
+        jump = false
+        dash_time = 0.0   # a root cancels a running dash / leap
+    velocity = Motion.step_velocity(velocity, wish, is_on_floor(), jump, effective_move_cfg(), dt)
+    if rooted():
+        velocity.x = 0.0
+        velocity.z = 0.0
+        velocity.y = minf(velocity.y, 0.0)   # no upward launch (jump, knockback lift); gravity still applies
     if dash_time > 0.0:
         dash_time -= dt
         velocity.x = dash_vel.x
         velocity.z = dash_vel.z
         velocity.y = maxf(velocity.y, 0.0)
     move_and_slide()
+    if ridden_by != null and is_instance_valid(ridden_by) and ridden_by._ride:
+        ridden_by._ride.reseat()   # someone rides on our head (ride ability)
     if is_on_floor():
         if slam_pending:
             slam_pending = false
             for ab in abilities.values():
                 ab.on_landed()
+    if weapon is BurstWeapon:
+        BurstWeapon.continue_burst(self)   # a started burst completes even if the trigger was released
     if f.fire:
         _try_fire()
     if global_position.y < -25.0:
@@ -383,6 +434,14 @@ func _predict_step(dt: float) -> void:
     var wish := global_transform.basis * Vector3(f.move.x, 0, -f.move.y)
     wish.y = 0.0
     last_wish = wish
+    var under = mounted_on()
+    if under != null:   # riding (replicated MountLink): follow the victim's displayed head, no own movement
+        var seat: Vector3 = under.global_position + _ride.seat_offset(under) if _ride else under.global_position + Vector3(0, 1.8, 0)
+        global_position = global_position.lerp(seat, minf(1.0, dt * 18.0))
+        velocity = Vector3.ZERO
+        if input_source.has_method("record_pos"):
+            input_source.record_pos(global_position)
+        return
     velocity = Net.predict_pad(global_position, velocity)   # jump pads, same rule as the host (maps §6)
     velocity = Motion.step_velocity(velocity, wish, is_on_floor(), f.jump, effective_move_cfg(), dt)
     move_and_slide()
@@ -390,6 +449,8 @@ func _predict_step(dt: float) -> void:
         input_source.record_pos(global_position)
 
 func _use(slot: String) -> void:
+    if rooted() and abilities.has(slot) and String(abilities[slot].def.get("type", "")) in ROOT_BLOCKS:
+        return   # movement abilities are locked while rooted
     if abilities.has(slot) and abilities[slot].activate():
         Events.ability_used.emit(self, slot, abilities[slot].id)
 
@@ -454,7 +515,8 @@ func melee_swing() -> int:
         return 0
     # Lunge: if the nearest enemy in the arc is beyond sword range but within `lunge`, dash to it
     # and extend the reach for this swing.
-    var lunge := float(p.get("lunge", 0.0))
+    var under = mounted_on()   # riding: the head below is always in reach (also under lag-compensation rewind)
+    var lunge := 0.0 if under != null else float(p.get("lunge", 0.0))
     if lunge > 0.0:
         var best_d := INF
         for h in get_tree().get_nodes_in_group("heroes"):
@@ -470,7 +532,7 @@ func melee_swing() -> int:
     for h in get_tree().get_nodes_in_group("heroes"):
         if h == self or h.dead or h.team == team:
             continue
-        if MeleeMath.in_arc(global_position, fwd, h.global_position, rng, arc):
+        if h == under or MeleeMath.in_arc(global_position, fwd, h.global_position, rng, arc):
             h.take_damage(weapon.damage * mult * damage_mult(), self, h.global_position + Vector3(0, 1.2, 0), "primary")
             if final_hit and h.has_method("knockback"):
                 h.knockback(fwd * float(p.get("finisher_knockback", 6.0)) + Vector3(0, 3, 0))
@@ -486,6 +548,8 @@ func melee_swing() -> int:
 func knockback(v: Vector3) -> void:
     if knockback_immune or dead:
         return
+    if _ride and _ride.busy():
+        _ride.end_ride("knockback")   # a push knocks a rider off (then applies normally)
     velocity += v
 
 ## Temporary buff: outgoing damage x mult, optional knockback immunity, for dur seconds.
@@ -504,7 +568,31 @@ func add_overheal(amount: float, dur: float) -> void:
     overheal = maxf(overheal, amount)
     overheal_decay = overheal / maxf(dur, 0.01)
 
+## Take `frac` (0..1) less damage for `dur` s. `key` identifies the source (same key refreshes: max of fraction
+## and time; different keys stack multiplicatively). Host/offline gameplay state; HP is what replicates.
+func apply_damage_reduction(frac: float, dur: float, key := "default") -> void:
+    if dead or dur <= 0.0 or frac <= 0.0:
+        return
+    var e: Array = damage_reductions.get(key, [0.0, 0.0])
+    damage_reductions[key] = [clampf(maxf(e[0], frac), 0.0, 1.0), maxf(e[1], dur)]
+
+## Multiplier applied to incoming damage (1 = none, 0 = immune).
+func damage_taken_mult() -> float:
+    var m := 1.0
+    for k in damage_reductions:
+        m *= 1.0 - float(damage_reductions[k][0])
+    return clampf(m, 0.0, 1.0)
+
+## Seconds left on a damage reduction (0 if none).
+func damage_reduction_left(key := "default") -> float:
+    return float(damage_reductions.get(key, [0.0, 0.0])[1])
+
 func _tick_buffs(dt: float) -> void:
+    if not damage_reductions.is_empty():
+        for k in damage_reductions.keys():
+            damage_reductions[k][1] -= dt
+            if damage_reductions[k][1] <= 0.0:
+                damage_reductions.erase(k)
     if combo_left > 0.0:
         combo_left -= dt
     if buff_left > 0.0:
@@ -516,6 +604,7 @@ func _tick_buffs(dt: float) -> void:
         overheal = maxf(0.0, overheal - overheal_decay * dt)
 
 func clear_buffs() -> void:
+    damage_reductions.clear()
     buff_mult = 1.0
     buff_left = 0.0
     knockback_immune = false
@@ -525,11 +614,29 @@ func clear_buffs() -> void:
 
 ## Movement config with active slows applied.
 func effective_move_cfg() -> Dictionary:
+    if net_role != "auth" and mounted_on() != null:   # client replays while riding must not move her
+        var m := move_cfg.duplicate()
+        m["speed"] = 0.0
+        m["jump_velocity"] = 0.0
+        m["gravity"] = 0.0
+        return m
     if slow_mult >= 1.0:
         return move_cfg
     var c := move_cfg.duplicate()
     c["speed"] = float(move_cfg.get("speed", 7.0)) * slow_mult
     return c
+
+## Root for dur seconds (longer root wins). See root_left.
+func apply_root(dur: float) -> void:
+    if dead or dur <= 0.0:
+        return
+    root_left = maxf(root_left, dur)
+    dash_time = 0.0
+    if _ride and _ride.busy():
+        _ride.end_ride("root")
+
+func rooted() -> bool:
+    return root_left > 0.0 and not dead
 
 ## Slow movement to mult x speed for dur seconds. Stronger/longer slow wins.
 func apply_slow(mult: float, dur: float) -> void:
@@ -596,6 +703,8 @@ func aoe(center: Vector3, radius: float, dmg: float, kind: String, ability_id :=
 func take_damage(amount: float, source, pos: Vector3, kind: String, ability_id := "") -> float:
     if dead or not Net.is_authority():   # THE authority check: only the host/offline sim applies damage
         return 0.0
+    if amount > 0.0:
+        amount *= damage_taken_mult()   # pre-damage reduction: before overheal and HP
     var absorbed := 0.0
     if overheal > 0.0 and amount > 0.0:
         absorbed = minf(overheal, amount)
@@ -630,6 +739,9 @@ func _die(killer, kind: String, ability_id := "") -> void:
     respawn_left = RESPAWN_TIME
     slow_mult = 1.0
     slow_left = 0.0
+    root_left = 0.0
+    if _ride:
+        _ride.end_ride("death")
     clear_buffs()
     Events.killed.emit({"killer": killer, "victim": self, "kind": kind, "ability_id": ability_id})
 
