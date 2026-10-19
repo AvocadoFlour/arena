@@ -1,17 +1,42 @@
 extends Ability
-## Channelled beam: for `duration` seconds heals the ally (or self if none) nearest the aim
-## line within `range` and `cone_deg`, at `hps` health per second.
+## Channelled beam (Encore Beam): for `duration` s it locks onto the hero nearest the aim line within `range` and
+## `cone_deg` - ally or enemy (falls back to self when nobody is in reach). Allies (and self) are healed at `hps`;
+## every enemy the beam touches - the target and any enemy whose body is within `width`/2 of the beam - takes
+## `enemy_dps`.
+## Press again while channelling to cancel. The cooldown starts when the beam ends (or is cancelled): while it runs,
+## cooldown.remaining = cooldown + beam time left, so the replicated cooldown also tells clients the beam is on and
+## how long it has left (no core change). `exclusive`: while channelling the hero can't fire or use other
+## abilities (Hero.channel_lock()); walking and aiming stay free.
+## Colours (visual only): `color_heal` (aimed at an ally / nothing) and `color_damage` (aimed at or hitting an enemy).
 var left := 0.0
 var target = null
+var hit_enemy := false              ## HOST: an enemy took beam damage this tick
 
 func _do() -> bool:
     left = float(def.get("duration", 3.0))
     return true
 
+## Shift again while channelling = cancel. Otherwise the normal ready check; the cooldown is held at
+## (cooldown + duration) so it only starts counting down its own length once the beam is over.
+func activate() -> bool:
+    if left > 0.0:
+        cancel()
+        return true
+    if not can_activate() or not _do():
+        return false
+    cooldown.remaining = cooldown.duration + left
+    return true
+
+func cancel() -> void:
+    left = 0.0
+    target = null
+    hit_enemy = false
+    cooldown.remaining = minf(cooldown.remaining, cooldown.duration)
+
 func channeling() -> bool:
     return left > 0.0
 
-## Ally nearest to the look ray inside range/cone; falls back to self.
+## Hero nearest to the look ray inside range/cone (allies AND enemies); falls back to self.
 func pick_target():
     var best = null
     var best_ang := deg_to_rad(float(def.get("cone_deg", 15.0)))
@@ -20,7 +45,7 @@ func pick_target():
         var eye: Vector3 = hero.eye_position()
         var look: Vector3 = hero.look_dir()
         for h in hero.get_tree().get_nodes_in_group("heroes"):
-            if h == hero or h.dead or h.team != hero.team:
+            if h == hero or h.dead or h.get_world_3d() != hero.get_world_3d():
                 continue
             var to: Vector3 = h.global_position + Vector3(0, 1.0, 0) - eye
             if to.length() > rng:
@@ -31,16 +56,55 @@ func pick_target():
                 best = h
     return best if best != null else hero
 
+## Enemies the beam from the hero's eye to `t` passes through (t itself if it is an enemy). Pure positions.
+func enemies_on_beam(t) -> Array:
+    var out: Array = []
+    if t == null or t == hero or not hero.is_inside_tree():
+        return out
+    var a: Vector3 = hero.eye_position()
+    var b: Vector3 = t.global_position + Vector3(0, 1.0, 0)
+    var r := float(def.get("width", 1.0)) * 0.5
+    for h in hero.get_tree().get_nodes_in_group("heroes"):
+        if h == hero or h.dead or h.team == hero.team or h.get_world_3d() != hero.get_world_3d():
+            continue
+        if h == t:
+            out.append(h)
+            continue
+        # beam segment vs the enemy's capsule (axis from feet+radius to head-radius)
+        var col: Dictionary = h.def.get("collider", {})
+        var cr := float(col.get("radius", 0.4))
+        var ch := float(col.get("height", 1.8))
+        var p0: Vector3 = h.global_position + Vector3(0, cr, 0)
+        var p1: Vector3 = h.global_position + Vector3(0, maxf(ch - cr, cr), 0)
+        var cp := Geometry3D.get_closest_points_between_segments(a, b, p0, p1)
+        if cp[0].distance_to(cp[1]) <= r + cr:
+            out.append(h)
+    return out
+
+## "damage" while the beam is aimed at / passing through an enemy, else "heal" (same rule on host and clients).
+func mode_for(t) -> String:
+    return "damage" if not enemies_on_beam(t).is_empty() else "heal"
+
 func tick(dt: float) -> void:
     super.tick(dt)
     if left <= 0.0:
         return
     left -= dt
     if hero.dead:
-        left = 0.0
+        cancel()
         return
     target = pick_target()
-    target.heal(float(def.get("hps", 60.0)) * dt, hero, id)
+    if target == hero or target.team == hero.team:
+        target.heal(float(def.get("hps", 60.0)) * dt, hero, id)
+    var foes := enemies_on_beam(target)
+    hit_enemy = not foes.is_empty()
+    var dps := float(def.get("enemy_dps", 0.0))
+    if dps > 0.0:
+        for e in foes:
+            e.take_damage(dps * dt * hero.damage_mult(), hero, e.global_position + Vector3(0, 1.2, 0), "ability", id)
+    if left <= 0.0:
+        left = 0.0
+        cooldown.remaining = minf(cooldown.remaining, cooldown.duration)
 
 # ---------------------------------------------------------------------------------------------
 # Visual ribbon (client-side only, never replicated). Driven from REPLICATED state so remote
@@ -57,12 +121,20 @@ const BEADS := 6
 const SEG := 14                     ## ribbon segments (a travelling sound wave)
 const WAVE := 0.22                  ## wave amplitude (m): keeps the beam visible end-on
 var _vis_t := 0.0
+var vis_mode := "heal"              ## current ribbon colour mode: "heal" (blue) / "damage" (red)
+var _applied_mode := ""
 
-## True while the channel runs, derived only from replicated cooldown.remaining.
+## True while the channel runs, derived only from replicated cooldown.remaining (> cooldown length = beam on).
 func channel_visible() -> bool:
-    if hero.dead or cooldown.remaining <= 0.0:
+    if hero.dead:
         return false
-    return cooldown.duration - cooldown.remaining < float(def.get("duration", 3.0))
+    return cooldown.remaining > cooldown.duration + 0.001
+
+## Beam colour for a mode (data: color_heal / color_damage).
+func mode_color(mode: String) -> Color:
+    if mode == "damage":
+        return Color(String(def.get("color_damage", "#ff3b3b")))
+    return Color(String(def.get("color_heal", def.get("beam_color", "#5cb8ff"))))
 
 func beam_start() -> Vector3:
     return hero.beam_origin() if hero.is_inside_tree() else hero.global_position + Vector3(0, 1.1, 0)
@@ -88,6 +160,7 @@ func _mat(c: Color, emis: float) -> StandardMaterial3D:
     return m
 
 func _build_vis(world: Node) -> void:
+    _applied_mode = "heal"
     ribbon = Node3D.new()
     ribbon.name = "EncoreRibbon"
     ribbon.top_level = true
@@ -97,7 +170,7 @@ func _build_vis(world: Node) -> void:
         var core := k % 2 == 1
         bm.size = Vector3(0.1, 0.1, 1.0) if core else Vector3(0.3, 0.07, 1.0)
         mi.mesh = bm
-        var c := Color("#f4f8ff") if core else Color(String(def.get("beam_color", "#5cb8ff")))
+        var c := Color("#f4f8ff") if core else mode_color("heal")
         var ba := 1.0 if core else 0.85
         mi.material_override = _mat(Color(c.r, c.g, c.b, ba), 3.0 if core else 2.0)
         mi.set_meta("base_a", ba)
@@ -116,9 +189,9 @@ func _build_vis(world: Node) -> void:
         bs.radial_segments = 10
         bs.rings = 5
         b.mesh = bs
-        var c := Color("#f4f8ff") if i % 2 == 0 else Color(String(def.get("beam_color", "#5cb8ff")))
+        var c := Color("#f4f8ff") if i % 2 == 0 else mode_color("heal")
         if i == BEADS:
-            c = Color("#3d9cff")
+            c = mode_color("heal").darkened(0.15)
         var ba := 0.95 if i < BEADS else 0.6
         b.material_override = _mat(Color(c.r, c.g, c.b, ba), 2.5)
         b.set_meta("base_a", ba)
@@ -148,10 +221,13 @@ func visual_process(dt: float) -> void:
     var on := channel_visible()
     if on:
         vis_target = pick_target()
-        if Net.is_client():   # prefer the host's exact target (snapshot heal_target_id); -1 = self/none -> local pick
+        # remote heroes: prefer the host's exact target (snapshot heal_target_id; -1 = self/none -> local pick);
+        # our own hero predicts from its fresh local aim, so the colour never lags the crosshair
+        if Net.is_client() and hero.net_role != "predicted":
             var rt = Net.entities.get(int(hero.heal_target_id))
             if is_instance_valid(rt):
                 vis_target = rt
+        vis_mode = mode_for(vis_target)
         vis_alpha = minf(1.0, vis_alpha + dt / 0.05)
     else:
         vis_alpha = maxf(0.0, vis_alpha - dt / FADE)
@@ -169,6 +245,8 @@ func visual_process(dt: float) -> void:
     aura.visible = show_aura
     for bd in beads:
         bd.visible = show_ribbon
+    if show_ribbon and vis_mode != _applied_mode:
+        _apply_mode_colors()
     if show_ribbon:
         var a := beam_start()
         var b := beam_end()
@@ -203,6 +281,25 @@ func visual_process(dt: float) -> void:
         aura.scale = Vector3.ONE * (1.0 + 0.08 * sin(_vis_t * 10.0))
         _set_alpha(aura, vis_alpha)
 
+## Recolours the outer ribbon, the beads and the target glow for vis_mode (cores stay white).
+func _apply_mode_colors() -> void:
+    _applied_mode = vis_mode
+    var c := mode_color(vis_mode)
+    var kids := ribbon.get_children()
+    for k in kids.size():
+        if k % 2 == 0:
+            _tint(kids[k], c, 2.0)
+    for i in beads.size():
+        if i == BEADS:
+            _tint(beads[i], c.darkened(0.15), 2.5)
+        elif i % 2 == 1:
+            _tint(beads[i], c, 2.5)
+
+func _tint(mi: MeshInstance3D, c: Color, emis: float) -> void:
+    var m := mi.material_override as StandardMaterial3D
+    m.albedo_color = Color(c.r, c.g, c.b, m.albedo_color.a)
+    m.emission = Color(c.r, c.g, c.b) * emis
+
 func free_visuals() -> void:
     for n in [ribbon, aura] + beads:
         if n != null and is_instance_valid(n):
@@ -210,3 +307,4 @@ func free_visuals() -> void:
     ribbon = null
     aura = null
     beads = []
+    _applied_mode = ""

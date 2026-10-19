@@ -170,3 +170,20 @@ index be2892a..03172fc 100644
 ```
 **AI (optional, longer term):** let BotBrain cast `ride` (enemy within `range` in the aim cone) so the smoke would
 not need to force it at all.
+## Oct 19: Twin Tails healing kit changes (user request) - FYI core/UI/AI
+- **Left click** `primary.ally_heal: 7` (hitscan): a hit on a living ally (not self) heals 7 (~49 HP/s at 7 shots/s,
+  capped at max HP) instead of damaging; enemy damage stays 11.
+- **Encore Beam** (`heal_beam`): duration 4 s, hps 60 (240 total); pressing ability1 again cancels; the cooldown (8 s)
+  starts when the beam ends/cancels; `exclusive: true` = while it runs she can't fire, use E or Q (walk/aim allowed,
+  `Hero.channel_lock()`); it now also targets enemies and damages every enemy whose body is within `width`/2 (0.5 m)
+  of the beam at `enemy_dps: 30`. Colour is data (`color_heal` blue / `color_damage` red), switches live.
+  Net: no core change. While channelling the snapshot cooldown `remaining` is `duration + left` (clients detect the
+  channel with `remaining > duration`), and the target comes from the existing `heal_target` snapshot field; the owner
+  predicts the target locally so the colour has no lag.
+- **Staccato Note** `ability2.ally_heal: 19`: the note flies through allies; each ally it passes or catches in the 2 m
+  splash is healed 19 once per note, never slowed, not self. Enemy damage 30 + slow unchanged.
+- All heals are host-only via `Hero.heal` -> `Events.healed` (already in Net.EVENT_SIGNALS) -> MatchStats Top healing.
+- **AI (optional, AI owner):** bots never aim at allies, so bot TT won't use the left-click or note heals; bot support logic
+  that reads `ab.channeling`/`ab.target` should expect the beam target can now be an enemy and that the beam can be
+  cancelled by pressing ability1 again (a bot re-pressing it each tick would toggle it off).
+- **UI (optional):** the HUD cooldown for the beam shows `remaining` = duration + cooldown while channelling.

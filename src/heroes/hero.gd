@@ -35,6 +35,7 @@ var root_left := 0.0
 const ROOT_BLOCKS := ["dash", "blink", "leap", "charge", "ride"]
 const MountLink := preload("res://src/abilities/mount_link.gd")
 var ridden_by = null                 ## HOST: the hero riding on our head (ride ability), or null
+var _ally_heal := 0.0                ## primary "ally_heal": HP restored per hitscan hit on an ally (0 = allies ignored)
 var _ride = null                     ## the hero's ride ability (Übel's Shift), if any: host-side mount state machine
 var charge_hits: Array = []          ## heroes already hit by the current charge
 var buff_mult := 1.0                 ## outgoing damage multiplier from buffs (stacks with damage_scale)
@@ -94,6 +95,7 @@ func _build() -> void:
     var prim: Dictionary = def.get("primary", {})
     # Built-in burst fire: "burst" > 1 -> BurstWeapon (fire_rate inside a burst, burst_delay between bursts)
     weapon = BurstWeapon.new(prim) if int(prim.get("burst", 1)) > 1 else Weapon.new(prim)
+    _ally_heal = float(prim.get("ally_heal", 0.0))
     ult = UltMeter.new(float(def.get("ultimate_cost", 500)))
     var abl: Dictionary = def.get("abilities", {})
     for slot in abl:
@@ -448,13 +450,26 @@ func _predict_step(dt: float) -> void:
     if input_source.has_method("record_pos"):
         input_source.record_pos(global_position)
 
+## An "exclusive" channel (heal_beam def "exclusive": true) is running: no primary fire, no other abilities
+## (the channel's own slot still works, e.g. to cancel it). Movement and aim are not affected.
+func channel_lock():
+    for ab in abilities.values():
+        if ab.has_method("channeling") and ab.channeling() and bool(ab.def.get("exclusive", false)):
+            return ab
+    return null
+
 func _use(slot: String) -> void:
+    var lock = channel_lock()
+    if lock != null and abilities.get(slot) != lock:
+        return
     if rooted() and abilities.has(slot) and String(abilities[slot].def.get("type", "")) in ROOT_BLOCKS:
         return   # movement abilities are locked while rooted
     if abilities.has(slot) and abilities[slot].activate():
         Events.ability_used.emit(self, slot, abilities[slot].id)
 
 func _try_fire() -> void:
+    if channel_lock() != null:
+        return
     if not weapon.try_fire():
         return
     var rewound := Net.rewind_for(self)   # lag compensation for remote shooters (host only)
@@ -485,6 +500,8 @@ func _fire_shot() -> void:
         var c = hit.collider
         if c is Hero and c.team != team and not c.dead:
             c.take_damage(weapon.damage * damage_mult(), self, end, "primary")
+        elif c is Hero and c != self and c.team == team and not c.dead and _ally_heal > 0.0:
+            c.heal(_ally_heal, self, "")   # primary "ally_heal": host-only (heal() checks authority), credited via Events.healed
         elif c.is_in_group("destructible"):
             c.take_damage(weapon.damage * damage_mult(), self, end, "primary")   # breakable cover (maps §6)
     var from := beam_origin()

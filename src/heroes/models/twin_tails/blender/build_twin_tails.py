@@ -28,6 +28,7 @@ PAL = {
     "eye":    (0.10, 0.12, 0.18),
     "iris":   (0.40, 0.62, 0.86),
     "lip":    (0.86, 0.60, 0.62),
+    "mouth":  (0.62, 0.30, 0.34),
     "sole":   (0.10, 0.10, 0.12),
 }
 MATS = {}
@@ -262,16 +263,45 @@ for s in (1, -1):
 ellipsoid("head", HEAD_C, HEAD_R, "skin", ["head"], seg=20, rings=14)
 ellipsoid("jaw", HEAD_C + Vector((0, -0.012, -0.055)), (0.058, 0.07, 0.06), "skin", ["head"], seg=16, rings=10)
 FACE_Y = HEAD_C.y - HEAD_R[1] + 0.006
+FACE_ELLS = [(HEAD_C, HEAD_R), (HEAD_C + Vector((0, -0.012, -0.055)), (0.058, 0.07, 0.06))]
+def face_y(x, z):
+    """Front surface (most -Y) of the head/jaw ellipsoids at (x, z)."""
+    best = 0.0
+    for c, r in FACE_ELLS:
+        q = 1.0 - ((x - c.x) / r[0]) ** 2 - ((z - c.z) / r[2]) ** 2
+        if q > 0:
+            best = min(best, c.y - r[1] * math.sqrt(q))
+    return best
+def face_decal(name, pts2d, cx, cz, material, off):
+    """Decal conformed to the face: every vertex sits `off` in front of the head/jaw surface."""
+    bm = bmesh.new()
+    vs = [bm.verts.new((cx + u, face_y(cx + u, cz + v) - off, cz + v)) for u, v in pts2d]
+    bm.faces.new(vs)
+    bmesh.ops.triangulate(bm, faces=bm.faces)
+    ob = new_obj(name, bm, material, ["head"])
+    for p in ob.data.polygons:
+        p.use_smooth = False
+    return ob
 for s in (1, -1):
-    ex = s * 0.032
-    ez = HEAD_C.z - 0.006
-    yaw = -s * 0.32
-    fy = FACE_Y + 0.012
-    flat_decal("eye_%d" % s, ellipse_pts(0.02, 0.011, 12, 1.25), (ex, fy - 0.001, ez), "eye", ["head"], yaw=yaw)
-    flat_decal("iris_%d" % s, ellipse_pts(0.009, 0.0095, 10), (ex + s * 0.001, fy - 0.003, ez - 0.001), "iris", ["head"], yaw=yaw)
-    flat_decal("lash_%d" % s, [(-0.02, 0.009), (0.02, 0.012), (0.022, 0.016), (-0.018, 0.013)], (ex, fy - 0.004, ez + 0.002), "eye", ["head"], yaw=yaw)
-    flat_decal("brow_%d" % s, [(-0.018, 0.0), (0.018, 0.004), (0.018, 0.0065), (-0.018, 0.0035)], (ex, fy - 0.001, ez + 0.026), "eye", ["head"], yaw=yaw)
-flat_decal("mouth", ellipse_pts(0.011, 0.0028, 10), (0, FACE_Y + 0.02, HEAD_C.z - 0.07), "lip", ["head"])
+    # v3 face: bigger, higher-contrast eyes (white sclera, large iris, black pupil, highlight, thick upper lash),
+    # bold dark brows and a darker small smile so the face reads at game distance. Decals hug the head surface.
+    ex = s * 0.031
+    ez = HEAD_C.z - 0.004
+    def mir(pts):
+        out = [(u * s, v) for u, v in pts]
+        return out if s > 0 else list(reversed(out))
+    face_decal("eye_%d" % s, ellipse_pts(0.0195, 0.0135, 14, 1.15), ex, ez, "white", 0.0015)
+    face_decal("iris_%d" % s, ellipse_pts(0.0105, 0.0125, 12), ex - s * 0.001, ez - 0.001, "iris", 0.0025)
+    face_decal("pupil_%d" % s, ellipse_pts(0.0055, 0.007, 10), ex - s * 0.001, ez - 0.0015, "black", 0.0033)
+    face_decal("glint_%d" % s, ellipse_pts(0.003, 0.003, 8), ex - s * 0.004, ez + 0.0035, "white", 0.004)
+    # upper lash: thick black arc over the eye, flicked out at the outer corner
+    face_decal("lash_%d" % s, mir([(-0.021, 0.006), (-0.009, 0.0135), (0.008, 0.0145), (0.021, 0.009), (0.028, 0.0155),
+                                   (0.02, 0.016), (0.008, 0.0195), (-0.009, 0.019), (-0.022, 0.0105)]), ex, ez, "black", 0.0042)
+    face_decal("lowlash_%d" % s, mir([(-0.014, -0.0118), (0.014, -0.0118), (0.011, -0.0098), (-0.011, -0.0098)]), ex, ez, "eye", 0.003)
+    face_decal("brow_%d" % s, mir([(-0.019, 0.0), (0.0, 0.0045), (0.021, 0.0015), (0.021, 0.0062), (0.0, 0.0092), (-0.019, 0.0044)]),
+               ex, ez + 0.03, "black", 0.002)
+face_decal("mouth", [(-0.013, 0.002), (-0.0065, -0.0025), (0.0, -0.0035), (0.0065, -0.0025), (0.013, 0.002), (0.0065, 0.0), (0.0, -0.0008), (-0.0065, 0.0)],
+           0.0, HEAD_C.z - 0.07, "mouth", 0.002)
 flat_decal("nose", [(-0.003, 0.0), (0.003, 0.0), (0.0, 0.006)], (0.003, FACE_Y + 0.005, HEAD_C.z - 0.038), "lip", ["head"])
 
 # hair: skull cap (covers back/top), fringe, side locks
@@ -315,13 +345,16 @@ for s in (1, -1):
     cup_c = Vector((s * 0.1, 0.006, HEAD_C.z - 0.005))
     loft("cup_%d" % s, [(cup_c - Vector((s * 0.012, 0, 0)), 0.034, 0.034), (cup_c + Vector((s * 0.012, 0, 0)), 0.03, 0.03)], "silver", ["head"], n=16)
     loft("cupring_%d" % s, [(cup_c + Vector((s * 0.0125, 0, 0)), 0.022, 0.022), (cup_c + Vector((s * 0.016, 0, 0)), 0.02, 0.02)], "ice", ["head"], n=16)
-    # wing fins: three swept blades going back/up
-    for k in range(3):
-        L = 0.12 - k * 0.022
-        z0 = 0.03 - k * 0.022
-        loft("wing_%d_%d" % (s, k), [(cup_c + Vector((s * 0.018, 0.0, z0)), 0.007, 0.02),
-                                     (cup_c + Vector((s * 0.03, 0.01 + L * 0.5, z0 + 0.03 - k * 0.006)), 0.006, 0.014),
-                                     (cup_c + Vector((s * 0.04, 0.01 + L, z0 + 0.06 - k * 0.01)), 0.002, 0.003)], "silver" if k != 1 else "ice_dk", ["head"], n=6)
+    # wing fins (v3): four larger swept blades going back/up, ~2x longer and wider so they read from any side
+    for k in range(4):
+        L = 0.21 - k * 0.035
+        z0 = 0.04 - k * 0.022
+        lift = 0.13 - k * 0.025
+        loft("wing_%d_%d" % (s, k), [(cup_c + Vector((s * 0.02, -0.005, z0)), 0.009, 0.03),
+                                     (cup_c + Vector((s * 0.04, 0.01 + L * 0.45, z0 + lift * 0.55)), 0.008, 0.026),
+                                     (cup_c + Vector((s * 0.07, 0.01 + L * 0.8, z0 + lift * 0.9)), 0.005, 0.014),
+                                     (cup_c + Vector((s * 0.085, 0.01 + L, z0 + lift)), 0.0015, 0.002)],
+             "silver" if k % 2 == 0 else "ice_dk", ["head"], n=6)
 loft("boom", [((0.095, -0.01, HEAD_C.z - 0.03), 0.004, 0.004), ((0.08, -0.06, HEAD_C.z - 0.07), 0.004, 0.004), ((0.045, -0.085, HEAD_C.z - 0.08), 0.004, 0.004)],
      "silver", ["head"], n=6)
 ellipsoid("boom_tip", (0.043, -0.087, HEAD_C.z - 0.08), (0.008, 0.008, 0.008), "black", ["head"], seg=8, rings=6)
@@ -525,3 +558,12 @@ if SHOTS:
         scene.render.filepath = os.path.join(SHOTS, "blender_%s.png" % nm)
         bpy.ops.render.render(write_still=True)
         print("SHOT", scene.render.filepath)
+    if "--face" in ARGS:   # close-ups of the face and headset wings
+        cam_d.ortho_scale = 0.36
+        scene.render.resolution_x = 900; scene.render.resolution_y = 900
+        for nm, yaw in (("face_front", 0), ("face_three_quarter", 35), ("face_side", 90), ("face_back", 180)):
+            a = math.radians(yaw)
+            cam.location = (6 * math.sin(a), -6 * math.cos(a), HEAD_C.z + 0.01)
+            cam.rotation_euler = (math.radians(90), 0, a)
+            scene.render.filepath = os.path.join(SHOTS, "blender_%s.png" % nm)
+            bpy.ops.render.render(write_still=True)

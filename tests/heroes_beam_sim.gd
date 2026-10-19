@@ -1,12 +1,15 @@
 extends Node3D
 ## Encore Beam ribbon on PUPPETS: only replicated snapshot fields are written (position, yaw, pitch,
 ## team, dead, ability cooldown.remaining) - exactly what Net._apply_state / interpolation set on clients.
+## Beam on = replicated cooldown.remaining above the cooldown length (cooldown starts when the beam ends).
+## Colour mode flips heal (blue, color_heal) <-> damage (red, color_damage) from replicated positions/aim alone.
 var results: Array = []
 var done := false
 var t := 0.0
 var step := 0
 var tt: Hero
 var ally: Hero
+var foe: Hero
 var ab
 var cam: Camera3D
 
@@ -25,6 +28,7 @@ func _puppet(path: String, team: int, pos: Vector3) -> Hero:
 func _ready() -> void:
     tt = _puppet("res://src/heroes/twin_tails.json", 0, Vector3(0, 0, 0))
     ally = _puppet("res://src/heroes/the_best.json", 0, Vector3(0, 0, -8))
+    foe = _puppet("res://src/heroes/cob.json", 1, Vector3(40, 0, 40))
     tt.yaw = 0.0
     tt.rotation.y = 0.0
     ab = tt.abilities["ability1"]
@@ -44,7 +48,7 @@ func _process(dt: float) -> void:
         0:
             if t > 0.2:
                 _rec("idle_no_ribbon", ab.ribbon == null or not ab.ribbon.visible)
-                ab.cooldown.remaining = ab.cooldown.duration   # snapshot: Encore Beam just used
+                ab.cooldown.remaining = ab.cooldown.duration + float(ab.def.duration)   # snapshot: Encore Beam just used
                 step = 1
                 t = 0.0
         1:
@@ -85,8 +89,29 @@ func _process(dt: float) -> void:
         2:
             if t > 0.1:
                 _rec("follows_moving_target", ab.beam_end().distance_to(ally.global_position + Vector3(0, 1, 0)) < 0.01)
-                # snapshot: channel time is over (3 s elapsed of an 8 s cooldown)
-                ab.cooldown.remaining = ab.cooldown.duration - 3.05
+                _rec("mode_heal_on_ally", ab.vis_mode == "heal" and _outer().is_equal_approx(Color(String(ab.def.color_heal))), "%s %s" % [ab.vis_mode, _outer()])
+                foe.global_position = Vector3(0.2, 0, -4)   # enemy steps into the beam between her and the ally
+                step = 20
+                t = 0.0
+        20:
+            if t > 0.05:
+                _rec("mode_damage_enemy_in_beam", ab.vis_mode == "damage" and _outer().is_equal_approx(Color(String(ab.def.color_damage))), "%s %s" % [ab.vis_mode, _outer()])
+                foe.global_position = Vector3(0, 0, -6)
+                ally.global_position = Vector3(30, 0, 30)   # aimed at the enemy only
+                step = 21
+                t = 0.0
+        21:
+            if t > 0.05:
+                _rec("mode_damage_aimed_at_enemy", ab.vis_mode == "damage" and ab.vis_target == foe, "%s" % ab.vis_mode)
+                foe.global_position = Vector3(40, 0, 40)
+                ally.global_position = Vector3(1.0, 0, -9)
+                step = 22
+                t = 0.0
+        22:
+            if t > 0.05:
+                _rec("mode_back_to_heal", ab.vis_mode == "heal" and _outer().is_equal_approx(Color(String(ab.def.color_heal))), "%s" % ab.vis_mode)
+                # snapshot: beam over, the 8 s cooldown has started
+                ab.cooldown.remaining = ab.cooldown.duration - 0.05
                 step = 3
                 t = 0.0
         3:
@@ -97,7 +122,7 @@ func _process(dt: float) -> void:
             if t > 0.3:
                 _rec("gone_after_fade", not ab.ribbon.visible and _alpha() == 0.0 and ab.beads.all(func(n): return not n.visible))
                 ally.global_position = Vector3(30, 0, 30)    # nobody in cone -> self heal aura
-                ab.cooldown.remaining = ab.cooldown.duration
+                ab.cooldown.remaining = ab.cooldown.duration + float(ab.def.duration)
                 step = 5
                 t = 0.0
         5:
@@ -111,3 +136,7 @@ func _process(dt: float) -> void:
                 _rec("hidden_when_dead", not ab.aura.visible and not ab.ribbon.visible)
                 _rec("no_gameplay_state", ally.health.hp == ally.health.max_hp and ab.left == 0.0)
                 done = true
+
+func _outer() -> Color:
+    var m := (ab.ribbon.get_child(0) as MeshInstance3D).material_override as StandardMaterial3D
+    return Color(m.albedo_color.r, m.albedo_color.g, m.albedo_color.b, 1.0)

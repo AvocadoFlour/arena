@@ -122,7 +122,7 @@ func test_twin_tails_drive_from_replicated() -> void:
     check(h.model.aim_amount() < 0.05, "aim decays")
     for ab in h.abilities.values():   # replicated cooldown just started = beam channel active
         if ab.has_method("channel_visible"):
-            ab.cooldown.remaining = ab.cooldown.duration - 0.05
+            ab.cooldown.remaining = ab.cooldown.duration + float(ab.def.duration) - 0.05
     for i in 30:
         h._process(1.0 / 60.0)
     check(h.model.aim_amount() > 0.9, "healing holds aim")

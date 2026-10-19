@@ -1,11 +1,14 @@
 extends Node3D
 ## A single projectile. Moves each physics tick, sweeps a ray along its path (walls, shields,
-## heroes), applies damage / slow on hit, then frees itself.
+## heroes), applies damage / slow on hit, then frees itself. Always flies through the owner's team.
+## "ally_heal" (> 0): every ally (not the owner) the shot flies past within its hit radius, and every ally inside
+## the splash at impact, is healed that much - once per ally per shot, never slowed/rooted, credited to the owner.
 var owner_hero
 var def: Dictionary
 var vel := Vector3.ZERO
 var life := 0.0
 var exploded := false
+var healed := {}           ## allies already healed by this shot (instance id -> true)
 var glyph: Node3D = null   ## toon visual for named projectiles (spins; no gameplay effect)
 
 func _init(h, d: Dictionary) -> void:
@@ -81,6 +84,7 @@ func _physics_process(dt: float) -> void:
                 target = h
                 hit_pos = p
                 hit_something = true
+    _heal_allies_along(from, hit_pos)
     global_position = hit_pos
     if hit_something:
         _impact(hit_pos, target)
@@ -88,6 +92,26 @@ func _physics_process(dt: float) -> void:
         queue_free()
 
 var _cover_hit = null   ## breakable cover hit directly (maps §6)
+
+func _heal_ally(h) -> void:
+    var amt := float(def.get("ally_heal", 0.0))
+    var src = owner_hero if is_instance_valid(owner_hero) else null
+    if amt <= 0.0 or src == null or h == src or h.dead or h.team != src.team or healed.has(h.get_instance_id()):
+        return
+    healed[h.get_instance_id()] = true
+    h.heal(amt, src, String(def.get("id", def.get("type", ""))))
+
+## Pass-through heal: allies near the segment flown this tick (same reach as the enemy hit test).
+func _heal_allies_along(a: Vector3, b: Vector3) -> void:
+    if float(def.get("ally_heal", 0.0)) <= 0.0 or not is_instance_valid(owner_hero):
+        return
+    var hr := float(def.get("hit_radius", 0.3))
+    for h in get_tree().get_nodes_in_group("heroes"):
+        if h == owner_hero or h.dead or h.team != owner_hero.team:
+            continue
+        var c: Vector3 = h.global_position + Vector3(0, 0.9, 0)
+        if Geometry3D.get_closest_point_to_segment(c, a, b).distance_to(c) <= hr + 0.5:
+            _heal_ally(h)
 
 func _impact(pos: Vector3, target) -> void:
     exploded = true
@@ -112,6 +136,9 @@ func _impact(pos: Vector3, target) -> void:
             if amt > 0.0:
                 victims.append(h)
                 h.take_damage(amt * scale, src, h.global_position + Vector3(0, 1.2, 0), kind, String(def.get("id", def.get("type", ""))))
+        for h in get_tree().get_nodes_in_group("heroes"):   # splash heal: allies in radius, once per shot
+            if h != src and h.team == src.team and (h.global_position + Vector3(0, 0.9, 0)).distance_to(pos) <= splash:
+                _heal_ally(h)
         Fx.ring(get_parent(), pos, splash, Color(String(def.get("color", "#ffd040"))), 0.3)
     if glyph:   # toon pop: flat ring + white star burst (visual only)
         ToonFx.ring(get_parent(), pos, maxf(splash, 1.0), Color(String(def.get("color", "#d8ecff"))), 0.35, 0.12)

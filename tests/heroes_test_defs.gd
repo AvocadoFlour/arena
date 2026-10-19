@@ -122,14 +122,30 @@ func test_heal_beam_self_fallback() -> void:
     var ab = h.abilities["ability1"]
     h.health.hp = 100.0
     check(ab.activate(), "activates")
-    check(not ab.activate(), "on cooldown")
+    near(ab.cooldown.remaining, 8.0 + 4.0, 0.001, "cooldown held at cooldown + beam time")
     for i in 60:
         ab.tick(1.0 / 60.0)
     near(h.health.hp, 160.0, 1.0, "self heal 60 hps for 1 s")
     for i in 180:
         ab.tick(1.0 / 60.0)
-    check(not ab.channeling(), "channel ends")
+    check(ab.channeling(), "4 s beam still running at 4 s - 1 tick")
+    for i in 2:
+        ab.tick(1.0 / 60.0)
+    check(not ab.channeling(), "channel ends after 4 s")
+    near(ab.cooldown.remaining, 8.0, 0.05, "cooldown starts when the beam ends")
     near(h.health.hp, 225.0, 0.01, "capped")
+    check(not ab.activate(), "on cooldown")
+    h.free()
+
+func test_heal_beam_cancel_starts_cooldown() -> void:
+    var h := Hero.from_def("res://src/heroes/twin_tails.json")
+    var ab = h.abilities["ability1"]
+    check(ab.activate(), "activates")
+    for i in 60:
+        ab.tick(1.0 / 60.0)
+    check(ab.activate() and not ab.channeling(), "press again cancels")
+    near(ab.cooldown.remaining, 8.0, 0.001, "full cooldown from the cancel")
+    check(not ab.activate() and not ab.channeling(), "no restart on cooldown")
     h.free()
 
 func test_models_animated_and_visual_only() -> void:
@@ -309,3 +325,20 @@ func test_puppet_dash_visuals_from_replicated_dash_time() -> void:
         check(not h._streak.visible, id + ": streak fades out")
         check(h.velocity == Vector3.ZERO and h.position == Vector3.ZERO, id + ": no gameplay state touched")
         h.free()
+
+## Twin Tails' left click heals allies: its own data value (primary.ally_heal = 7), separate from damage (11);
+## described from data; healing travels as Events.healed (replicated by Net, credited by MatchStats).
+func test_twin_tails_ally_heal_data_and_text() -> void:
+    var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://src/heroes/twin_tails.json"))
+    check(float(d.primary.ally_heal) == 7.0 and float(d.primary.damage) == 11.0, "ally_heal 7, damage 11")
+    check(float(d.abilities.ability1.hps) == 60.0 and float(d.abilities.ability1.duration) == 4.0 and float(d.abilities.ability1.enemy_dps) == 30.0, "Encore Beam 60 hps x 4 s, 30 enemy dps")
+    var txt := String(HeroAbilities.describe("twin_tails", "primary").text)
+    check(txt.contains("heal them for 7 HP per hit") and txt.contains("11 damage per shot"), txt)
+    check(HeroAbilities.uncovered_keys(d.primary, "primary").is_empty(), "ally_heal covered")
+    check(Net.EVENT_SIGNALS.has("healed"), "healed events replicate to clients")
+    var h := Hero.from_def("res://src/heroes/twin_tails.json")
+    check(is_equal_approx(h._ally_heal, 7.0), "hero reads ally_heal")
+    h.free()
+    var b := Hero.from_def("res://src/heroes/tomo.json")
+    check(b._ally_heal == 0.0, "other hitscan heroes ignore allies")
+    b.free()

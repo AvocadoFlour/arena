@@ -101,21 +101,27 @@ for v in bm.verts:
 B.obj("shell_core", bm, "stone_dk", ["body"], smooth=False)
 B.ellipsoid("belly", (0, 0.05, 0.42), (0.6, 0.8, 0.26), "belly", ["body"], seg=14, rings=8)
 # (elevation, count, size): big plates on top, smaller toward the rim; varied per plate
-plates = [(90, 1, 0.22), (64, 6, 0.22), (39, 10, 0.2), (16, 13, 0.18), (-6, 15, 0.16), (-22, 15, 0.13)]
+plates = [(90, 1, 0.22), (64, 6, 0.22), (39, 10, 0.21), (16, 14, 0.2), (-6, 16, 0.19), (-22, 16, 0.17), (-36, 14, 0.15)]
 pi = 0
 for el, cnt, sz in plates:
     for k in range(cnt):
         az = 360.0 * (k + (0.5 if (el // 10) % 2 else 0.0)) / cnt + rnd.uniform(-9, 9)
         azn = (az + 360) % 360
-        if el <= 20 and 150 < azn < 210:      # leave the head opening at the front
+        if el <= 20 and 160 < azn < 200:      # leave the head opening at the front
             continue
         mat = "stone" if rnd.random() < 0.7 else "stone_lt"
-        slab("plate_%d" % pi, az, el + rnd.uniform(-4, 4), sz * rnd.uniform(0.95, 1.4), rnd.uniform(0.045, 0.075), mat, 1000 + pi,
+        slab("plate_%d" % pi, az, el + rnd.uniform(-4, 4), sz * rnd.uniform(1.1, 1.45), rnd.uniform(0.045, 0.075), mat, 1000 + pi,
              lift=rnd.uniform(0.0, 0.03), crack=(rnd.random() < 0.35 and el > -10))
         pi += 1
-# collar plates arching over the head
+# collar plates arching over the head (two staggered rows close the front opening above the neck)
 for k in range(5):
     slab("collar_%d" % k, 180 + (k - 2) * 21, 14 + abs(k - 2) * 5, 0.15, 0.08, "stone", 100 + k, lift=0.03)
+for k in range(4):
+    slab("collar_b_%d" % k, 180 + (k - 1.5) * 24, 27 + abs(k - 1.5) * 3, 0.15, 0.07, "stone_lt" if k % 2 else "stone", 120 + k, lift=0.02)
+for k, (az, el) in enumerate(((146, 6), (214, 6), (150, 26), (210, 26), (140, -14), (220, -14))):   # shoulder fillers
+    slab("shoulder_%d" % k, az, el, 0.17, 0.065, "stone" if k % 3 else "stone_lt", 140 + k, lift=0.012, crack=(k == 2))
+for s_ in (1, -1):   # cheek plates beside the head, low on the rim
+    slab("collar_side_%d" % s_, 180 + s_ * 40, -4, 0.14, 0.07, "stone", 130 + s_, lift=0.02)
 
 # moss tufts: little clusters of thin blades on top of the shell
 def tuft(name, p, n, bones):

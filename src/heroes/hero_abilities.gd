@@ -12,12 +12,12 @@ extends RefCounted
 const SLOTS := ["primary", "ability1", "ability2", "ultimate", "passive"]
 const HERO_DIR := "res://src/heroes/"
 ## Keys that never change gameplay (visual/bookkeeping) - not described.
-const COSMETIC := ["id", "name", "type", "color", "visual", "beam_color", "kind", "size", "glyph"]
+const COSMETIC := ["id", "name", "type", "color", "visual", "beam_color", "color_heal", "color_damage", "kind", "size", "glyph"]
 ## Keys every ability type understands (base Ability class).
 const COMMON := ["cooldown", "needs_ult"]
 ## Stat keys each template reads. Add the key here AND use it in _text_<type> when a script gains one.
 const TEMPLATES := {
-    "hitscan": ["damage", "fire_rate", "mag", "reload_time", "spread_deg", "range", "burst", "burst_delay"],
+    "hitscan": ["damage", "fire_rate", "mag", "reload_time", "spread_deg", "range", "burst", "burst_delay", "ally_heal"],
     "melee": ["damage", "fire_rate", "mag", "reload_time", "spread_deg", "range", "arc_deg", "combo", "combo_window", "finisher_knockback", "lunge"],
     "charge": ["distance", "duration", "damage", "hit_radius", "knockback"],
     "shield_wall": ["width", "height", "thickness", "distance", "duration"],
@@ -25,8 +25,8 @@ const TEMPLATES := {
     "leap": ["forward_speed", "up_speed", "air_time", "radius", "damage", "knockback"],
     "dash": ["distance", "duration"],
     "team_buff": ["radius", "duration", "damage_mult", "knockback_immune", "overheal"],
-    "heal_beam": ["duration", "hps", "range", "cone_deg"],
-    "projectile": ["speed", "damage", "gravity", "lifetime", "hit_radius", "splash_radius", "slow", "root"],
+    "heal_beam": ["duration", "hps", "range", "cone_deg", "enemy_dps", "width", "exclusive"],
+    "projectile": ["speed", "damage", "gravity", "lifetime", "hit_radius", "splash_radius", "slow", "root", "ally_heal"],
     "rally": ["radius", "heal"],
     "nova": ["radius", "damage"],
     "blink": ["distance", "duration", "bonus_mult", "bonus_shots", "bonus_window"],
@@ -168,8 +168,11 @@ static func _text_hitscan(d: Dictionary, s: Dictionary) -> String:
             b, n(d.get("damage", 0)), n(float(d.get("damage", 0)) * b), n(d.get("fire_rate", 1)), n(d.get("burst_delay", 0.4)), n(dps),
             n(d.get("mag", 0)), n(d.get("reload_time", 0)), n(d.get("spread_deg", 0)), n(d.get("range", 80))]
     s["dps"] = dps
-    return "Hitscan: %s damage per shot at %s shots/s (%s DPS), %s-round magazine, %s s reload, %s° spread, %s m range, no damage falloff. Hits enemies and breakable cover." % [
+    var txt := "Hitscan: %s damage per shot at %s shots/s (%s DPS), %s-round magazine, %s s reload, %s° spread, %s m range, no damage falloff. Hits enemies and breakable cover." % [
         n(d.get("damage", 0)), n(d.get("fire_rate", 1)), n(dps), n(d.get("mag", 0)), n(d.get("reload_time", 0)), n(d.get("spread_deg", 0)), n(d.get("range", 80))]
+    if float(d.get("ally_heal", 0)) > 0.0:
+        txt += " Shots that hit an ally heal them for %s HP per hit instead (up to their max HP; not yourself)." % n(d.get("ally_heal", 0))
+    return txt
 
 static func _text_melee(d: Dictionary, s: Dictionary) -> String:
     var combo: Array = d.get("combo", [1.0])
@@ -222,8 +225,14 @@ static func _text_team_buff(d: Dictionary, s: Dictionary) -> String:
 static func _text_heal_beam(d: Dictionary, s: Dictionary) -> String:
     var tot := float(d.get("hps", 60)) * float(d.get("duration", 3))
     s["total_heal"] = tot
-    return "Channels a beam for %s s healing %s HP/s (%s HP total) on the ally nearest your aim within %s m and a %s° cone; heals you instead if no ally is in reach. Heals up to max HP." % [
-        n(d.get("duration", 3)), n(d.get("hps", 60)), n(tot), n(d.get("range", 15)), n(d.get("cone_deg", 15))]
+    var txt := "Channels a beam for up to %s s onto the hero nearest your aim within %s m and a %s° cone. An ally is healed %s HP/s (%s HP over the full beam, up to max HP); with nobody in reach it heals you instead." % [
+        n(d.get("duration", 3)), n(d.get("range", 15)), n(d.get("cone_deg", 15)), n(d.get("hps", 60)), n(tot)]
+    if float(d.get("enemy_dps", 0)) > 0.0:
+        txt += " Enemies it is aimed at or passes through (the beam is %s m wide) take %s damage per second." % [n(d.get("width", 1.0)), n(d.get("enemy_dps", 0))]
+    txt += " Press again to stop it early; the cooldown starts when the beam ends."
+    if bool(d.get("exclusive", false)):
+        txt += " While it runs you can't shoot or use other abilities (you can still move and aim)."
+    return txt
 
 static func _text_projectile(d: Dictionary, s: Dictionary) -> String:
     var rng := float(d.get("speed", 20)) * float(d.get("lifetime", 3))
@@ -246,6 +255,9 @@ static func _text_projectile(d: Dictionary, s: Dictionary) -> String:
             txt += " Every enemy hit is rooted (%s move speed) for %s s." % [pct(slow.get("mult", 0.6)), n(slow.get("duration", 2))]
         else:
             txt += " Every enemy hit is slowed to %s move speed for %s s." % [pct(slow.get("mult", 0.6)), n(slow.get("duration", 2))]
+    if float(d.get("ally_heal", 0)) > 0.0:
+        txt += " It flies through allies: each ally it passes%s is healed %s HP once per shot (never slowed; not yourself)." % [
+            (" or catches in the %s m splash" % n(sp)) if sp > 0.0 else "", n(d.get("ally_heal", 0))]
     return txt
 
 static func _text_rally(d: Dictionary, s: Dictionary) -> String:
