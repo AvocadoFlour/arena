@@ -15,6 +15,10 @@ var skip_apply := false
 const FOV_MIN := 60.0
 const FOV_MAX := 110.0
 var fov := 75.0
+## Match speed. 1 = normal, 0.75 = 75%. Applied as Engine.time_scale (movement, cooldowns, fire).
+const SPEED_MIN := 0.5
+const SPEED_MAX := 1.0
+var game_speed := 1.0
 ## Volumes 0..1 per bus name. Applied to an AudioServer bus only if one with that name exists
 ## (today only "Master"); otherwise just persisted for when audio arrives.
 const AUDIO_BUSES := ["Master", "Music", "SFX"]
@@ -57,6 +61,7 @@ func load_from(path: String) -> bool:
     resolution = cfg.get_value("video", "resolution", resolution)
     sensitivity = cfg.get_value("input", "sensitivity", sensitivity)
     fov = clampf(float(cfg.get_value("video", "fov", fov)), FOV_MIN, FOV_MAX)
+    game_speed = clampf(float(cfg.get_value("game", "speed", game_speed)), SPEED_MIN, SPEED_MAX)
     set_low_quality(bool(cfg.get_value("video", "low_quality", low_quality)))
     damage_numbers = bool(cfg.get_value("hud", "damage_numbers", damage_numbers))
     controls_hint_seen = bool(cfg.get_value("hud", "controls_hint_seen", controls_hint_seen))
@@ -73,6 +78,7 @@ func save(path := PATH) -> void:
     cfg.set_value("video", "resolution", resolution)
     cfg.set_value("input", "sensitivity", sensitivity)
     cfg.set_value("video", "fov", fov)
+    cfg.set_value("game", "speed", game_speed)
     cfg.set_value("video", "low_quality", low_quality)
     cfg.set_value("hud", "damage_numbers", damage_numbers)
     cfg.set_value("hud", "controls_hint_seen", controls_hint_seen)
@@ -108,6 +114,7 @@ func apply_fov(cam: Camera3D) -> void:
 func apply() -> void:
     Actions.mouse_sensitivity = 0.0025 * sensitivity
     apply_audio()
+    Engine.time_scale = clampf(game_speed, SPEED_MIN, SPEED_MAX)
     if is_inside_tree():
         apply_fov(get_viewport().get_camera_3d())
     if DisplayServer.get_name() == "headless":

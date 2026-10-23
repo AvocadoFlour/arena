@@ -476,8 +476,8 @@ func _predict_step(dt: float) -> void:
     if input_source.has_method("record_pos"):
         input_source.record_pos(global_position)
 
-## An "exclusive" channel (heal_beam "exclusive": true) is running: no primary fire and no other abilities.
-## The channel's own slot still works, so Shift can cancel Encore Beam. Movement and aim are not affected.
+## An "exclusive" channel (Encore Beam) replaces primary fire only. Other abilities still cast.
+## The channel's own slot still works, so Shift can cancel the beam. Movement and aim stay.
 func channel_lock():
     for ab in abilities.values():
         if ab.has_method("channeling") and ab.channeling() and bool(ab.def.get("exclusive", false)):
@@ -485,9 +485,6 @@ func channel_lock():
     return null
 
 func _use(slot: String) -> void:
-    var lock = channel_lock()
-    if lock != null and abilities.get(slot) != lock:
-        return
     if rooted() and abilities.has(slot) and String(abilities[slot].def.get("type", "")) in ROOT_BLOCKS:
         return   # movement abilities are locked while rooted
     if abilities.has(slot) and abilities[slot].activate():

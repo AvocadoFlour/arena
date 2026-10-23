@@ -280,6 +280,25 @@ func _settings_screen() -> Control:
     fov.value = Settings.fov
     fov.value_changed.connect(func(x): Settings.fov = x; _changed())
     v.add_child(_row("Field of view", fov))
+    var speed := HSlider.new()
+    speed.name = "GameSpeedSlider"
+    speed.min_value = Settings.SPEED_MIN
+    speed.max_value = Settings.SPEED_MAX
+    speed.step = 0.05
+    speed.value = Settings.game_speed
+    var pct := MenuStyle.label("%d%%" % int(round(Settings.game_speed * 100.0)), 22)
+    pct.name = "GameSpeedValue"
+    pct.custom_minimum_size = Vector2(72, 0)
+    speed.value_changed.connect(func(x):
+        Settings.game_speed = x
+        pct.text = "%d%%" % int(round(x * 100.0))
+        _changed())
+    var speed_box := HBoxContainer.new()
+    speed_box.add_theme_constant_override("separation", 8)
+    speed.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    speed_box.add_child(speed)
+    speed_box.add_child(pct)
+    v.add_child(_row("Game speed", speed_box))
     var lq := MenuStyle.toggle("Low quality (faster on weak GPUs / phones)", Settings.low_quality,
         func(on): Settings.set_low_quality(on); Settings.save())
     lq.name = "LowQualityToggle"

@@ -1,9 +1,9 @@
 extends Node3D
 ## Integration (Jolt, 60 Hz), a small bot-match setup: Twin Tails' left click heals allies (primary.ally_heal = 7 per
-## hit, capped at max HP, dead allies ignored) while enemies still take 11; the heal is credited to Twin Tails in
+## hit, capped at max HP, dead allies ignored) while enemies still take 6; the heal is credited to Twin Tails in
 ## MatchStats (Top healing, via Events.healed). Encore Beam: 60 HP/s on an ally for 4 s (240), 30 damage/s to an
 ## enemy it is aimed at or passes through, heal/damage mode for the colour, cancel with Shift through the normal
-## input path (cooldown starts at the cancel / at the natural end), and the lockout (no fire / E / Q) while it runs.
+## input path (cooldown starts at the cancel / at the natural end). The gun does not fire during the beam; E and Q still do.
 ## Staccato Note (E): flies through allies healing 19 once each (pass-through and splash, never twice, no slow), then
 ## hits the enemy for 30 + slow; Twin Tails never heals herself with it.
 var results: Array = []
@@ -92,7 +92,7 @@ func _physics_process(_dt: float) -> void:
             hp0 = foe.health.hp
             tt.weapon.tick(1.0)
             tt._try_fire()
-            _rec("enemy_hit_deals_11", is_equal_approx(hp0 - foe.health.hp, 11.0), "dmg=%.1f" % (hp0 - foe.health.hp))
+            _rec("enemy_hit_deals_6", is_equal_approx(hp0 - foe.health.hp, 6.0), "dmg=%.1f" % (hp0 - foe.health.hp))
         20:
             _aim(ally)
             ally.health.hp = 100.0
@@ -128,7 +128,7 @@ func _physics_process(_dt: float) -> void:
             var got := ally.health.hp - 100.0
             _rec("beam_60_per_s", absf(got - 60.0) <= 2.0, "%.1f HP after 1 s" % got)
             _rec("beam_mode_heal", beam().mode_for(beam().target) == "heal", "")
-            # lockout: fire / E / Q do nothing while the beam runs (ult meter full)
+            # gun stays blocked; E and Q are checked in heroes_test_defs (pressing them here would change the beam numbers)
             tt.ult.add(10000.0)
             tt.weapon.tick(1.0)
             ammo0 = tt.weapon.ammo
@@ -136,12 +136,7 @@ func _physics_process(_dt: float) -> void:
         176:
             inp.fire = false
             _rec("lockout_blocks_fire", tt.weapon.ammo == ammo0, "ammo %d -> %d" % [ammo0, tt.weapon.ammo])
-            inp.press = "ability2"
-        178:
-            _rec("lockout_blocks_E", tt.abilities["ability2"].cooldown.is_ready(), "")
-            inp.press = "ultimate"
         180:
-            _rec("lockout_blocks_Q", tt.ult.is_full() and tt.abilities["ultimate"].cooldown.is_ready(), "")
             # an enemy walks through the beam between her and the ally
             foe.global_position = tt.global_position.lerp(ally.global_position, 0.5) + Vector3(0.2, 0, 0)
             hp0 = foe.health.hp

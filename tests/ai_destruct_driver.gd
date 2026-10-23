@@ -5,7 +5,7 @@ extends Node3D
 ## B: an enemy hides behind a breakable wall. A shooter with breach_time (normal) shoots the wall
 ##    down and then hits the enemy; the same seed with breach_time 0 (control) does not.
 const BOT := "res://src/heroes/cob.json"
-const SHOOTER := "res://src/heroes/twin_tails.json"
+const SHOOTER := "res://src/heroes/tomo.json"   # hitscan that still breaks a 300 HP wall inside breach_time; Twin Tails' gun is 6
 const WALL := Vector3(-12, 0.75, 10)
 var results: Array = []
 var done := false

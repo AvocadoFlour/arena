@@ -32,17 +32,23 @@ func test_hero_select_buttons_show_roles() -> void:
 
 func test_settings_persist_audio_fov() -> void:
     var keep_fov: float = Settings.fov
+    var keep_speed: float = Settings.game_speed
     var keep_vol: Dictionary = Settings.volumes.duplicate()
     var path := "user://ui_test_settings.cfg"
     Settings.fov = 95.0
+    Settings.game_speed = 0.75
     check(Settings.set_volume("Master", 0.5), "Master bus exists and is applied")
     check(Settings.set_volume("Music", 0.3), "Music bus exists (default_bus_layout.tres): applied")
     near(db_to_linear(AudioServer.get_bus_volume_db(0)), 0.5, 0.01, "master volume applied")
     Settings.save(path)
     Settings.fov = 75.0
+    Settings.game_speed = 1.0
     Settings.volumes = {"Master": 1.0, "Music": 1.0, "SFX": 1.0}
     check(Settings.load_from(path), "loaded")
     near(Settings.fov, 95.0, 0.01, "fov persisted")
+    near(Settings.game_speed, 0.75, 0.001, "game speed persisted")
+    Settings.apply()
+    near(Engine.time_scale, 0.75, 0.001, "75% speed applied")
     near(Settings.volume("Music"), 0.3, 0.01, "music persisted")
     near(Settings.volume("Master"), 0.5, 0.01, "master persisted")
     var cam := Camera3D.new()
@@ -53,6 +59,8 @@ func test_settings_persist_audio_fov() -> void:
     near(cam.fov, Settings.FOV_MAX, 0.01, "fov clamped")
     cam.free()
     Settings.fov = keep_fov
+    Settings.game_speed = keep_speed
+    Settings.apply()
     Settings.volumes = keep_vol
     Settings.apply_audio()
     DirAccess.remove_absolute(path)
@@ -61,6 +69,7 @@ func test_settings_screens_have_fov_and_audio() -> void:
     var mm := MainMenu.new()
     tree.root.add_child(mm)
     check(mm.screens.settings.find_child("FovSlider", true, false) is HSlider, "fov slider")
+    check(mm.screens.settings.find_child("GameSpeedSlider", true, false) is HSlider, "game speed slider")
     for b in Settings.AUDIO_BUSES:
         check(mm.screens.audio.find_child(b + "Slider", true, false) is HSlider, "audio slider " + b)
     mm.free()

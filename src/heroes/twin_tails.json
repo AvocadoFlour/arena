@@ -5,7 +5,7 @@
   "max_hp": 225,
   "movement": {"speed": 7.2, "accel_ground": 72, "accel_air": 18, "jump_velocity": 8.7, "gravity": 22},
   "collider": {"radius": 0.38, "height": 1.75},
-  "primary": {"type": "hitscan", "damage": 11, "fire_rate": 7, "mag": 24, "reload_time": 1.5, "spread_deg": 1.0, "range": 60, "ally_heal": 7},
+  "primary": {"type": "hitscan", "damage": 6, "fire_rate": 7, "mag": 24, "reload_time": 1.5, "spread_deg": 1.0, "range": 60, "ally_heal": 7},
   "ultimate_cost": 450,
   "abilities": {
     "ability1": {"id": "encore_beam", "type": "heal_beam", "name": "Encore Beam", "cooldown": 8.0, "duration": 4.0, "hps": 60, "enemy_dps": 30, "width": 1.0, "exclusive": true, "range": 15.0, "color": "#b8e4ff", "color_heal": "#5cb8ff", "color_damage": "#ff3b3b", "color_empty": "#9aa3ad"},

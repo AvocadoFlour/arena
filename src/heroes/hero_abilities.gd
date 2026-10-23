@@ -236,7 +236,7 @@ static func _text_heal_beam(d: Dictionary, s: Dictionary) -> String:
         txt += " Enemies it touches (the beam is %s m wide) take %s damage per second, and the beam turns red." % [n(d.get("width", 1.0)), n(d.get("enemy_dps", 0))]
     txt += " The cooldown starts when the beam ends."
     if bool(d.get("exclusive", false)):
-        txt += " While it runs you don't shoot and you can't use other abilities (you can still move and aim)."
+        txt += " While it runs, left click is this beam instead of your gun. Your other abilities still work."
     return txt
 
 static func _text_magma(d: Dictionary, s: Dictionary) -> String:

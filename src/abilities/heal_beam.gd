@@ -1,6 +1,6 @@
 extends Ability
 ## Channelled beam (Encore Beam). Shift replaces left click until it is cancelled or `duration` runs out:
-## the gun does not fire (`exclusive` / Hero.channel_lock). The beam follows the aim, including empty air.
+## the gun does not fire (`exclusive` / Hero.channel_lock). Other abilities still cast. The beam follows the aim, including empty air.
 ## An ally the beam touches is healed at `hps`. Every enemy it touches takes `enemy_dps`. Nobody on it: gray
 ## (`color_empty`), no heal. Press again to cancel. The cooldown starts when the beam ends: while it runs,
 ## cooldown.remaining = cooldown + time left, so clients see it from the snapshot (`remaining` > cooldown).

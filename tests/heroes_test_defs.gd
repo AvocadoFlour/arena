@@ -173,6 +173,23 @@ func test_encore_beam_damages_the_enemy_it_aims_at() -> void:
     for n in [healer, foe, ally]:
         n.free()
 
+func test_encore_beam_blocks_only_the_gun() -> void:
+    var tree := Engine.get_main_loop()
+    var h := Hero.from_def("res://src/heroes/twin_tails.json")
+    tree.root.add_child(h)
+    h.global_position = Vector3.ZERO
+    var ab = h.abilities["ability1"]
+    check(ab.activate(), "beam on")
+    var ammo := h.weapon.ammo
+    h._try_fire()
+    check(h.weapon.ammo == ammo, "left click does not shoot")
+    h._use("ability2")
+    check(not h.abilities["ability2"].cooldown.is_ready(), "E still fires")
+    h.ult.add(10000.0)
+    h._use("ultimate")
+    check(not h.ult.is_full(), "Q still fires")
+    h.free()
+
 func test_models_animated_and_visual_only() -> void:
     Hero.use_primitive_models = true   # primitive fallback model (GLB model: heroes_test_model.gd)
     for id in HEROES:

@@ -2,12 +2,18 @@
 
 ## Status (2026-10-23, branch grokChatBotBuilder)
 
-Continued work from this session is on `grokChatBotBuilder`. `master` is at `121ac97`. This branch is that `master` plus the healing-kit commits and the notes after them. Version is still 0.9.4.
+Continued work from this session is on `grokChatBotBuilder`. `master` is at `121ac97`. Version is still 0.9.4.
 
-Asked for on 2026-10-23, after the healing kit:
+Asked for on 2026-10-23, after the bot / beam / magma commit `558b328`:
+
+- Twin Tails' primary damage is 6, down from 11. Fire rate stays 7. Based on her dealing too much damage for a healer. Ally heal per shot stays 7.
+- Shift still replaces left click with the beam. It no longer blocks E or Q. `Hero._use` does not consult `channel_lock`. The gun path still does. Based on the request that Shift is an upgrade of the primary, not a lockout of the rest of the kit.
+- Settings has a Game speed slider, 50% to 100% in steps of 5, saved as `game/speed` in `user://settings.cfg`. `Settings.apply` sets `Engine.time_scale`. 100% is normal. Based on the request to run the match slower, for example at 75%.
+
+Asked for earlier the same day, commit `558b328`:
 
 - Each bot in a match can be set to a specific hero. Based on `set_bot_count` only storing a count and assigning the next roster id. `Main.match_bot_heroes(team)` and `Main.set_bot_hero(team, index, hero_id)` replace that bot in place (position and yaw kept, respawned hero, `Net.broadcast_spawn`). The Match page (Esc) shows a `< hero >` row per bot under the team stepper. The host changes it. New bots from `+` still take the old roster cycle until a row is used.
-- Twin Tails' Shift replaces left click for the beam's duration. Based on the request that she stop shooting and aim the beam at an ally (heal), an enemy (damage), or nobody (gray, and that has to be possible). `heal_beam.gd` follows `aim_end()` instead of locking onto the nearest hero or herself. Allies on the beam are healed, enemies on it take `enemy_dps`, nobody leaves `color_empty` `#9aa3ad`. `cone_deg` is no longer on her def. `exclusive` still blocks the gun and the other abilities.
+- Twin Tails' Shift replaces left click for the beam's duration. Based on the request that she stop shooting and aim the beam at an ally (heal), an enemy (damage), or nobody (gray, and that has to be possible). `heal_beam.gd` follows `aim_end()` instead of locking onto the nearest hero or herself. Allies on the beam are healed, enemies on it take `enemy_dps`, nobody leaves `color_empty` `#9aa3ad`. `cone_deg` is no longer on her def. The gun stays blocked while it runs. E and Q are not blocked; that change is the bullet at the top of this file.
 - Übel's primary is Magma Thread. Based on the request that she be a mage and that left click be a held magma beam, wavy and not the Encore ribbon. `ubel.json` role is `mage`, primary type `magma`, 36 damage/s, 16 m, width 0.7. `Hero._magma_tick` applies the damage. The drawing is `src/heroes/fx/magma_stream.gd` (corkscrew of hot and crust blobs, depth-tested). Ride, Clean Cut and Last Smile are unchanged. Snapshot field 21 is `primary_beam` so other clients see the stream. The owning client draws from its own fire.
 
 Already on `master` (`121ac97`):
@@ -21,7 +27,7 @@ Only on `grokChatBotBuilder`:
 
 What `380e604` set the kit to, in place of the 3 s beam from `2bd0bfe`:
 
-- Shift / Encore Beam, as of the aim change above: 4 s, follows the crosshair. 60 HP/s on allies it touches, 30 damage/s on enemies it touches, gray `#9aa3ad` when it hits nobody (it does not heal her). Pressing Shift again cancels. The 8 s cooldown starts when the beam ends. `exclusive` blocks the gun and the other ability slots. Walk and aim stay. While it runs, `cooldown.remaining` is cooldown + time left. The host target is snapshot field 18, `heal_target_id`, or -1 when the beam hits nobody.
+- Shift / Encore Beam, as of the aim change and the later kit change: 4 s, follows the crosshair. 60 HP/s on allies it touches, 30 damage/s on enemies it touches, gray `#9aa3ad` when it hits nobody (it does not heal her). Primary damage is 6. Pressing Shift again cancels. The 8 s cooldown starts when the beam ends. The gun is blocked. E and Q still cast. Walk and aim stay. While it runs, `cooldown.remaining` is cooldown + time left. The host target is snapshot field 18, `heal_target_id`, or -1 when the beam hits nobody.
 - No new snapshot field. While the beam runs, `cooldown.remaining` is `cooldown.duration` plus time left. `HealBeam.channel_visible()` is `remaining > duration`. The host target is snapshot field 18, `heal_target_id` (`Net._heal_target_id`). On a client, `visual_process` uses that id when the entity resolves, and otherwise `pick_target()`.
 - Left click: `primary.ally_heal` 7. A hitscan hit on a living ally heals 7 through `Events.healed` instead of dealing 11. Enemies still take 11. Dead allies are ignored.
 - E / Staccato Note: `ally_heal` 19. The shot already flies through allies. Each ally it passes, or catches in the 2 m splash, is healed 19 once and is not slowed. The enemy still takes 30 and the slow. The note does not heal her.

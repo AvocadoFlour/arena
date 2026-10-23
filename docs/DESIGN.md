@@ -50,7 +50,7 @@ needs a Weapon/schema change in core; declined for now.
 ## v0.3 roster (replaces the placeholders, which moved to src/heroes/archive/)
 | Hero | Role | Primary | Ability 1 | Ability 2 | Ultimate |
 |---|---|---|---|---|---|
-| Twin Tails | Support | Hitscan 11, heals an ally 7 per hit | Encore Beam (Shift replaces left click for 4 s: heal allies it touches, damage enemies, gray when it hits nobody; Shift again cancels) | Staccato Note (30 damage, heals allies it passes for 19) | Grand Finale (team heal) |
+| Twin Tails | Support | Hitscan 6, heals an ally 7 per hit | Encore Beam (Shift replaces left click for 4 s: heal allies it touches, damage enemies, gray when it hits nobody; other abilities still work; Shift again cancels) | Staccato Note (30 damage, heals allies it passes for 19) | Grand Finale (team heal) |
 | The Best | Brawler | Melee 3-hit combo | Fearless Leap | Swagger Step (dash) | No Limits (team buff + overheal) |
 | Cob | Tank | Hitscan | Boulder Roll (charge) | Geode Wall (shield wall) | Quarry Quake (slam) |
 
