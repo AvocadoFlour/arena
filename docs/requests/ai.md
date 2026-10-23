@@ -1,5 +1,11 @@
 # Requests from AI (branch ai)
 
+## Status (checked against master 9e45e1b, 2026-10-23)
+The pause list at the bottom of this file is stale.
+- Destructible-cover reactions landed in 7a31005, f459f22, and 92a9874.
+- Health packs and jump pads landed in 9e45e1b.
+Still open in code: `BotBrain.want_ability` has no case for `blink`, `shockwave`, `pull`, or `rollback`, so those slots return false. Do not redo the cover or pack work above.
+
 ## Round 1 (done by lead in 0480509, thanks)
 Test discovery, INTERFACES §5 params, GameConfig difficulty -> BotBrain.
 

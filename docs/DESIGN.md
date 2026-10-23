@@ -54,6 +54,12 @@ needs a Weapon/schema change in core; declined for now.
 | The Best | Brawler | Melee 3-hit combo | Fearless Leap | Swagger Step (dash) | No Limits (team buff + overheal) |
 | Cob | Tank | Hitscan | Boulder Roll (charge) | Geode Wall (shield wall) | Quarry Quake (slam) |
 
+## Roster in game as of 0.9.1 (numbers from the hero JSON)
+| Hero | Role | HP | Primary | Ability 1 | Ability 2 | Ultimate |
+|---|---|---|---|---|---|---|
+| Tomo | Duelist | 225 | Packet Burst: 3×15, 14/s inside the burst, 0.36 s between bursts, 24 rounds, 1.6 s reload | Hotfix: 6 m blink, next 3 shots ×1.5 for 4 s, 7 s CD | Breakpoint: 25 dmg marker, roots 1.1 s (walk speed 0; jump and dash still move), 10 s CD | Force Push: 9 m / 120° cone, 130 dmg, knockback 15, lift 5.5. Ult cost 500 |
+| Niđo | Brawler | 300 | Ping Hammer: 30 × [1, 1, 1.4], 1.6/s, 3 m, 120° arc, 3rd hit knockback 5 | Firewall: 3.4 m wall, 3.5 s, 10 s CD | Stand-up Meeting: 8 m pull, speed 16, hop 3, stop at 1.8 m, slow to 0.6 for 2 s, 9 s CD | Rollback: allies in 10 m restored to HP from 4 s ago (heal only), then 35% of later HP loss refunded for 4 s. Ult cost 600 |
+
 ## Roadmap
 1. v0.1 skeleton (this). 2. v0.2: 2–3 more heroes, projectile weapons, team 3v3 vs bots,
 better bot nav (NavigationRegion3D). 3. v0.3: touch controls + Android export. 4. v0.4:

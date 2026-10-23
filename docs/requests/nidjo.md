@@ -1,5 +1,11 @@
 # Requests from the nidjo branch (Niđo hero)
 
+## Status (checked against master 9e45e1b, 2026-10-23)
+Documented in INTERFACES §2.2 and DESIGN.md: `pull`, `rollback`, and Niđo's row.
+Still open in code, do not treat as done:
+1. Rollback's damage reduction is still a next-tick `heal()`. `hero.gd` has no incoming-damage multiplier, so one lethal hit is not stopped.
+2. `BotBrain.want_ability` still has no `pull` or `rollback` case.
+
 Niđo was added with new files only, plus roster registration (`src/abilities/registry.gd`: types `pull`, `rollback`;
 `tests/core_test_roster.gd` expected ids/names; `docs/ROSTER.md` entry).
 

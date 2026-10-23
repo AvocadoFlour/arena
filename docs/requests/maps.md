@@ -1,5 +1,11 @@
 # Requests from maps
 
+## Status (checked against master 9e45e1b, 2026-10-23)
+Already on master. Do not re-request the core hooks for these:
+- `Events.cover_broken` and `Net.EVENT_SIGNALS`, plus `broken_cover` on the welcome info.
+- `Events.pickup_changed`, `Events.pad_launched`, and `objects` on the welcome info (`Net.map_objects().state()`).
+Still open: `Events.spawn_shield` is not on `src/core/events.gd`. Spawn rooms still only emit that bus signal if core adds it (`src/maps/spawn_rooms.gd`). The damage gate, client prediction, and INTERFACES write-up for spawn shields were not checked in as done.
+
 ## Round 1 (done in v0.2)
 run_tests discovery, INTERFACES §6 optional keys, SpawnPicker respawn hook — all integrated.
 
