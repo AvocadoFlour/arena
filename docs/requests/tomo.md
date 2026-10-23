@@ -1,5 +1,12 @@
 # Requests from the tomo branch (Tomo hero)
 
+## Status (checked against master 9e45e1b, 2026-10-23)
+Documented in INTERFACES §2.1 / §2.2 and DESIGN.md: `burst` / `burst_delay`, `blink`, `shockwave`, and Tomo's row.
+Still open in code, do not treat as done:
+1. `BurstWeapon` is still installed from `blink.gd`, not from `Hero._build`.
+2. `BotBrain.want_ability` still has no `blink` or `shockwave` case.
+3. Breakpoint's root is still `apply_slow(0.0, 1.1)`. Jump and dash still move a rooted hero.
+
 Tomo was added with new files only, plus roster registration (`src/abilities/registry.gd`: types `blink`,
 `shockwave`; `tests/core_test_roster.gd` expected ids/names; `docs/ROSTER.md` entry). These shared changes are
 needed for a clean, fully supported kit:

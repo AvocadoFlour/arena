@@ -51,6 +51,7 @@ Cob uses `{"back": 0.6, "up": 0.3}`.
 
 ### 2.1 Primary types
 - `hitscan` (default): `damage, fire_rate, mag, reload_time, spread_deg, range` — core `Weapon`.
+- Optional hitscan keys `burst` (shots per trigger) and `burst_delay` (seconds before the next burst). `fire_rate` is the rate inside the burst. Tomo's Packet Burst uses this. `BurstWeapon` (`src/heroes/burst_weapon.gd`) is installed by the `blink` ability, not by `hero.gd`; moving that install into `Hero._build` is still open (`docs/requests/tomo.md`).
 - `melee` (v0.3): `{"type":"melee","damage","fire_rate","mag" (999 = no ammo),"reload_time","range","arc_deg",
   "combo":[mult…],"combo_window","finisher_knockback","lunge"}`. `Weapon` still gates rate; hero.gd
   `melee_swing()` hits every enemy within `range` inside the frontal `arc_deg` (`MeleeMath.in_arc`), damage =
@@ -83,12 +84,16 @@ v0.3 hero API (heroes round 2):
 | `add_overheal(amount, dur)`, `overheal` | shield HP absorbed before health inside `take_damage`; the returned amount includes absorbed overheal |
 | `clear_buffs()` | called on death |
 Ability def option `"needs_ult": true`: any type can be an ultimate (requires and consumes a full meter).
-Ability types (registry): `dash, ground_slam, nova, projectile, shield_wall, charge, heal_beam, rally, leap, team_buff`.
+Ability types (registry): `dash, ground_slam, nova, projectile, shield_wall, charge, heal_beam, rally, leap, team_buff, blink, shockwave, pull, rollback`.
 - `leap`: `{forward_speed, up_speed, air_time, radius, damage, knockback}` — jump forward, AoE + knockback on landing; query `leaping()`.
 - `team_buff`: `{radius, duration, damage_mult, knockback_immune, overheal}` — buffs self + allies in radius.
 - `ground_slam` now impacts only on landing after its own dive. Optional `color` on heal_beam / ground_slam.
+- `blink` (extends dash): `{distance, duration, bonus_mult, bonus_shots, bonus_window, color}`. When the dash ends, horizontal speed is capped to run speed. Leaves a host-side afterimage; clients see the replayed `Fx.ring`. Query `bonus_pending()`.
+- `shockwave` (extends nova, needs a full meter): `{radius, arc_deg, damage, knockback, lift, color}`. Frontal cone, `HitMath` falloff, knockback away from the caster, and damage to `destructible` cover in the cone. Damage kind `ultimate`.
+- `pull`: `{radius, pull_speed, up_speed, stop_distance, slow, slow_duration, color}`. Every enemy in `radius` is `knockback()`'d toward the caster (no closer than `stop_distance`) plus a small hop, then `apply_slow`. No damage. Knockback-immune targets are slowed but not moved. Query `last_pulled`.
+- `rollback` (use with `needs_ult`): `{radius, window, sample, damage_reduction, dr_duration, color}`. Every `sample` seconds it records living teammates' HP. On cast, the caster and allies in `radius` are healed up to the HP they had `window` seconds ago (heal only; death clears that history, so it never revives). For `dr_duration` seconds the caster is refunded `damage_reduction` of each later HP drop via `heal()` on the next tick. There is no incoming-damage multiplier, so one lethal hit is not prevented.
 Roles: `tank, support, brawler, duelist`. Selectable heroes = top-level `src/heroes/*.json` only
-(v0.3: Twin Tails, The Best, Cob); retired defs live in `src/heroes/archive/` (tests only, not scanned).
+(v0.9.1: Twin Tails, The Best, Cob, Tomo, Niđo); retired defs live in `src/heroes/archive/` (tests only, not scanned).
 Optional ability query methods: `channeling()` (heal_beam), `active()` (shield_wall), `charging()` (charge).
 Shield walls are StaticBody3D on layer 1: they block movement, hitscan and projectiles of both teams.
 

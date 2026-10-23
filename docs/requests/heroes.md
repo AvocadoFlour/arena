@@ -1,5 +1,11 @@
 # Requests from heroes
 
+## Status (checked against master 9e45e1b, 2026-10-23)
+The 13 Oct line that says Tomo and Niđo are concept-only is stale. Both are playable (`src/heroes/tomo.json`, `src/heroes/nidjo.json`).
+The optional heal-beam target is in the hero snapshot as `heal_target_id` (INTERFACES §10). `combo_step` and `dash_time` are in that same snapshot.
+Still paused, not cancelled, and not found as a later done-note: Cob shell polish; Twin Tails face and wing polish.
+Still open: a projectile primary, and deleting the top-level Kestrel / Rampart / Willow files once nothing outside heroes references them.
+
 ## Round 6 (open, optional; nothing blocks heroes)
 The Encore Beam ribbon is driven from replicated state only:
 - **Channel active:** derived from the replicated ability1 cooldown (`duration - remaining < channel duration`).

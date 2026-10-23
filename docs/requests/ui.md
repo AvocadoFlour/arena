@@ -1,5 +1,13 @@
 # UI requests to lead (branch ui)
 
+## Status (checked against master 9e45e1b, 2026-10-23)
+Already on master. The older paragraphs below were not updated when they landed. Do not re-request them:
+- `Events.healed` and `Events.ability_ready` (INTERFACES §4; emitted from `hero.gd`).
+- `Net.ping_ms()`, `Net.last_packet_age()`, `Net.disconnected`, `Net.is_online()` / `is_host()` / `is_client()` (INTERFACES §10).
+- `HeroModel.create_display` (INTERFACES §2.3).
+- In-match hero swap, team change, bot counts, and bot-difficulty RPCs (INTERFACES §10, "In-match control RPCs").
+Still open, not verified as done here: shipping `src/ui/audio/LICENSES.md` inside the Windows zip (`build.sh` / export presets).
+
 Round 1 requests 1–3 done on master (bbd8445). Round 1 #4 (live HUD key labels) is done in round 2.
 
 ## Round 2
