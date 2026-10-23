@@ -17,6 +17,7 @@ var bot_btn := {}      ## team -> [minus, plus]
 var hero_btns: Array = []
 var team_btns := {}
 var bot_note: Label
+var bot_picks := {}    ## team -> VBox of per-bot hero rows
 var hero_note: Label
 var team_note: Label
 var swap_left := -1.0
@@ -74,6 +75,11 @@ func _ready() -> void:
         bot_val[t] = val
         bot_btn[t] = [minus, plus]
         v.add_child(row)
+        var picks := VBoxContainer.new()
+        picks.name = "BotPicks%d" % t
+        picks.add_theme_constant_override("separation", 6)
+        v.add_child(picks)
+        bot_picks[t] = picks
     bot_note = _note("BotNote")
     v.add_child(bot_note)
     v.add_child(MenuStyle.label("Hero", 24))
@@ -204,6 +210,7 @@ func refresh() -> void:
         bot_val[t].text = str(n) if n >= 0 else "-"
         bot_btn[t][0].disabled = not (bots_ok and host_ok and n > 0)
         bot_btn[t][1].disabled = not (bots_ok and host_ok and n >= 0 and n < MatchControl.MAX_BOTS)
+        _refresh_bot_picks(t, bots_ok and host_ok)
     bot_note.text = NA if not bots_ok else ("Only the host can change bots" if not host_ok else "")
     var swapping := swap_left >= 0.0
     var cur := ctl.local_hero_id()
@@ -225,6 +232,47 @@ func refresh() -> void:
 func _step(team: int, d: int) -> void:
     var counts := ctl.bot_counts()
     ctl.set_bot_count(team, int(counts.get(team, 0)) + d)
+    refresh()
+
+func _refresh_bot_picks(team: int, ok: bool) -> void:
+    var box: VBoxContainer = bot_picks[team]
+    for c in box.get_children():
+        box.remove_child(c)
+        c.free()
+    if not ok:
+        return
+    var ids: Array = ctl.bot_heroes(team)
+    var roster: Array = []
+    var names := {}
+    for h in UiCatalog.list_heroes():
+        roster.append(String(h.id))
+        names[String(h.id)] = String(h.name)
+    for i in ids.size():
+        var row := HBoxContainer.new()
+        row.add_theme_constant_override("separation", 8)
+        var prev := _small("<", _cycle_bot.bind(team, i, -1))
+        var nxt := _small(">", _cycle_bot.bind(team, i, 1))
+        var lab := MenuStyle.label("%s: %s" % ["Ally %d" % (i + 1) if team == 0 else "Bot %d" % (i + 1), names.get(String(ids[i]), String(ids[i]))], 18)
+        lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        row.add_child(prev)
+        row.add_child(lab)
+        row.add_child(nxt)
+        box.add_child(row)
+
+func _cycle_bot(team: int, index: int, d: int) -> void:
+    var ids: Array = ctl.bot_heroes(team)
+    if index < 0 or index >= ids.size():
+        return
+    var roster: Array = []
+    for h in UiCatalog.list_heroes():
+        roster.append(String(h.id))
+    if roster.is_empty():
+        return
+    var at: int = roster.find(String(ids[index]))
+    if at < 0:
+        at = 0
+    var nxt: String = roster[posmod(at + d, roster.size())]
+    ctl.set_bot_hero(team, index, nxt)
     refresh()
 
 func _pick_hero(id: String) -> void:

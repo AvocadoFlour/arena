@@ -35,6 +35,8 @@ var root_left := 0.0
 const ROOT_BLOCKS := ["dash", "blink", "leap", "charge", "ride"]
 const MountLink := preload("res://src/abilities/mount_link.gd")
 var ridden_by = null                 ## HOST: the hero riding on our head (ride ability), or null
+const MagmaStream := preload("res://src/heroes/fx/magma_stream.gd")
+var _magma: Node3D
 var _ally_heal := 0.0                ## primary "ally_heal": HP restored per hitscan hit on an ally (0 = allies ignored)
 var _ride = null                     ## the hero's ride ability (Übel's Shift), if any: host-side mount state machine
 var charge_hits: Array = []          ## heroes already hit by the current charge
@@ -53,7 +55,8 @@ var net_id := -1                   ## network id (Net registry), -1 = unregister
 ## Core hook (heroes request): when true, _die() keeps the body visible (collision still off) so the
 ## Visual node can play a death animation on the live model; hero code hides it when done (visible = false).
 var keep_body_when_dead := false
-var heal_target_id := -1          ## CLIENT: replicated heal-beam target (net id; -1 = none/self), visual only
+var heal_target_id := -1          ## CLIENT: replicated heal-beam target (net id; -1 = none), visual only
+var primary_beam := false         ## magma primary is held (host gameplay; replicated for the stream)
 var net_role := "auth"             ## "auth" simulates fully; "predicted" (client's own hero) moves only; "puppet" is driven by snapshots
 var _muzzle: Node3D
 ## Skinned GLB model (hero JSON "model_scene"); null = primitive model. `--primitive_models` forces primitives.
@@ -117,6 +120,11 @@ func _build() -> void:
     _build_flinch()
     add_to_group("heroes")
     set_team(team)
+    if String(prim.get("type", "")) == "magma":
+        _magma = MagmaStream.new()
+        _magma.name = "MagmaStream"
+        add_child(_magma)
+        _magma.setup(self)
 
 ## Model parts (INTERFACES §2 "model"), plus optional visual-only keys:
 ## "rot":[x,y,z] degrees, "scale":[x,y,z], "pivot":[x,y,z] (part rotates about this point),
@@ -186,6 +194,8 @@ func _process(dt: float) -> void:
     for ab in abilities.values():
         if ab.has_method("visual_process"):
             ab.visual_process(dt)   # ability visuals (e.g. heal ribbon fade-out also runs while dead)
+    if _magma and _magma.has_method("visual_process"):
+        _magma.visual_process(dt)
     if model and dead != _was_dead:   # replicated `dead` edges: death anim on the live body (core keeps it visible)
         if dead:
             model.play_death()
@@ -392,7 +402,9 @@ func _physics_process(dt: float) -> void:
         if weapon is BurstWeapon:
             BurstWeapon.continue_burst(self)
         if f.fire:
-            _try_fire()   # mounted: attacks (and casts above) still work
+            _handle_fire(dt)
+        else:
+            _clear_beam()
         return
     if root_left > 0.0:
         root_left = maxf(0.0, root_left - dt)
@@ -420,7 +432,9 @@ func _physics_process(dt: float) -> void:
     if weapon is BurstWeapon:
         BurstWeapon.continue_burst(self)   # a started burst completes even if the trigger was released
     if f.fire:
-        _try_fire()
+        _handle_fire(dt)
+    else:
+        _clear_beam()
     if global_position.y < -25.0:
         _die(null, "fall")
     var _unused = was_air
@@ -430,6 +444,8 @@ func _predict_step(dt: float) -> void:
     if dead or input_source == null:
         return
     var f: InputFrame = input_source.poll(self)
+    if _is_magma():
+        primary_beam = f.fire and channel_lock() == null
     yaw = wrapf(yaw + f.look.x, -PI, PI)
     pitch = clampf(pitch + f.look.y, -1.3, 1.3)
     rotation.y = yaw
@@ -476,6 +492,60 @@ func _use(slot: String) -> void:
         return   # movement abilities are locked while rooted
     if abilities.has(slot) and abilities[slot].activate():
         Events.ability_used.emit(self, slot, abilities[slot].id)
+
+func _is_magma() -> bool:
+    return String(def.get("primary", {}).get("type", "")) == "magma"
+
+func _clear_beam() -> void:
+    if _is_magma():
+        primary_beam = false
+
+## Held magma primary. Left click keeps the stream on; it does not spend ammo.
+func _handle_fire(dt: float) -> void:
+    if channel_lock() != null:
+        _clear_beam()
+        return
+    if _is_magma():
+        primary_beam = true
+        _magma_tick(dt)
+        return
+    _try_fire()
+
+func _magma_tick(dt: float) -> void:
+    var p: Dictionary = def.get("primary", {})
+    var dps := float(p.get("damage", 36.0))
+    var rng := float(p.get("range", 16.0))
+    var reach := float(p.get("width", 0.7)) * 0.5
+    var a: Vector3 = eye_position()
+    var end: Vector3 = a + look_dir() * rng
+    if not is_inside_tree():
+        return
+    var exclude: Array = [get_rid()]
+    for _i in 8:
+        var q := PhysicsRayQueryParameters3D.create(a, end)
+        q.exclude = exclude
+        var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(q)
+        if hit.is_empty():
+            break
+        var c = hit.collider
+        if c is Node and c.is_in_group("heroes"):
+            exclude.append(c.get_rid())
+            continue
+        end = hit.position
+        if c is Node and c.is_in_group("destructible"):
+            c.take_damage(dps * dt * damage_mult(), self, end, "primary")
+        break
+    for h in get_tree().get_nodes_in_group("heroes"):
+        if h == self or h.dead or not h.is_inside_tree() or h.team == team or h.get_world_3d() != get_world_3d():
+            continue
+        var col: Dictionary = h.def.get("collider", {})
+        var cr := float(col.get("radius", 0.4))
+        var ch := float(col.get("height", 1.8))
+        var p0: Vector3 = h.global_position + Vector3(0, cr, 0)
+        var p1: Vector3 = h.global_position + Vector3(0, maxf(ch - cr, cr), 0)
+        var cp := Geometry3D.get_closest_points_between_segments(a, end, p0, p1)
+        if cp[0].distance_to(cp[1]) <= reach + cr:
+            h.take_damage(dps * dt * damage_mult(), self, h.global_position + Vector3(0, 1.2, 0), "primary", "")
 
 func _try_fire() -> void:
     if channel_lock() != null:

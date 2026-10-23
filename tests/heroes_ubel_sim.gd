@@ -126,9 +126,9 @@ func _physics_process(_dt: float) -> void:
             _rec("rider_follows", ubel.global_position.distance_to(seat) < 0.2, "d=%.3f" % ubel.global_position.distance_to(seat))
             hp0 = foe.health.hp
             ubel.pitch = -1.2   # looking down at the head
-            ubel._try_fire()
+            ubel._magma_tick(1.0)
         81:
-            _rec("melee_hits_victim_while_mounted", hp0 - foe.health.hp >= 24.9, "dmg=%.1f" % (hp0 - foe.health.hp))
+            _rec("magma_hits_victim_while_mounted", hp0 - foe.health.hp >= 30.0, "dmg=%.1f" % (hp0 - foe.health.hp))
             var ahead: Vector3 = Vector3(ubel.look_dir().x, 0, ubel.look_dir().z).normalized()
             _place(foe2, foe.global_position + ahead * 3.5)   # an enemy on the ground in front of the victim
             hp0 = foe.health.hp

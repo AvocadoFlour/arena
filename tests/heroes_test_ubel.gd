@@ -1,5 +1,5 @@
 extends "res://tests/test_base.gd"
-## Übel (fast melee dive, 250 HP; fan character, private play only - see src/heroes/ubel/README.md): kit data,
+## Übel (mage, 250 HP; fan character, private play only - see src/heroes/ubel/README.md): kit data,
 ## GLB model (rig, anims incl. the mounted "ride", BladeTip anchor, side-ponytail sway), primitive fallback,
 ## Clean Cut strip geometry, and the client side of the ride replication (MountLink net prop -> puppet and
 ## predicted riders, ride pose). The 60 Hz ride behaviour is in heroes_ubel_sim.gd.
@@ -21,10 +21,10 @@ func _free(ns: Array) -> void:
 
 func test_kit_and_role() -> void:
     var h := Hero.from_def(DEF)
-    check(h.def.name == "Übel" and h.def.id == "ubel" and h.def.role == "dive", "name/id/role")
+    check(h.def.name == "Übel" and h.def.id == "ubel" and h.def.role == "mage", "name/id/role")
     check(absf(h.health.max_hp - 250.0) < 0.01 and float(h.def.movement.speed) >= 7.5, "250 HP, fast")
     var p: Dictionary = h.def.primary
-    check(p.type == "melee" and p.name == "Paper Cut" and p.combo == [1.0, 1.0, 2.0] and float(p.damage) == 25.0, "Paper Cut 25/25/50")
+    check(p.type == "magma" and p.name == "Magma Thread" and float(p.damage) == 36.0 and float(p.range) == 16.0, "Magma Thread 36/s, 16 m")
     var a: Dictionary = h.def.abilities
     check(a.ability1.type == "ride" and a.ability1.name == "Uninvited Guest" and float(a.ability1.ride_time) == 4.0, "Uninvited Guest = ride, 4 s")
     check(a.ability2.type == "line_slash" and a.ability2.name == "Clean Cut" and float(a.ability2.damage) == 60.0, "Clean Cut = line slash, 60")
@@ -36,14 +36,13 @@ func test_kit_and_role() -> void:
 
 func test_values_are_clean() -> void:
     var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(DEF))
-    var vals := [d.max_hp, d.primary.damage, d.primary.fire_rate, d.primary.range, d.primary.lunge, d.ultimate_cost]
+    var vals := [d.max_hp, d.primary.damage, d.primary.range, d.primary.width, d.ultimate_cost]
     for slot in d.abilities:
         for k in d.abilities[slot]:
             if d.abilities[slot][k] is float:
                 vals.append(d.abilities[slot][k])
     for v in vals:
         check(is_equal_approx(snappedf(float(v), 0.1), float(v)), "clean value %s" % v)
-    check(float(d.primary.damage) * float(d.primary.combo[-1]) == 50.0, "finisher 50")
 
 func test_readme_fan_character_line() -> void:
     var t := FileAccess.get_file_as_string("res://src/heroes/ubel/README.md")

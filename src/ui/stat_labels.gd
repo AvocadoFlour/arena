@@ -41,6 +41,8 @@ const LABELS := {
     "shield_wall:distance": ["Distance in front", " m"],
     "width": ["Wall width", " m"],
     "heal_beam:width": ["Beam width", " m"],
+    "magma:damage": ["Damage per second", ""],
+    "magma:width": ["Beam width", " m"],
     "height": ["Wall height", " m"],
     "thickness": ["Wall thickness", " m"],
     "radius": ["Radius", " m"],

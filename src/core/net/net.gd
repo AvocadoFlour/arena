@@ -525,7 +525,7 @@ func _hero_state(h) -> Array:
     var acked: int = h.input_source.acked if h.input_source is RemoteInput else -1
     return [h.net_id, h.global_position, h.velocity, h.yaw, h.pitch, h.health.hp, h.dead, h.visible,
         h.weapon.ammo, h.weapon.reloading(), h.ult.charge, cds, h.overheal, h.respawn_left, acked, h.team,
-        h.combo_step, h.dash_time, _heal_target_id(h), h.root_left, h.slow_mult]
+        h.combo_step, h.dash_time, _heal_target_id(h), h.root_left, h.slow_mult, 1 if h.primary_beam else 0]
 
 ## HOST: net id of the ally a hero's heal beam is channelling into; -1 for none or self.
 func _heal_target_id(h) -> int:
@@ -616,6 +616,8 @@ func _apply_state(h, s: Array) -> void:
     if s.size() > 20:   # prediction: root and slow, so the local hero stops matching the host instead of being corrected
         h.root_left = float(s[19])
         h.slow_mult = float(s[20])
+    if s.size() > 21 and not (h.input_source is ClientInput):
+        h.primary_beam = int(s[21]) != 0
     if h.team != int(s[15]):
         h.set_team(int(s[15]))
     if was_dead and not h.dead:

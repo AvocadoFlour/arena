@@ -123,13 +123,14 @@ func test_heal_beam_self_fallback() -> void:
     h.health.hp = 100.0
     check(ab.activate(), "activates")
     check(ab.channeling() and not ab.can_activate(), "a second start is blocked; Shift again would cancel")
+    check(ab.pick_target() == null and ab.mode_for(null) == "empty", "nobody in front is an empty beam")
+    check(ab.mode_color("empty").is_equal_approx(Color("#9aa3ad")), "empty beam is gray")
     for i in 60:
         ab.tick(1.0 / 60.0)
-    near(h.health.hp, 160.0, 1.0, "self heal 60 hps for 1 s")
+    near(h.health.hp, 100.0, 0.01, "empty beam does not heal her")
     for i in 190:
         ab.tick(1.0 / 60.0)
     check(not ab.channeling(), "channel ends")
-    near(h.health.hp, 225.0, 0.01, "capped")
     h.free()
 
 func test_encore_beam_damages_the_enemy_it_aims_at() -> void:

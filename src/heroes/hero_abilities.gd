@@ -12,7 +12,7 @@ extends RefCounted
 const SLOTS := ["primary", "ability1", "ability2", "ultimate", "passive"]
 const HERO_DIR := "res://src/heroes/"
 ## Keys that never change gameplay (visual/bookkeeping) - not described.
-const COSMETIC := ["id", "name", "type", "color", "visual", "beam_color", "color_heal", "color_damage", "kind", "size", "glyph"]
+const COSMETIC := ["id", "name", "type", "color", "visual", "beam_color", "color_heal", "color_damage", "color_empty", "kind", "size", "glyph"]
 ## Keys every ability type understands (base Ability class).
 const COMMON := ["cooldown", "needs_ult"]
 ## Stat keys each template reads. Add the key here AND use it in _text_<type> when a script gains one.
@@ -25,7 +25,8 @@ const TEMPLATES := {
     "leap": ["forward_speed", "up_speed", "air_time", "radius", "damage", "knockback"],
     "dash": ["distance", "duration"],
     "team_buff": ["radius", "duration", "damage_mult", "knockback_immune", "overheal"],
-    "heal_beam": ["duration", "hps", "enemy_dps", "range", "cone_deg", "width", "exclusive"],
+    "heal_beam": ["duration", "hps", "enemy_dps", "range", "width", "exclusive"],
+    "magma": ["damage", "range", "width"],
     "projectile": ["speed", "damage", "gravity", "lifetime", "hit_radius", "splash_radius", "slow", "root", "ally_heal"],
     "rally": ["radius", "heal"],
     "nova": ["radius", "damage"],
@@ -98,6 +99,7 @@ static func describe_def(hero: Dictionary, slot: String) -> Dictionary:
         "dash": text = _text_dash(d, stats)
         "team_buff": text = _text_team_buff(d, stats)
         "heal_beam": text = _text_heal_beam(d, stats)
+        "magma": text = _text_magma(d, stats)
         "projectile": text = _text_projectile(d, stats)
         "rally": text = _text_rally(d, stats)
         "nova": text = _text_nova(d, stats)
@@ -226,16 +228,23 @@ static func _text_team_buff(d: Dictionary, s: Dictionary) -> String:
 static func _text_heal_beam(d: Dictionary, s: Dictionary) -> String:
     var tot := float(d.get("hps", 60)) * float(d.get("duration", 3))
     s["total_heal"] = tot
-    var txt := "Channels a beam for up to %s s onto the hero nearest your aim within %s m and a %s° cone. An ally is healed %s HP/s (%s HP over the full beam, up to max HP); with nobody in reach it heals you instead." % [
-        n(d.get("duration", 3)), n(d.get("range", 15)), n(d.get("cone_deg", 15)), n(d.get("hps", 60)), n(tot)]
+    var txt := "Shift replaces left click with this beam for up to %s s (or until you press Shift again). It follows your aim out to %s m, including empty air. An ally it touches is healed %s HP/s (%s HP over the full beam, up to max HP). Aimed at nobody, it stays out and turns gray." % [
+        n(d.get("duration", 3)), n(d.get("range", 15)), n(d.get("hps", 60)), n(tot)]
     if float(d.get("enemy_dps", 0)) > 0.0:
         s["enemy_dps"] = float(d.get("enemy_dps", 0))
         s["width"] = float(d.get("width", 1.0))
-        txt += " Enemies it is aimed at or passes through (the beam is %s m wide) take %s damage per second, and the beam turns red." % [n(d.get("width", 1.0)), n(d.get("enemy_dps", 0))]
-    txt += " Press again to stop it early; the cooldown starts when the beam ends."
+        txt += " Enemies it touches (the beam is %s m wide) take %s damage per second, and the beam turns red." % [n(d.get("width", 1.0)), n(d.get("enemy_dps", 0))]
+    txt += " The cooldown starts when the beam ends."
     if bool(d.get("exclusive", false)):
-        txt += " While it runs you can't shoot or use other abilities (you can still move and aim)."
+        txt += " While it runs you don't shoot and you can't use other abilities (you can still move and aim)."
     return txt
+
+static func _text_magma(d: Dictionary, s: Dictionary) -> String:
+    s["damage"] = float(d.get("damage", 36))
+    s["range"] = float(d.get("range", 16))
+    s["width"] = float(d.get("width", 0.7))
+    return "Hold left click to pour a magma stream out to %s m (%s m wide). Enemies it touches take %s damage per second. It stays available; it does not use ammo." % [
+        n(d.get("range", 16)), n(d.get("width", 0.7)), n(d.get("damage", 36))]
 
 static func _text_projectile(d: Dictionary, s: Dictionary) -> String:
     var rng := float(d.get("speed", 20)) * float(d.get("lifetime", 3))
