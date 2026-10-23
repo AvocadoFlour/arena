@@ -51,6 +51,7 @@ Cob uses `{"back": 0.6, "up": 0.3}`.
 
 ### 2.1 Primary types
 - `hitscan` (default): `damage, fire_rate, mag, reload_time, spread_deg, range` — core `Weapon`.
+- Optional hitscan keys `burst` (shots per trigger, > 1) and `burst_delay` (seconds between bursts). `fire_rate` is the rate inside the burst. `Hero._build` creates a `BurstWeapon` when `burst` > 1, and each authority tick calls `BurstWeapon.continue_burst` before the fire input so a started burst finishes. Tomo's Packet Burst uses this.
 - `melee` (v0.3): `{"type":"melee","damage","fire_rate","mag" (999 = no ammo),"reload_time","range","arc_deg",
   "combo":[mult…],"combo_window","finisher_knockback","lunge"}`. `Weapon` still gates rate; hero.gd
   `melee_swing()` hits every enemy within `range` inside the frontal `arc_deg` (`MeleeMath.in_arc`), damage =
@@ -81,14 +82,27 @@ v0.3 hero API (heroes round 2):
 | `apply_buff(mult, dur, kb_immune)` | outgoing damage × mult for dur s; optional knockback immunity |
 | `knockback(v: Vector3)` | adds velocity; ignored while `knockback_immune` |
 | `add_overheal(amount, dur)`, `overheal` | shield HP absorbed before health inside `take_damage`; the returned amount includes absorbed overheal |
-| `clear_buffs()` | called on death |
+| `clear_buffs()` | called on death; also clears damage reductions |
+| `apply_damage_reduction(frac, dur, key := "default")` | take `frac` (0..1) less damage for `dur` s. Same key refreshes (max fraction, max time). Different keys stack multiplicatively. Host/offline only |
+| `damage_taken_mult() -> float` | incoming multiplier (1 = none). Applied in `take_damage` before overheal and HP, so it can stop one lethal hit |
+| `damage_reduction_left(key) -> float` | seconds left on that key, else 0 |
+| `apply_root(dur)`, `rooted()`, `root_left` | longer root wins. While rooted: no walk, no jump, horizontal velocity zeroed, a running dash/leap is cancelled, and types in `Hero.ROOT_BLOCKS` (`dash, blink, leap, charge, ride`) cannot be cast. Aiming, shooting and other abilities work. Distinct from slow. Cleared on death. Not in the network snapshot |
+| `mounted_on()` | ride victim, or null. Host reads the ride ability; clients read the MountLink prop |
+| `cancel_ride(why := "cancel")` | ends a ride early. Stuns should call it. Knockback and root already do |
+| `ridden_by` | host: the hero currently on this head, or null |
 Ability def option `"needs_ult": true`: any type can be an ultimate (requires and consumes a full meter).
-Ability types (registry): `dash, ground_slam, nova, projectile, shield_wall, charge, heal_beam, rally, leap, team_buff`.
+Ability types (registry): `dash, ground_slam, nova, projectile, shield_wall, charge, heal_beam, rally, leap, team_buff, blink, shockwave, pull, rollback, ride, line_slash`.
 - `leap`: `{forward_speed, up_speed, air_time, radius, damage, knockback}` — jump forward, AoE + knockback on landing; query `leaping()`.
 - `team_buff`: `{radius, duration, damage_mult, knockback_immune, overheal}` — buffs self + allies in radius.
 - `ground_slam` now impacts only on landing after its own dive. Optional `color` on heal_beam / ground_slam.
+- `blink` (extends dash): `{distance, duration, bonus_mult, bonus_shots, bonus_window, color}`. When the dash ends, horizontal speed is capped to run speed. Query `bonus_pending()`.
+- `shockwave` (extends nova, needs a full meter): `{radius, arc_deg, damage, knockback, lift, color}`. Frontal cone, `HitMath` falloff, knockback away from the caster, damage to `destructible` cover in the cone. Damage kind `ultimate`.
+- `pull`: `{radius, pull_speed, up_speed, stop_distance, slow, slow_duration, color}`. Enemies in `radius` are pulled toward the caster, not closer than `stop_distance`, then slowed. No damage. Query `last_pulled`.
+- `rollback` (use with `needs_ult`): `{radius, window, sample, damage_reduction, dr_duration, color}`. Heals the caster and allies in `radius` up to the HP they had `window` seconds ago (never revives), then `apply_damage_reduction` on the caster.
+- `ride`: `{range, cone_deg, leap_time, ride_time, hop_range, hop_off_speed, cooldown}`. Needs an enemy within `range`, inside the aim cone, with line of sight. Leap onto that head and ride for `ride_time`. Victim keeps control. Jump or activating again hops off (or onto another head within `hop_range`; remaining time carries). Query `busy()` / `riding()`. Replicated by a net prop `net_kind` `mount:<rider>:<victim>`, not a snapshot field.
+- `line_slash`: `{damage, length, width, height, knockback, cooldown}`. Instant box along the aim. Hits enemies through cover and damages breakable cover in the box. A rider also hits the victim below.
 Roles: `tank, support, brawler, duelist`. Selectable heroes = top-level `src/heroes/*.json` only
-(v0.3: Twin Tails, The Best, Cob); retired defs live in `src/heroes/archive/` (tests only, not scanned).
+(0.9.1 on this branch: Twin Tails, The Best, Cob, Tomo, Niđo, Übel); retired defs live in `src/heroes/archive/` (tests only, not scanned).
 Optional ability query methods: `channeling()` (heal_beam), `active()` (shield_wall), `charging()` (charge).
 Shield walls are StaticBody3D on layer 1: they block movement, hitscan and projectiles of both teams.
 
@@ -121,7 +135,7 @@ FOV animation (zoom/sprint) must be relative to `Settings.fov`. Audio buses `Mas
   itself. Online, `visible` is in the snapshot, so clients follow the host.
 - `hero.take_damage(amount, source: Hero|null, pos: Vector3, kind: String, ability_id := "") -> float applied`.
   `kind` ∈ `primary, slam, ultimate, fall, …`; `ability_id` = the source ability's `id` (hero JSON ability id,
-  else its type), `""` for the primary weapon and falls. `hero.aoe(center, radius, dmg, kind, ability_id := "")`.
+  else its type), `""` for the primary weapon and falls. Incoming amount is multiplied by `damage_taken_mult()` before overheal and HP. `hero.aoe(center, radius, dmg, kind, ability_id := "")`.
 - Emits `Events.damage_dealt({source, target, amount, pos, src_pos, kind, killed, ability_id, crit})`, then
   `source.on_damage_dealt(amount)` (charges ult 1:1). `src_pos` (Vector3 or null) = the attacker's host-side
   position at hit time; replicated to clients with the event (Net EVENT_SIGNALS), use it for hit direction, then on death

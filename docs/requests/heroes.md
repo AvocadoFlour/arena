@@ -1,5 +1,18 @@
 # Requests from heroes
 
+## Status for Grokbot (2026-10-23, branch heroes)
+Done in the commit that added this section. Do not redo it.
+- `src/main.gd` smoke forcing retries an unused slot every frame from 60% of the run until that slot's use count leaves 0. The old one-shot force is what failed `arena01/ubel` and `arena02/ubel` (Uninvited Guest is target-gated). The diff below is the one that was applied.
+- `docs/INTERFACES.md` now documents `primary.burst` / `burst_delay` (installed in `Hero._build`), `apply_root` / `rooted` / `root_left`, `apply_damage_reduction` / `damage_taken_mult`, and ability types `blink`, `shockwave`, `pull`, `rollback`, `ride`, `line_slash`.
+- `docs/ROSTER.md` item 6 is Übel, including the required private-play line.
+
+Still open. This is the remaining queue:
+1. **Net, core:** replicate `root_left` (and ideally `slow_mult`) on the predicted hero. A rooted client still walks locally and is corrected by the host. Not done here.
+2. **Net, optional:** a snapshot field for the ride (rider, victim, time left) instead of the `mount:<rider>:<victim>` prop. Hop-off on the client still waits for the host.
+3. **AI, optional, later:** `BotBrain.want_ability` has no case for `blink`, `shockwave`, `pull`, `rollback`, `ride`, or `line_slash`, so bots never choose those slots. Suggested rules are in the Tomo, Niđo, and Übel sections below.
+4. **Do not merge this blindly onto `ai`.** `ai` at `73ba8c1` does not contain Übel or these `hero.gd` hooks. `heroes` is ahead on that work. Pull `heroes` before continuing it.
+5. **Not this task:** spawn-shield replication (`Events.spawn_shield` is still absent on `ai`), Cob/Twin Tails polish (paused), and a projectile primary (declined).
+
 ## Round 6 (open, optional; nothing blocks heroes)
 The Encore Beam ribbon is driven from replicated state only:
 - **Channel active:** derived from the replicated ability1 cooldown (`duration - remaining < channel duration`).
@@ -135,7 +148,8 @@ locally and gets corrected by the host. Please replicate `root_left` (and ideall
    Suggested: `ride` like `leap` (aimed, visible enemy within 10 m), `line_slash` like `charge` but dist < 6; while
    mounted (`h.mounted_on() != null`) keep swinging and don't jump.
 
-## Oct 19: 0.9.3 smoke FAIL arena01/ubel (ability1 = 0) - REQUEST core (src/main.gd smoke forcing), exact diff below
+## Oct 19: 0.9.3 smoke FAIL arena01/ubel (ability1 = 0) - DONE 2026-10-23 on heroes
+The one-shot force was the failure. `src/main.gd` now keeps retrying an unused slot until it fires. The diff below is what landed. Do not apply it again.
 Root cause: the smoke forces each unused slot exactly ONCE (at 60% of the run) and marks it "forced" whether or not
 it fired. Übel's Uninvited Guest is target-gated by design: ride.can_activate() needs an enemy within 10 m (head),
 inside the 30° aim cone, with line of sight; without one nothing happens, no cooldown is spent and no
