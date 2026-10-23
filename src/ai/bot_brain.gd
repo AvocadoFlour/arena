@@ -308,7 +308,7 @@ func _do_pack(h, f: InputFrame, dt: float) -> void:
     if use_abilities and target != null and flat > 5.0:
         var ctx := _ctx(h, true, true)
         ctx.moving = f.move.length() > 0.5
-        _apply_abilities(f, decide_abilities(ctx), dt)
+        _apply_abilities(h, f, decide_abilities(ctx), dt)
 
 ## Low-HP escape over a jump pad: a nearby pad whose landing is higher and farther from the threat,
 ## used when no cover is closer.
