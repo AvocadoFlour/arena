@@ -1,10 +1,11 @@
 # Requests from heroes
 
 ## Status for Grokbot (2026-10-23, branch master, on top of 78d2d49 / v0.9.4)
-Done in the commit that adds this section. Do not redo it. `master` is the default branch.
+Done in `00ad722`. Do not redo it. `master` is the default branch.
 - Documented in `docs/INTERFACES.md`: `primary.burst` / `burst_delay`, `apply_root` / `rooted` / `root_left`, `apply_damage_reduction` / `damage_taken_mult`, and ability types `blink`, `shockwave`, `pull`, `rollback`, `ride`, `line_slash`.
 - `docs/ROSTER.md` item 6 is Übel, including the required private-play line. `tests/core_test_roster.gd` already expected Übel before this commit.
 - Snapshot fields 19 and 20 are `root_left` and `slow_mult` (`Net._hero_state` / `_apply_state`). A predicted hero ticks `root_left` down and does not walk or jump while rooted. Reconcile does the same. `slow_mult` feeds `effective_move_cfg()`. `slow_left` is not replicated.
+- `./build.sh` on this commit with Godot 4.7.2: 735 passed, 0 failed. Smoke passed for every hero on arena01 and arena02, including both Übel runs. Network test passed. Zip: `dist/arena-0.9.4-windows.zip`. Version left at 0.9.4.
 
 Still open. Do not treat the older sections below as a fresh queue; `ui`, `maps`, `tomo` and `nidjo` are already merged into `master`.
 1. **Optional, net:** a snapshot field for the ride (rider, victim, time left) instead of the `mount:<rider>:<victim>` prop. Hop-off on the client still waits for the host.
