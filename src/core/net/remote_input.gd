@@ -1,12 +1,12 @@
 class_name RemoteInput
 extends RefCounted
 ## HOST side input source for a remote human (INTERFACES.md §10).
-## Packets: [seq, view_tick, yaw, pitch, move: Vector2, fire: bool, counters: [jump, reload, a1, a2, ult]].
+## Packets: [seq, view_tick, yaw, pitch, move: Vector2, fire: bool, counters: [jump, reload, a1, a2, ult, a3]].
 ## Buttons are cumulative press counters, so a lost/merged packet never loses or doubles an edge.
 const MAX_QUEUE := 8
 var queue: Array = []
 var last = null
-var counters := [0, 0, 0, 0, 0]
+var counters := [0, 0, 0, 0, 0, 0]
 var acked := -1           ## newest seq consumed (sent back in snapshots for reconciliation)
 var view_tick := -1       ## server tick the client was rendering (lag compensation)
 var received := 0
@@ -34,12 +34,14 @@ func poll(h) -> InputFrame:
     f.move = mv.limit_length(1.0)
     f.fire = bool(p[5])
     var c: Array = p[6]
-    if c.size() == 5:
+    if c.size() == 5 or c.size() == 6:   # 5 = older client without ability3
         f.jump = int(c[0]) > counters[0]
         f.reload = int(c[1]) > counters[1]
         f.ability1 = int(c[2]) > counters[2]
         f.ability2 = int(c[3]) > counters[3]
         f.ultimate = int(c[4]) > counters[4]
-        for i in 5:
+        if c.size() == 6:
+            f.ability3 = int(c[5]) > counters[5]
+        for i in c.size():
             counters[i] = maxi(counters[i], int(c[i]))
     return f

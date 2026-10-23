@@ -286,6 +286,9 @@ func _settings_screen() -> Control:
     speed.max_value = Settings.SPEED_MAX
     speed.step = 0.05
     speed.value = Settings.game_speed
+    speed.editable = Settings.speed_allowed()   # offline / solo only
+    if not speed.editable:
+        speed.tooltip_text = "Game speed is offline / solo only (online matches run at 100%)"
     var pct := MenuStyle.label("%d%%" % int(round(Settings.game_speed * 100.0)), 22)
     pct.name = "GameSpeedValue"
     pct.custom_minimum_size = Vector2(72, 0)

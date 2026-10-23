@@ -13,7 +13,7 @@ signal cover_broken(ev: Dictionary)
 signal healed(ev: Dictionary)
 ## Host/offline: an ability's cooldown just ran out (not fired by direct resets such as respawn or test hooks).
 signal ability_ready(hero, slot: String)
-## slot = "ability1" | "ability2" | "ultimate"
+## slot = "ability1" | "ability2" | "ability3" | "ultimate"
 signal ability_used(hero, slot: String, ability_id: String)
 
 ## Capture points (single contract, INTERFACES.md sections 4 and 6). Teams int, neutral = -1.

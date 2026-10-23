@@ -4,12 +4,12 @@ extends RefCounted
 ## Pure data: reads res://src/heroes/<id>.json only; no spawned hero / scene tree needed.
 ##   HeroAbilities.describe(hero_id, slot) -> {name, slot, type, text, stats}   ({} if the slot is absent)
 ##   HeroAbilities.describe_all(hero_id)   -> Array of the above, in SLOTS order (absent slots skipped)
-## Slots: "primary" (weapon), "ability1", "ability2", "ultimate", "passive" (none defined yet).
+## Slots: "primary" (weapon), "ability1", "ability2", "ability3" (right mouse), "ultimate", "passive" (none defined yet).
 ## Every number in `text` comes from the def through a per-type template (TEMPLATES below), so it
 ## cannot drift. A def key a template does not cover is reported by uncovered_keys() (the tests fail
 ## on it); an unknown type falls back to a generic "key value" description so new heroes still work.
 
-const SLOTS := ["primary", "ability1", "ability2", "ultimate", "passive"]
+const SLOTS := ["primary", "ability1", "ability2", "ability3", "ultimate", "passive"]
 const HERO_DIR := "res://src/heroes/"
 ## Keys that never change gameplay (visual/bookkeeping) - not described.
 const COSMETIC := ["id", "name", "type", "color", "visual", "beam_color", "color_heal", "color_damage", "color_empty", "kind", "size", "glyph"]

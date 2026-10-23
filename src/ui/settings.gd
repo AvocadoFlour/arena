@@ -43,6 +43,7 @@ func set_low_quality(on: bool) -> void:
 var sfx: UiSfx   ## shared UI sound player (hit / kill / click / ready), SFX bus
 
 func _ready() -> void:
+    Net.mode_changed.connect(func(_m): apply_speed())
     sfx = UiSfx.new()
     add_child(sfx)
     load_from(PATH)
@@ -111,10 +112,21 @@ func apply_fov(cam: Camera3D) -> void:
     if cam:
         cam.fov = clampf(fov, FOV_MIN, FOV_MAX)
 
+## Game speed only applies offline / solo: online matches always run at 1.0 (the host and every client
+## must simulate at the same rate). Re-applied whenever Net.mode changes.
+func effective_game_speed() -> float:
+    return 1.0 if Net.is_online() else clampf(game_speed, SPEED_MIN, SPEED_MAX)
+
+func speed_allowed() -> bool:
+    return not Net.is_online()
+
+func apply_speed() -> void:
+    Engine.time_scale = effective_game_speed()
+
 func apply() -> void:
     Actions.mouse_sensitivity = 0.0025 * sensitivity
     apply_audio()
-    Engine.time_scale = clampf(game_speed, SPEED_MIN, SPEED_MAX)
+    apply_speed()
     if is_inside_tree():
         apply_fov(get_viewport().get_camera_3d())
     if DisplayServer.get_name() == "headless":

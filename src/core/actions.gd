@@ -9,7 +9,7 @@ const BINDINGS := {
     "reload": [KEY_R], "pause": [KEY_ESCAPE],
     "scoreboard": [KEY_TAB],   # UI-only, never part of InputFrame
 }
-const MOUSE_BINDINGS := {"fire": [MOUSE_BUTTON_LEFT]}
+const MOUSE_BINDINGS := {"fire": [MOUSE_BUTTON_LEFT], "ability3": [MOUSE_BUTTON_RIGHT]}
 
 var mouse_sensitivity := 0.0025   ## radians per pixel
 var gameplay_enabled := true      ## false while paused / cursor released
@@ -53,6 +53,7 @@ func poll(_hero = null) -> InputFrame:
     f.reload = Input.is_action_just_pressed("reload")
     f.ability1 = Input.is_action_just_pressed("ability1")
     f.ability2 = Input.is_action_just_pressed("ability2")
+    f.ability3 = Input.is_action_just_pressed("ability3")
     f.ultimate = Input.is_action_just_pressed("ultimate")
     for s in sources:
         s.contribute(f)

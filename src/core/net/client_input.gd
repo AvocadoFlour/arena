@@ -5,7 +5,7 @@ extends RefCounted
 ## the frame so the hero can predict its own movement.
 var inner
 var seq := 0
-var counters := [0, 0, 0, 0, 0]
+var counters := [0, 0, 0, 0, 0, 0]   ## jump, reload, a1, a2, ult, a3
 var pending: Array = []    ## [{seq, move, yaw, jump, pos}]
 var sent := 0
 var respawn_seq := -1   ## inputs up to this seq predate our last respawn (ignored for reconciliation)
@@ -16,8 +16,8 @@ func _init(src) -> void:
 func poll(h) -> InputFrame:
     var f: InputFrame = inner.poll(h)
     seq += 1
-    var edges := [f.jump, f.reload, f.ability1, f.ability2, f.ultimate]
-    for i in 5:
+    var edges := [f.jump, f.reload, f.ability1, f.ability2, f.ultimate, f.ability3]
+    for i in edges.size():
         if edges[i]:
             counters[i] += 1
     var yaw := wrapf(h.yaw + f.look.x, -PI, PI)

@@ -17,13 +17,13 @@ Modules talk only through these shapes. Anything not listed here is private to i
 | move | Vector2 | x = strafe right, y = forward, length ≤ 1 |
 | look | Vector2 | radians this tick: x = yaw (+ left), y = pitch (+ up) |
 | fire | bool | held |
-| jump, reload, ability1, ability2, ultimate | bool | pressed this tick (edge) |
+| jump, reload, ability1, ability2, ability3, ultimate | bool | pressed this tick (edge); ability3 = right mouse, ignored by heroes without that slot |
 
 **Input source interface**: any object with `poll(hero) -> InputFrame`.
 Implementations: `Actions` (keyboard/mouse autoload), `BotBrain` (AI). Planned: touch, network.
 
 **Action map** (`Actions.BINDINGS`, registered into Godot `InputMap`):
-`move_forward/back/left/right, jump, fire, ability1, ability2, ultimate, reload, pause, scoreboard` (Tab; UI-only, never in InputFrame).
+`move_forward/back/left/right, jump, fire, ability1, ability2, ability3 (right mouse), ultimate, reload, pause, scoreboard` (Tab; UI-only, never in InputFrame).
 Adding a device = append `{contribute(frame: InputFrame)}` object to `Actions.sources`
 (e.g. a TouchControls node that ORs its buttons and adds its stick to `frame.move`/`frame.look`).
 Gameplay code never reads `Input` directly.
@@ -35,7 +35,7 @@ Gameplay code never reads `Input` directly.
   "collider": {"radius","height"},
   "primary": {"type":"hitscan","damage","fire_rate","mag","reload_time","spread_deg","range"},
   "ultimate_cost": 500,
-  "abilities": {"ability1": {...}, "ability2": {...}, "ultimate": {...}},
+  "abilities": {"ability1": {...}, "ability2": {...}, "ability3": {...} (optional, right mouse), "ultimate": {...}},
   "model": [{"shape":"capsule|sphere|box","radius","height","size":[x,y,z],"pos":[x,y,z],"color":"#hex|team","muzzle":bool}] }
 ```
 Model parts (optional visual keys, approved v0.4, heroes round 3): `"rot"` [x,y,z] degrees, `"scale"` [x,y,z],
@@ -378,7 +378,7 @@ team with fewer humans). Modes: `OFFLINE` (single player, unchanged), `HOST`, `C
 - **Hero roles** `hero.net_role`: `auth` (full sim, host/offline), `predicted` (client's own hero: look +
   movement only, then reconciled), `puppet` (snapshot-driven, no physics). `hero.net_id` = registry id.
 - **Input** (client → host, every physics tick, unreliable_ordered): `[seq, view_tick, yaw, pitch, move: Vector2,
-  fire, counters[jump, reload, a1, a2, ult]]`. Yaw/pitch absolute; buttons as cumulative press counters (no lost or
+  fire, counters[jump, reload, a1, a2, ult, a3]]` (host also accepts 5-counter packets without a3); snapshot cooldowns follow `Net.SLOTS` = ability1, ability2, ability3, ultimate. Game speed (`Settings.game_speed` -> `Engine.time_scale`) is offline/solo only: online it is forced to 1.0 (re-applied on `Net.mode_changed`) and the menu slider is disabled. Yaw/pitch absolute; buttons as cumulative press counters (no lost or
   doubled edges). Host side: `RemoteInput` (queue ≤ 8, pitch/move clamped); client side: `ClientInput(inner)`.
 - **Snapshots** (host → clients, 20 Hz = every `SNAP_EVERY` = 3 ticks, unreliable_ordered):
   heroes `[id, pos, vel, yaw, pitch, hp, dead, visible, ammo, reloading, ult, cds×3, overheal, respawn_left,

@@ -10,4 +10,5 @@ var jump := false          ## edge (pressed this tick)
 var reload := false        ## edge
 var ability1 := false      ## edge (Kestrel: dash)
 var ability2 := false      ## edge (Kestrel: ground slam)
+var ability3 := false      ## edge (right mouse; heroes without an ability3 ignore it)
 var ultimate := false      ## edge

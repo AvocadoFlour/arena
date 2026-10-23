@@ -14,7 +14,7 @@ const RECONCILE_EPS := 0.15      ## m, prediction error tolerated before replayi
 const EVENT_SIGNALS := {"damage_dealt": 1, "pickup_changed": 1, "pad_launched": 1, "killed": 1, "respawned": 1, "cover_broken": 1, "healed": 1, "ability_used": 3, "ability_ready": 2,
     "capture_progress": 1, "capture_completed": 1, "match_score": 1, "match_ended": 1}
 const UNRELIABLE_EVENTS := ["capture_progress", "match_score"]
-const SLOTS := ["ability1", "ability2", "ultimate"]
+const SLOTS := ["ability1", "ability2", "ability3", "ultimate"]
 enum { OFFLINE, HOST, CLIENT }
 
 signal welcomed(info: Dictionary)
@@ -25,6 +25,7 @@ signal peer_count_changed(n: int)
 signal disconnected(reason: String)
 signal public_ip_ready(ip: String)
 signal port_map_ready(ok: bool)
+signal mode_changed(mode: int)   ## OFFLINE / HOST / CLIENT changed (host, join, close)
 
 var mode := OFFLINE
 var port := DEFAULT_PORT
@@ -96,6 +97,7 @@ func host(p: int = DEFAULT_PORT) -> int:
         return err
     multiplayer.multiplayer_peer = peer
     mode = HOST
+    mode_changed.emit(mode)
     port = p
     _map_port(p)
     return OK
@@ -107,6 +109,7 @@ func join(address: String, p: int = DEFAULT_PORT) -> int:
         return err
     multiplayer.multiplayer_peer = peer
     mode = CLIENT
+    mode_changed.emit(mode)
     port = p
     return OK
 
@@ -116,6 +119,7 @@ func close() -> void:
         multiplayer.multiplayer_peer.close()
     multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
     mode = OFFLINE
+    mode_changed.emit(mode)
     entities.clear()
     peers.clear()
     history.clear()

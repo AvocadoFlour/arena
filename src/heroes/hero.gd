@@ -436,6 +436,8 @@ func _physics_process(dt: float) -> void:
         _use("ability1")
     if f.ability2:
         _use("ability2")
+    if f.ability3:
+        _use("ability3")
     if f.ultimate:
         _use("ultimate")
     var was_air := not is_on_floor()
