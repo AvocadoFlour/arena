@@ -3,7 +3,7 @@
 ## Status for Grokbot (2026-10-23, branch master, on top of 78d2d49 / v0.9.4)
 `master` is the default branch. Do not redo a line marked done.
 - `00ad722` (build passed, 735 tests, smoke and network test, version left at 0.9.4): documented burst, root, damage reduction, blink, shockwave, pull, rollback, ride, line_slash. Übel roster line. Snapshot fields 19–20 are `root_left` and `slow_mult`.
-- Bot policies for `blink`, `shockwave`, `pull`, `rollback`, `ride`, and `line_slash` are in `BotBrain.want_ability`. While mounted, bots do not jump. Tests: `tests/ai_unit_tests.gd::test_tomo_nidjo_ubel_ability_policy`. Ranges come from the hero def.
+- Bot policies for `blink`, `shockwave`, `pull`, `rollback`, `ride`, and `line_slash` are in `BotBrain.want_ability` (`7aab9b6`). While mounted, bots do not jump. Tests: `tests/ai_unit_tests.gd::test_tomo_nidjo_ubel_ability_policy`. Ranges come from the hero def. `./build.sh` on this commit: passed (unit tests include the new policy test, smoke and network test passed). Version left at 0.9.4.
 
 Still open. Older sections below are history, not a fresh queue. `ui`, `maps`, `tomo` and `nidjo` are already merged.
 1. **Optional, net:** a snapshot field for the ride (rider, victim, time left) instead of the `mount:<rider>:<victim>` prop. Hop-off on the client still waits for the host.
