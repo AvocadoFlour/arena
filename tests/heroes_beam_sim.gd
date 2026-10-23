@@ -44,7 +44,7 @@ func _process(dt: float) -> void:
         0:
             if t > 0.2:
                 _rec("idle_no_ribbon", ab.ribbon == null or not ab.ribbon.visible)
-                ab.cooldown.remaining = ab.cooldown.duration   # snapshot: Encore Beam just used
+                ab.cooldown.remaining = ab.cooldown.duration + float(ab.def.get("duration", 3.0))   # snapshot: beam just started (remaining > cooldown)
                 step = 1
                 t = 0.0
         1:
@@ -79,7 +79,7 @@ func _process(dt: float) -> void:
                 _rec("target_glow_on_screen", glow.visible and gs.x >= 0 and gs.y >= 0 and gs.x <= vp.x and gs.y <= vp.y and glow.material_override.no_depth_test, "glow=%s" % gs)
                 _rec("notes_flow_along_beam", ab.beads.slice(0, ab.BEADS).all(func(n): return n.visible and Geometry3D.get_closest_point_to_segment(n.global_position, a, b).distance_to(n.global_position) < ab.WAVE + 0.05))
                 _rec("mostly_outside_own_model", outside >= 9, "%d/11 samples" % outside)
-                ally.global_position = Vector3(1.2, 0, -9)   # interpolated move (still in cone): ribbon follows
+                ally.global_position = Vector3(0.35, 0, -9)   # still on the 1 m beam: ribbon follows
                 step = 2
                 t = 0.0
         2:
@@ -96,13 +96,13 @@ func _process(dt: float) -> void:
         4:
             if t > 0.3:
                 _rec("gone_after_fade", not ab.ribbon.visible and _alpha() == 0.0 and ab.beads.all(func(n): return not n.visible))
-                ally.global_position = Vector3(30, 0, 30)    # nobody in cone -> self heal aura
-                ab.cooldown.remaining = ab.cooldown.duration
+                ally.global_position = Vector3(30, 0, 30)    # nobody on the aim: gray beam, not a self aura
+                ab.cooldown.remaining = ab.cooldown.duration + float(ab.def.get("duration", 3.0))
                 step = 5
                 t = 0.0
         5:
             if t > 0.2:
-                _rec("self_heal_aura", ab.aura.visible and not ab.ribbon.visible and ab.vis_target == tt)
+                _rec("empty_beam_is_gray", ab.ribbon != null and ab.ribbon.visible and not ab.aura.visible and ab.vis_target == null and ab.vis_mode == "empty")
                 tt.dead = true                               # snapshot: healer died
                 step = 6
                 t = 0.0

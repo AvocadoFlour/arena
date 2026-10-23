@@ -54,6 +54,15 @@ func set_bot_count(team: int, n: int) -> bool:
         return false
     return bool(src.set_bot_count(team, clampi(n, 0, MAX_BOTS)))
 
+## Hero id per bot on `team`, in the same order as the count. Empty when the hook is missing.
+func bot_heroes(team: int) -> Array:
+    return src.match_bot_heroes(team) if _has("match_bot_heroes") else []
+
+func set_bot_hero(team: int, index: int, hero_id: String) -> bool:
+    if not bots_available() or not can_set_bots() or not _has("set_bot_hero"):
+        return false
+    return bool(src.set_bot_hero(team, index, hero_id))
+
 func request_hero(hero_id: String) -> bool:
     return bool(src.request_hero_change(hero_id)) if hero_available() else false
 

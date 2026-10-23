@@ -2,7 +2,7 @@
 
 **Version 0.9.1.** Repo: <https://github.com/AvocadoFlour/arena> (private)
 
-Arena is an original third-person hero shooter built in Godot 4.7.2, for Windows PCs first. You pick a hero with unique abilities (left click, Q, E, Shift and an ultimate) and fight alongside or against bots and friends.
+Arena is an original third-person hero shooter built in Godot 4.7.2, for Windows PCs first. You pick a hero with unique abilities (left click, right-click, Q, E, Shift and an ultimate for now at leaest) and fight alongside or against bots and friends.
 
 ## Heroes
 | Hero | Role |

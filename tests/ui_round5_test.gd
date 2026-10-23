@@ -37,6 +37,7 @@ func test_real_host_screen_offline() -> void:
     check(p.status.text == "Finding your public IP...", "offline: no lookup result yet")
     p._on_ip("")   # what offline emits (deferred) -> core's fallback text
     check(p.status.text.begins_with("Could not look up your public IP"), "offline fallback text")
+    check(p.status.text.contains("opens UDP") and p.status.text.contains("No VPN"), "host screen does not ask for a VPN")
     var ports := []
     p.host_requested.connect(func(port): ports.append(port))
     btns[0].pressed.emit()

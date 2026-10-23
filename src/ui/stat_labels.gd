@@ -40,6 +40,9 @@ const LABELS := {
     "distance": ["Distance", " m"],
     "shield_wall:distance": ["Distance in front", " m"],
     "width": ["Wall width", " m"],
+    "heal_beam:width": ["Beam width", " m"],
+    "magma:damage": ["Damage per second", ""],
+    "magma:width": ["Beam width", " m"],
     "height": ["Wall height", " m"],
     "thickness": ["Wall thickness", " m"],
     "radius": ["Radius", " m"],
@@ -62,6 +65,8 @@ const LABELS := {
     "bonus_shots": ["Bonus shots", ""],
     "bonus_window": ["Bonus window", " s"],
     "hps": ["Healing per second", ""],
+    "enemy_dps": ["Damage per second", ""],
+    "ally_heal": ["Ally heal", " HP"],
     "total_heal": ["Total healing", ""],
     "heal": ["Heal", ""],
     "cone_deg": ["Aim cone", "°"],
@@ -85,9 +90,9 @@ const PAIRS := [
     ["damage_reduction", "dr_duration", "dr"],  # rollback
 ]
 ## Deliberately never shown: bookkeeping / covered by another line.
-const HIDDEN := ["needs_ult", "sample"]
+const HIDDEN := ["needs_ult", "sample", "exclusive"]
 ## Display order (keys not listed keep their table order after these).
-const ORDER := ["damage", "finisher_damage", "burst_damage", "dps", "heal", "hps", "total_heal", "overheal",
+const ORDER := ["damage", "finisher_damage", "burst_damage", "dps", "heal", "hps", "enemy_dps", "ally_heal", "total_heal", "overheal",
     "fire_rate", "burst", "burst_delay", "combo_hits", "combo_window", "range", "max_range", "arc_deg", "lunge",
     "radius", "distance", "width", "height", "thickness", "hit_radius", "splash_radius", "cone_deg",
     "slow", "slow_mult", "root", "damage_reduction", "damage_mult", "bonus_mult", "bonus_shots", "bonus_window",

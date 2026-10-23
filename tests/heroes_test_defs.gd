@@ -122,14 +122,72 @@ func test_heal_beam_self_fallback() -> void:
     var ab = h.abilities["ability1"]
     h.health.hp = 100.0
     check(ab.activate(), "activates")
-    check(not ab.activate(), "on cooldown")
+    check(ab.channeling() and not ab.can_activate(), "a second start is blocked; Shift again would cancel")
+    check(ab.pick_target() == null and ab.mode_for(null) == "empty", "nobody in front is an empty beam")
+    check(ab.mode_color("empty").is_equal_approx(Color("#9aa3ad")), "empty beam is gray")
     for i in 60:
         ab.tick(1.0 / 60.0)
-    near(h.health.hp, 160.0, 1.0, "self heal 60 hps for 1 s")
-    for i in 180:
+    near(h.health.hp, 100.0, 0.01, "empty beam does not heal her")
+    for i in 190:
         ab.tick(1.0 / 60.0)
     check(not ab.channeling(), "channel ends")
-    near(h.health.hp, 225.0, 0.01, "capped")
+    h.free()
+
+func test_encore_beam_damages_the_enemy_it_aims_at() -> void:
+    var tree := Engine.get_main_loop()
+    var healer := Hero.from_def("res://src/heroes/twin_tails.json")
+    var foe := Hero.from_def("res://src/heroes/cob.json")
+    var ally := Hero.from_def("res://src/heroes/the_best.json")
+    tree.root.add_child(healer)
+    tree.root.add_child(foe)
+    tree.root.add_child(ally)
+    healer.set_team(0)
+    foe.set_team(1)
+    ally.set_team(0)
+    healer.global_position = Vector3.ZERO
+    healer.yaw = 0.0
+    healer.rotation.y = 0.0
+    foe.global_position = Vector3(0, 0, -8)
+    ally.global_position = Vector3(6, 0, -2)
+    var ab = healer.abilities["ability1"]
+    check(ab.pick_target() == foe, "the enemy in front is the target")
+    check(ab.mode_for(foe) == "damage", "an enemy target is the damage mode")
+    check(ab.mode_color("damage").is_equal_approx(Color("#ff3b3b")), "damage colour is red")
+    check(ab.mode_for(ally) == "heal", "an ally target stays the heal mode")
+    var before := foe.health.hp
+    check(ab.activate(), "beam starts")
+    for i in 60:
+        ab.tick(1.0 / 60.0)
+    check(foe.health.hp < before - 25.0, "about 30 damage in 1 s (lost %.1f)" % (before - foe.health.hp))
+    check(ab.target == foe, "the channel stays on the enemy")
+    ab.left = 0.0
+    ab.cooldown.remaining = 0.0
+    ally.global_position = Vector3(0, 0, -8)
+    foe.global_position = Vector3(8, 0, -2)
+    ally.health.hp = 100.0
+    check(ab.pick_target() == ally, "an ally in front is healed instead")
+    check(ab.activate(), "beam starts on the ally")
+    for i in 60:
+        ab.tick(1.0 / 60.0)
+    check(ally.health.hp > 150.0, "ally healed, hp=%.1f" % ally.health.hp)
+    for n in [healer, foe, ally]:
+        n.free()
+
+func test_encore_beam_blocks_only_the_gun() -> void:
+    var tree := Engine.get_main_loop()
+    var h := Hero.from_def("res://src/heroes/twin_tails.json")
+    tree.root.add_child(h)
+    h.global_position = Vector3.ZERO
+    var ab = h.abilities["ability1"]
+    check(ab.activate(), "beam on")
+    var ammo := h.weapon.ammo
+    h._try_fire()
+    check(h.weapon.ammo == ammo, "left click does not shoot")
+    h._use("ability2")
+    check(not h.abilities["ability2"].cooldown.is_ready(), "E still fires")
+    h.ult.add(10000.0)
+    h._use("ultimate")
+    check(not h.ult.is_full(), "Q still fires")
     h.free()
 
 func test_models_animated_and_visual_only() -> void:

@@ -352,8 +352,9 @@ func _show_net_status() -> void:
     cl.add_child(_net_status)
     add_child(cl)
     var upd := func(_x = null):
-        _net_status.text = "Hosting  %s:%d   players %d/%d" % [Net.public_ip if Net.public_ip != "" else "<your public IP>", Net.port, 1 + Net.peers.size(), Net.MAX_HUMANS]
+        _net_status.text = "Hosting  %s:%d   players %d/%d\n%s" % [Net.public_ip if Net.public_ip != "" else "<your public IP>", Net.port, 1 + Net.peers.size(), Net.MAX_HUMANS, Net.port_note]
     Net.public_ip_ready.connect(upd)
+    Net.port_map_ready.connect(func(_ok): upd.call())
     Net.peer_count_changed.connect(upd)
     upd.call()
     if Net.public_ip == "" and not args.has("net_test"):
@@ -633,6 +634,42 @@ func set_bot_count(team: int, n: int) -> bool:
     while counts[team] > n:
         Net.despawn(_bots[team].pop_back())
         counts[team] -= 1
+    _publish_bot_counts()
+    return true
+
+## Hero id of each live bot on `team`, in stepper order.
+func match_bot_heroes(team: int) -> Array:
+    var out: Array = []
+    if not _bots.has(team):
+        return out
+    _bots[team] = _bots[team].filter(func(b): return is_instance_valid(b) and not b.is_queued_for_deletion())
+    for b in _bots[team]:
+        out.append(String(b.def.get("id", "")))
+    return out
+
+## OFFLINE/HOST: replace bot `index` on `team` with `hero_id`. Keeps the slot, position and yaw.
+func set_bot_hero(team: int, index: int, hero_id: String) -> bool:
+    if Net.is_client() or not (team in [0, 1]) or _map == null or _match_over():
+        return false
+    if not GameConfig.hero_ids().has(hero_id):
+        return false
+    var ids := match_bot_heroes(team)
+    if index < 0 or index >= ids.size() or ids[index] == hero_id:
+        return index >= 0 and index < ids.size() and ids[index] == hero_id
+    var old = _bots[team][index]
+    var pos: Vector3 = old.global_position
+    var yaw: float = old.yaw
+    Net.despawn(old)
+    _bots[team].remove_at(index)
+    var label := "Ally %d (%s)" if team == 0 else "Bot %d (%s)"
+    var b := _spawn_bot(hero_id, team, index, _spawns, _map, GameConfig.difficulty_for(team), label, index)
+    _bots[team].pop_back()
+    _bots[team].insert(index, b)
+    b.global_position = pos
+    b.yaw = yaw
+    b.rotation.y = yaw
+    b.process_mode = Node.PROCESS_MODE_PAUSABLE
+    Net.broadcast_spawn(b)
     _publish_bot_counts()
     return true
 

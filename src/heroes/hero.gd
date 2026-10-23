@@ -45,6 +45,9 @@ const ROOT_BLOCKS := ["dash", "blink", "leap", "charge", "ride"]
 const MountLink := preload("res://src/abilities/mount_link.gd")
 const MomentumLink := preload("res://src/abilities/momentum_link.gd")
 var ridden_by = null                 ## HOST: the hero riding on our head (ride ability), or null
+const MagmaStream := preload("res://src/heroes/fx/magma_stream.gd")
+var _magma: Node3D
+var _ally_heal := 0.0                ## primary "ally_heal": HP restored per hitscan hit on an ally (0 = allies ignored)
 var _ride = null                     ## the hero's ride ability (Übel's Shift), if any: host-side mount state machine
 var charge_hits: Array = []          ## heroes already hit by the current charge
 var buff_mult := 1.0                 ## outgoing damage multiplier from buffs (stacks with damage_scale)
@@ -62,7 +65,8 @@ var net_id := -1                   ## network id (Net registry), -1 = unregister
 ## Core hook (heroes request): when true, _die() keeps the body visible (collision still off) so the
 ## Visual node can play a death animation on the live model; hero code hides it when done (visible = false).
 var keep_body_when_dead := false
-var heal_target_id := -1          ## CLIENT: replicated heal-beam target (net id; -1 = none/self), visual only
+var heal_target_id := -1          ## CLIENT: replicated heal-beam target (net id; -1 = none), visual only
+var primary_beam := false         ## magma primary is held (host gameplay; replicated for the stream)
 var net_role := "auth"             ## "auth" simulates fully; "predicted" (client's own hero) moves only; "puppet" is driven by snapshots
 var _muzzle: Node3D
 ## Skinned GLB model (hero JSON "model_scene"); null = primitive model. `--primitive_models` forces primitives.
@@ -105,6 +109,7 @@ func _build() -> void:
     on_hit_speed = prim.get("on_hit_speed", {})
     # Built-in burst fire: "burst" > 1 -> BurstWeapon (fire_rate inside a burst, burst_delay between bursts)
     weapon = BurstWeapon.new(prim) if int(prim.get("burst", 1)) > 1 else Weapon.new(prim)
+    _ally_heal = float(prim.get("ally_heal", 0.0))
     ult = UltMeter.new(float(def.get("ultimate_cost", 500)))
     var abl: Dictionary = def.get("abilities", {})
     for slot in abl:
@@ -126,6 +131,11 @@ func _build() -> void:
     _build_flinch()
     add_to_group("heroes")
     set_team(team)
+    if String(prim.get("type", "")) == "magma":
+        _magma = MagmaStream.new()
+        _magma.name = "MagmaStream"
+        add_child(_magma)
+        _magma.setup(self)
 
 ## Model parts (INTERFACES §2 "model"), plus optional visual-only keys:
 ## "rot":[x,y,z] degrees, "scale":[x,y,z], "pivot":[x,y,z] (part rotates about this point),
@@ -231,6 +241,8 @@ func _process(dt: float) -> void:
     for ab in abilities.values():
         if ab.has_method("visual_process"):
             ab.visual_process(dt)   # ability visuals (e.g. heal ribbon fade-out also runs while dead)
+    if _magma and _magma.has_method("visual_process"):
+        _magma.visual_process(dt)
     if model and dead != _was_dead:   # replicated `dead` edges: death anim on the live body (core keeps it visible)
         if dead:
             model.play_death()
@@ -442,7 +454,9 @@ func _physics_process(dt: float) -> void:
         if weapon is BurstWeapon:
             BurstWeapon.continue_burst(self)
         if f.fire:
-            _try_fire()   # mounted: attacks (and casts above) still work
+            _handle_fire(dt)
+        else:
+            _clear_beam()
         return
     if root_left > 0.0:
         root_left = maxf(0.0, root_left - dt)
@@ -477,7 +491,9 @@ func _physics_process(dt: float) -> void:
             _fire_buffered = false   # landed: the landing impact (on_landed above) already ran, now the swing
             _try_fire()
     if f.fire:
-        _try_fire()
+        _handle_fire(dt)
+    else:
+        _clear_beam()
     if global_position.y < -25.0:
         _die(null, "fall")
     var _unused = was_air
@@ -487,12 +503,20 @@ func _predict_step(dt: float) -> void:
     if dead or input_source == null:
         return
     var f: InputFrame = input_source.poll(self)
+    if _is_magma():
+        primary_beam = f.fire and channel_lock() == null
     yaw = wrapf(yaw + f.look.x, -PI, PI)
     pitch = clampf(pitch + f.look.y, -1.3, 1.3)
     rotation.y = yaw
     var wish := global_transform.basis * Vector3(f.move.x, 0, -f.move.y)
     wish.y = 0.0
     last_wish = wish
+    var jump := f.jump
+    if root_left > 0.0:
+        root_left = maxf(0.0, root_left - dt)
+    if rooted():
+        wish = Vector3.ZERO
+        jump = false
     var under = mounted_on()
     if under != null:   # riding (replicated MountLink): follow the victim's displayed head, no own movement
         var seat: Vector3 = under.global_position + _ride.seat_offset(under) if _ride else under.global_position + Vector3(0, 1.8, 0)
@@ -502,10 +526,22 @@ func _predict_step(dt: float) -> void:
             input_source.record_pos(global_position)
         return
     velocity = Net.predict_pad(global_position, velocity)   # jump pads, same rule as the host (maps §6)
-    velocity = Motion.step_velocity(velocity, wish, is_on_floor(), f.jump, effective_move_cfg(), dt)
+    velocity = Motion.step_velocity(velocity, wish, is_on_floor(), jump, effective_move_cfg(), dt)
+    if rooted():
+        velocity.x = 0.0
+        velocity.z = 0.0
+        velocity.y = minf(velocity.y, 0.0)
     move_and_slide()
     if input_source.has_method("record_pos"):
         input_source.record_pos(global_position)
+
+## An "exclusive" channel (Encore Beam) replaces primary fire only. Other abilities still cast.
+## The channel's own slot still works, so Shift can cancel the beam. Movement and aim stay.
+func channel_lock():
+    for ab in abilities.values():
+        if ab.has_method("channeling") and ab.channeling() and bool(ab.def.get("exclusive", false)):
+            return ab
+    return null
 
 func _use(slot: String) -> void:
     if rooted() and abilities.has(slot) and String(abilities[slot].def.get("type", "")) in ROOT_BLOCKS:
@@ -531,7 +567,63 @@ var _fire_buffer_age := 0.0
 func _melee() -> bool:
     return String(def.get("primary", {}).get("type", "hitscan")) == "melee"
 
+func _is_magma() -> bool:
+    return String(def.get("primary", {}).get("type", "")) == "magma"
+
+func _clear_beam() -> void:
+    if _is_magma():
+        primary_beam = false
+
+## Held magma primary. Left click keeps the stream on; it does not spend ammo.
+func _handle_fire(dt: float) -> void:
+    if channel_lock() != null:
+        _clear_beam()
+        return
+    if _is_magma():
+        primary_beam = true
+        _magma_tick(dt)
+        return
+    _try_fire()
+
+func _magma_tick(dt: float) -> void:
+    var p: Dictionary = def.get("primary", {})
+    var dps := float(p.get("damage", 36.0))
+    var rng := float(p.get("range", 16.0))
+    var reach := float(p.get("width", 0.7)) * 0.5
+    var a: Vector3 = eye_position()
+    var end: Vector3 = a + look_dir() * rng
+    if not is_inside_tree():
+        return
+    var exclude: Array = [get_rid()]
+    for _i in 8:
+        var q := PhysicsRayQueryParameters3D.create(a, end)
+        q.exclude = exclude
+        var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(q)
+        if hit.is_empty():
+            break
+        var c = hit.collider
+        if c is Node and c.is_in_group("heroes"):
+            exclude.append(c.get_rid())
+            continue
+        end = hit.position
+        if c is Node and c.is_in_group("destructible"):
+            c.take_damage(dps * dt * damage_mult(), self, end, "primary")
+        break
+    for h in get_tree().get_nodes_in_group("heroes"):
+        if h == self or h.dead or not h.is_inside_tree() or h.team == team or h.get_world_3d() != get_world_3d():
+            continue
+        var col: Dictionary = h.def.get("collider", {})
+        var cr := float(col.get("radius", 0.4))
+        var ch := float(col.get("height", 1.8))
+        var p0: Vector3 = h.global_position + Vector3(0, cr, 0)
+        var p1: Vector3 = h.global_position + Vector3(0, maxf(ch - cr, cr), 0)
+        var cp := Geometry3D.get_closest_points_between_segments(a, end, p0, p1)
+        if cp[0].distance_to(cp[1]) <= reach + cr:
+            h.take_damage(dps * dt * damage_mult(), self, h.global_position + Vector3(0, 1.2, 0), "primary", "")
+
 func _try_fire() -> void:
+    if channel_lock() != null:
+        return
     if _melee() and movement_active() and mounted_on() == null:
         if not _fire_buffered:
             _fire_buffered = true
@@ -567,6 +659,8 @@ func _fire_shot() -> void:
         var c = hit.collider
         if c is Hero and c.team != team and not c.dead:
             c.take_damage(weapon.damage * damage_mult(), self, end, "primary")
+        elif c is Hero and c != self and c.team == team and not c.dead and _ally_heal > 0.0:
+            c.heal(_ally_heal, self, "")   # primary ally_heal: host-only, credited via Events.healed
         elif c.is_in_group("destructible"):
             c.take_damage(weapon.damage * damage_mult(), self, end, "primary")   # breakable cover (maps §6)
     var from := beam_origin()

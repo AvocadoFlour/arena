@@ -1,15 +1,60 @@
 # Requests from heroes
 
-## Round 6 (open, optional; nothing blocks heroes)
-The Encore Beam ribbon is driven from replicated state only:
-- **Channel active:** derived from the replicated ability1 cooldown (`duration - remaining < channel duration`).
-- **Target:** clients re-run `heal_beam.pick_target()` on replicated positions, yaw, pitch, team and dead.
+## Status (2026-10-23, branch grokChatBotBuilder)
 
-The healed target itself is NOT replicated. Because remote heroes are interpolated 0.1 s behind, the client's
-pick can differ from the host's when two allies sit at the cone edge.
-1. **Optional:** add `beam_target` (net_id or -1) to the hero snapshot, e.g. `abilities.ability1.target`, for the
-   exact target. A cheaper alternative is to replicate the host's `heal_beam.target` via a reliable
-   `Events.ability_target(hero, slot, target)`. If added, heroes switches `visual_process` to prefer it (one line).
+Continued work from this session is on `grokChatBotBuilder`. `master` is at `121ac97`. Version is still 0.9.4.
+
+Asked for on 2026-10-23, so friends can play without a VPN:
+
+- `Net.host` asks the router to forward the match UDP port with UPnP (`Net._map_port`). `Net.close` removes the mapping. Based on the request to play together without installing a virtual network. The host screen and the in-match corner say whether the router opened the port. Friends still join the public `IP:24565` from Host online. If the ISP hides the PC, the corner says so and someone else should host. Tests stay offline (`Net.offline`), so they do not discover a router.
+
+Asked for earlier the same day, commit `ef006a7`:
+
+- Twin Tails' primary damage is 6, down from 11. Fire rate stays 7. Based on her dealing too much damage for a healer. Ally heal per shot stays 7.
+- Shift still replaces left click with the beam. It no longer blocks E or Q. `Hero._use` does not consult `channel_lock`. The gun path still does. Based on the request that Shift is an upgrade of the primary, not a lockout of the rest of the kit.
+- Settings has a Game speed slider, 50% to 100% in steps of 5, saved as `game/speed` in `user://settings.cfg`. `Settings.apply` sets `Engine.time_scale`. 100% is normal. Based on the request to run the match slower, for example at 75%.
+
+Asked for earlier the same day, commit `558b328`:
+
+- Each bot in a match can be set to a specific hero. Based on `set_bot_count` only storing a count and assigning the next roster id. `Main.match_bot_heroes(team)` and `Main.set_bot_hero(team, index, hero_id)` replace that bot in place (position and yaw kept, respawned hero, `Net.broadcast_spawn`). The Match page (Esc) shows a `< hero >` row per bot under the team stepper. The host changes it. New bots from `+` still take the old roster cycle until a row is used.
+- Twin Tails' Shift replaces left click for the beam's duration. Based on the request that she stop shooting and aim the beam at an ally (heal), an enemy (damage), or nobody (gray, and that has to be possible). `heal_beam.gd` follows `aim_end()` instead of locking onto the nearest hero or herself. Allies on the beam are healed, enemies on it take `enemy_dps`, nobody leaves `color_empty` `#9aa3ad`. `cone_deg` is no longer on her def. The gun stays blocked while it runs. E and Q are not blocked; that is the Shift bullet under `ef006a7`.
+- Übel's primary is Magma Thread. Based on the request that she be a mage and that left click be a held magma beam, wavy and not the Encore ribbon. `ubel.json` role is `mage`, primary type `magma`, 36 damage/s, 16 m, width 0.7. `Hero._magma_tick` applies the damage. The drawing is `src/heroes/fx/magma_stream.gd` (corkscrew of hot and crust blobs, depth-tested). Ride, Clean Cut and Last Smile are unchanged. Snapshot field 21 is `primary_beam` so other clients see the stream. The owning client draws from its own fire.
+
+Already on `master` (`121ac97`):
+
+- `00ad722`, notes `74724e3`. Based on the hero notes and `docs/INTERFACES.md` being behind the code already on `master`. Documented burst, root, damage reduction, blink, shockwave, pull, rollback, ride, line_slash, and the Übel roster line. Snapshot fields 19–20 are `root_left` and `slow_mult`. `./build.sh` passed: 735 tests, smoke, network test.
+- `7aab9b6`, notes `0d5c2ae`. Based on `BotBrain.want_ability` having no case for those abilities. Added `blink`, `shockwave`, `pull`, `rollback`, `ride`, and `line_slash`. While mounted, bots do not jump. `./build.sh` passed: 736 tests.
+- `2bd0bfe`, notes `121ac97`. Based on the request that Twin Tails' Shift heal beam turn red and damage the enemy it is aimed at. That commit is a 3 s channel, 30 damage/s, colour `#ff3b3b`, no cancel, no lockout, no width change, no ally heals. `./build.sh` passed: 737 tests. This is the tip of `master`.
+
+Only on `grokChatBotBuilder`:
+- `380e604`. Based on `heroes-tt-wip` tip `d94d32d` (merge-base with `master` was `a0a9613`). The user asked for the gameplay part of that branch after the Blender half could not be finished here (no Blender installed, and `d94d32d` did not export a new `.glb`). `heroes-tt-wip` was not merged. The gameplay files were brought over and adapted: `src/heroes/twin_tails.json`, `src/abilities/heal_beam.gd`, `src/abilities/projectile_shot.gd`, `src/heroes/hero.gd`, `src/heroes/hero_abilities.gd`, `src/ui/stat_labels.gd`, `tests/heroes_tt_heal_sim.gd`, and the beam/model tests that now set `cooldown.remaining` above the cooldown length to mean the beam just started. Left on `heroes-tt-wip`: `src/heroes/models/twin_tails/blender/build_twin_tails.py` (face v3, larger headset wings) and `src/heroes/models/cob/blender/build_cob.py` (shell plates). `./build.sh` on `380e604` passed 2026-10-23: 768 tests, 0 failed, smoke 12/12, network test pass. Windows zip `dist/arena-0.9.4-windows.zip`.
+
+What `380e604` set the kit to, in place of the 3 s beam from `2bd0bfe`:
+
+- Shift / Encore Beam, as of the aim change and the later kit change: 4 s, follows the crosshair. 60 HP/s on allies it touches, 30 damage/s on enemies it touches, gray `#9aa3ad` when it hits nobody (it does not heal her). Primary damage is 6. Pressing Shift again cancels. The 8 s cooldown starts when the beam ends. The gun is blocked. E and Q still cast. Walk and aim stay. While it runs, `cooldown.remaining` is cooldown + time left. The host target is snapshot field 18, `heal_target_id`, or -1 when the beam hits nobody.
+- No new snapshot field. While the beam runs, `cooldown.remaining` is `cooldown.duration` plus time left. `HealBeam.channel_visible()` is `remaining > duration`. The host target is snapshot field 18, `heal_target_id` (`Net._heal_target_id`). On a client, `visual_process` uses that id when the entity resolves, and otherwise `pick_target()`.
+- Left click: `primary.ally_heal` 7. A hitscan hit on a living ally heals 7 through `Events.healed` instead of dealing 11. Enemies still take 11. Dead allies are ignored.
+- E / Staccato Note: `ally_heal` 19. The shot already flies through allies. Each ally it passes, or catches in the 2 m splash, is healed 19 once and is not slowed. The enemy still takes 30 and the slow. The note does not heal her.
+- `BotBrain._apply_abilities` skips a slot whose ability is already `channeling()`, because a second press of this beam cancels it. Support already aimed the beam at a hurt ally.
+- Bot Twin Tails do not aim left-click or Staccato at allies. Those heals happen for the player, or when a shot happens to hit an ally.
+- While the beam runs, the HUD cooldown reads about 12 s (8 plus time left), then 8 when the beam ends. That number is the replicated `remaining`.
+- Two test fixes on the way to the green build: `test_heal_beam_self_fallback` was calling `activate()` twice, and the second call now cancels, so the extra call was removed and the test checks `channeling()` and `not can_activate()`. The channel-end loop is 190 ticks, because 60 + 180 ticks is exactly 4.0 s and `left` was still slightly above 0. `enemy_dps` and `ally_heal` are labelled in `src/ui/stat_labels.gd`. `exclusive` is in the hidden set.
+
+`heroes-melee-wip` (`e35f3b7`: `on_hit_speed`, melee and area line of sight, leap-click buffer) and `ai-tuning-wip` were not merged. Those commits are only on those branches.
+
+Still open, as recorded before this session. Older sections below are history. `ui`, `maps`, `tomo` and `nidjo` are already merged.
+1. **Ride replication:** the ride still uses the `mount:<rider>:<victim>` prop. Hop-off on the client waits for the host. A snapshot field (rider, victim, time left) is not added.
+2. **`damage_taken_mult()`** is not in the snapshot. Nothing in `src/ui` reads it.
+3. **Branches left as they were:** `heroes-melee-wip`, `heroes-tt-wip` (gameplay from it is on this branch; the Blender scripts above are only there), `ai-tuning-wip`.
+4. **Hero FX:** Tomo and Niđo have no per-hero cases in `src/heroes/fx/hero_fx.gd` (tomo.md #4, nidjo.md #4).
+
+## Round 6 (open, optional; nothing blocks heroes)
+The Encore Beam ribbon is driven from replicated state. As of `380e604`:
+- **Channel active:** `HealBeam.channel_visible()`, which is `cooldown.remaining > cooldown.duration`. While the channel runs, remaining is stored as cooldown plus time left. The older check (`duration - remaining < channel duration`) was the 3 s beam in `2bd0bfe` and earlier.
+- **Target:** snapshot field 18, `heal_target_id`. Clients use that entity when it resolves. Otherwise they re-run `heal_beam.pick_target()` on replicated positions, yaw, pitch, team and dead.
+
+Remote heroes are interpolated 0.1 s behind, so a local `pick_target()` can differ from the host when two allies sit at the cone edge. Field 18 is the host's target for the ribbon.
+1. **Older request, still open as written:** a dedicated `beam_target` on `abilities.ability1.target`, or a reliable `Events.ability_target`. Field 18 is what shipped instead.
 2. **Removed the per-tick `Fx.tracer` from heal_beam.** It sent ~60 unreliable `_s_fx` RPCs/s per healer and was
    invisible. No core change needed.
 
@@ -98,28 +143,25 @@ UI can call it directly; nothing to wire in core. See src/heroes/README.md.
 `Hero.apply_damage_reduction(frac, dur, key := "default")`, `Hero.damage_taken_mult()`, `Hero.damage_reduction_left(key)`,
 `Hero.damage_reductions` (key -> [frac, secs]). Applied in `take_damage` BEFORE overheal and HP (host/offline only), so it
 can stop a one-shot; keys stack multiplicatively, same key refreshes (max frac / max time); cleared by `clear_buffs()`.
-Niđo's Rollback now uses it (no next-tick refund). Please document it in INTERFACES. Not replicated (HP is); if the
+Niđo's Rollback now uses it (no next-tick refund). Documented in INTERFACES 2026-10-23. Not replicated (HP is); if the
 HUD wants a DR indicator on clients, net.gd would need to send `damage_taken_mult()` (core).
 
-## Oct 19: burst fire built into hero.gd (tomo.md #1 done) - for the lead (INTERFACES §2.1)
+## Oct 19: burst fire built into hero.gd (tomo.md #1 done) - DOCUMENTED 2026-10-23 on master
 `primary.burst` (> 1 rounds per burst) and `primary.burst_delay` (s between bursts; `fire_rate` = rate inside a burst).
 `Hero._build` creates a `BurstWeapon` for it; `_physics_process` calls `BurstWeapon.continue_burst(self)` each auth tick
 before the fire input, so a started burst completes. Hotfix (blink.gd) no longer installs/drives it. Please document.
 
-## Oct 19: real root hook (tomo.md #6 done) - for the lead (INTERFACES) and core net
+## Oct 19: real root hook (tomo.md #6 done) - DOCUMENTED, and root_left/slow_mult replicated 2026-10-23
 `Hero.apply_root(dur)`, `Hero.rooted()`, `Hero.root_left`; `Hero.ROOT_BLOCKS = ["dash", "blink", "leap", "charge"]`.
 While rooted (host/offline): no walking, no jumping, horizontal velocity zeroed (knockback/pull can't move it), no upward
 launch, a running dash/leap is cancelled, movement abilities in ROOT_BLOCKS can't be cast (no cooldown spent); aiming,
 shooting and other abilities work. Distinct from slows (slow_mult stays 1). Projectile defs take `"root": seconds`
 (projectile_shot.gd). Breakpoint now uses `"root": 1.1` instead of `slow {mult 0}`. Cleared on death.
-**Core (net.gd):** root_left (like slow_mult today) is not in the snapshot, so a client-predicted own hero keeps walking
-locally and gets corrected by the host. Please replicate `root_left` (and ideally `slow_mult`) for `_predict_step`.
+**Core (net.gd):** DONE. `root_left` and `slow_mult` are snapshot fields 19 and 20. `_predict_step` and reconcile honour a root.
 **AI:** bots may still try movement abilities while rooted (harmless: _use() refuses).
 
-## Oct 13: Übel (id `ubel`, user-approved fan character) - roster, core, AI, docs
-1. **docs/ROSTER.md (lead):** please add Übel with exactly this line:
-   'Fan character based on Übel (Frieren). Fine for private play; must be replaced with an original design before any commercial release.'
-   (Also in src/heroes/ubel/README.md.)
+## Oct 13: Übel (id `ubel`, user-approved fan character) - roster line and INTERFACES done 2026-10-23
+1. **docs/ROSTER.md:** done. The entry includes exactly: 'Fan character based on Übel (Frieren). Fine for private play; must be replaced with an original design before any commercial release.'
 2. **tests/core_test_roster.gd (core-owned):** edited in this branch the same way tomo 4c4aee1 / nidjo f5b6f50 did
    (adds "ubel" / "Übel" to the expected roster), because adding src/heroes/ubel.json otherwise fails the build.
    Please keep or redo it on master as you prefer.
@@ -214,3 +256,4 @@ heroes show a faint speed trail from it).
   "buffs" list on the HUD would also suit damage_reductions / buff_mult / overheal later.
 - **Core (optional):** a snapshot field for the fraction (instead of the prop) would give per-tick precision for
   owner prediction; the prop updates at the snapshot rate, which is close enough for a 1 s decay.
+5. **AI (bot_brain.want_ability). DONE on master 2026-10-23.** `ride`: aimed, on the ground, visible enemy inside the def `range`, never while mounted. `line_slash`: aimed visible enemy inside the def `length` (6 m). Mounted bots do not jump, so a ride is not ended by the stuck-jump.

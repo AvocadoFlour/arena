@@ -172,6 +172,8 @@ func poll(h) -> InputFrame:
         _do_wander(h, f, dt)
     if h.is_on_floor() and f.move.length() > 0.1 and Vector2(h.velocity.x, h.velocity.z).length() < 1.0 and _rng.randf() < 0.1:
         f.jump = true
+    if h.has_method("mounted_on") and h.mounted_on() != null:
+        f.jump = false   # a ride ends on jump; keep swinging instead (heroes.md Übel #5)
     if fire_duty < 1.0:
         _burst_t = fmod(_burst_t + dt, 1.6)
         if _burst_t > 1.6 * fire_duty:
@@ -415,7 +417,7 @@ func _do_chase(h, f: InputFrame, dt: float, low: bool) -> void:
         ctx.merge({"dist": dist, "flat_dist": Vector2(to.x, to.z).length(),
             "height_above": h.global_position.y - target.global_position.y, "los": los,
             "aim_ok": err < 0.25, "moving": f.move.length() > 0.5}, true)
-        _apply_abilities(f, decide_abilities(ctx), dt)
+        _apply_abilities(h, f, decide_abilities(ctx), dt)
 
 ## Primary melee reach (0 for ranged heroes), from the hero def (INTERFACES §2.1).
 static func melee_range(h) -> float:
@@ -457,15 +459,33 @@ func _ctx(h, low: bool, fleeing: bool) -> Dictionary:
     if h.abilities.has("ultimate"):
         ult_r = float(h.abilities["ultimate"].def.get("radius", 10.0)) * 0.8
     var leap_r := 0.0
+    var shock_range := 9.0
+    var pull_range := 8.0
+    var ride_range := 10.0
+    var slash_range := 6.0
     for slot in types:
-        if types[slot] == "leap":
+        if types[slot] == "leap" and h.abilities.has(slot):
             var d: Dictionary = h.abilities[slot].def
             leap_r = float(d.get("forward_speed", 14.0)) * float(d.get("air_time", 0.7)) + float(d.get("radius", 3.5)) * 0.5
+        elif h.abilities.has(slot):
+            var ad: Dictionary = h.abilities[slot].def
+            match String(types[slot]):
+                "shockwave":
+                    shock_range = float(ad.get("radius", shock_range))
+                "pull":
+                    pull_range = float(ad.get("radius", pull_range))
+                "ride":
+                    ride_range = float(ad.get("range", ride_range))
+                "line_slash":
+                    slash_range = float(ad.get("length", slash_range))
+    var mounted: bool = h.has_method("mounted_on") and h.mounted_on() != null
     return {"types": types, "ready": ready, "dist": 99.0, "flat_dist": 99.0, "on_floor": h.is_on_floor(),
         "height_above": 0.0, "los": false, "low_hp": low, "hurt": h.health.hp < h.health.max_hp * 0.7,
         "ult_range": ult_r, "ult_targets": _enemies_within(h, ult_r), "allies_hurt": _allies_hurt_within(h, ult_r),
         "aim_ok": false, "moving": false, "fleeing": fleeing, "melee": melee_range(h) > 0.0,
-        "leap_range": leap_r, "engage_range": maxf(melee_range(h) * 2.0, 6.0)}
+        "leap_range": leap_r, "engage_range": maxf(melee_range(h) * 2.0, 6.0),
+        "shock_range": shock_range, "pull_range": pull_range, "ride_range": ride_range, "slash_range": slash_range,
+        "mounted": mounted}
 
 static func slot_type(h, slot: String) -> String:
     if not h.abilities.has(slot):
@@ -547,7 +567,7 @@ func _do_cover(h, f: InputFrame, dt: float) -> void:
             if use_abilities and flat > 5.0:
                 var ctx := _ctx(h, true, true)
                 ctx.moving = f.move.length() > 0.5
-                _apply_abilities(f, decide_abilities(ctx), dt)
+                _apply_abilities(h, f, decide_abilities(ctx), dt)
             if flat < 0.8:
                 _cphase = "hide"
                 _cphase_left = cover_time if not _hid_once else _rng.randf_range(hide_min, hide_max)
@@ -781,13 +801,31 @@ static func want_ability(t: String, c: Dictionary) -> bool:
             return not fleeing and los and c.get("aim_ok", false) and dist < 30.0
         "heal_beam":     # ally healing is handled by the support behaviour; self-heal when hurt
             return (c.get("low_hp", false) or c.get("hurt", false)) and not fleeing
+        "blink":         # tomo.md: same rule as dash
+            return want_ability("dash", c)
+        "shockwave":     # tomo.md: nova, but only aimed, inside the cone radius (Tomo: 9 m)
+            return not fleeing and los and c.get("aim_ok", false) and dist < float(c.get("shock_range", 9.0))
+        "pull":          # nidjo.md: an enemy inside the pull radius and still far enough to be worth dragging in
+            return not fleeing and los and dist >= 3.0 and dist < float(c.get("pull_range", 8.0))
+        "rollback":      # nidjo.md: like rally, but only when the caster or an ally has already lost HP
+            return c.get("low_hp", false) or c.get("hurt", false) or int(c.get("allies_hurt", 0)) >= 1
+        "ride":          # heroes.md: leap rule, aimed visible enemy inside the ride range; never while already mounted
+            return not c.get("mounted", false) and not fleeing and los and c.get("aim_ok", false) \
+                and c.get("on_floor", true) and dist > 1.5 and dist <= float(c.get("ride_range", 10.0))
+        "line_slash":    # heroes.md: charge rule, but the reach is the slash length (Übel: 6 m)
+            return not fleeing and los and c.get("aim_ok", false) and dist < float(c.get("slash_range", 6.0))
     return false
 
-func _apply_abilities(f: InputFrame, want: Dictionary, dt: float) -> void:
+func _apply_abilities(h, f: InputFrame, want: Dictionary, dt: float) -> void:
     # Each wish fires with a per-tick chance -> mean delay `ability_delay` (difficulty).
     var p := 1.0 if ability_delay <= 0.0 else clampf(dt / ability_delay, 0.0, 1.0)
     for k in want:
-        if want[k] and _rng.randf() < p:
+        if not want[k]:
+            continue
+        # Encore Beam cancels on a second press. Do not press a channel that is already running.
+        if h.abilities.has(k) and h.abilities[k].has_method("channeling") and h.abilities[k].channeling():
+            continue
+        if _rng.randf() < p:
             f.set(k, true)
 
 func _ab_ready(h, slot: String) -> bool:

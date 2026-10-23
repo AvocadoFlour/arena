@@ -77,7 +77,7 @@ func _on_ip(ip: String) -> void:
     var lan := ", ".join(Net.lan_addresses())
     status.text = ("Friends join with:  %s:%s\n" % [ip, p] if ip != "" else "Could not look up your public IP (check whatsmyip in a browser).\n") \
         + ("Same network (LAN): %s:%s\n" % [lan, p] if lan != "" else "") \
-        + "Forward UDP port %s on your router to this PC. See docs/PLAYING_ONLINE.md." % p
+        + "Starting the match opens UDP %s on the router. No VPN or other program. If a friend still cannot connect, forward that UDP port to this PC." % p
 
 ## "IP:port" or "IP" -> [ip, port]
 static func parse_address(s: String) -> Array:

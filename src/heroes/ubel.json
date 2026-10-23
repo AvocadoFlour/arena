@@ -1,11 +1,11 @@
 {
   "id": "ubel",
   "name": "Übel",
-  "role": "dive",
+  "role": "mage",
   "max_hp": 250,
   "movement": {"speed": 7.6, "accel_ground": 76, "accel_air": 16, "jump_velocity": 8.8, "gravity": 22},
   "collider": {"radius": 0.4, "height": 1.85},
-  "primary": {"type": "melee", "name": "Paper Cut", "damage": 25, "fire_rate": 2.5, "mag": 999, "reload_time": 0.1, "spread_deg": 0, "range": 2.8, "arc_deg": 100, "combo": [1.0, 1.0, 2.0], "combo_window": 0.8, "finisher_knockback": 4.0, "lunge": 3.0},
+  "primary": {"type": "magma", "name": "Magma Thread", "damage": 36, "range": 16, "width": 0.7},
   "ultimate_cost": 500,
   "abilities": {
     "ability1": {"id": "uninvited_guest", "type": "ride", "name": "Uninvited Guest", "cooldown": 10.0, "range": 10.0, "cone_deg": 30, "leap_time": 0.3, "ride_time": 4.0, "hop_range": 8.0, "hop_off_speed": 7.0},
