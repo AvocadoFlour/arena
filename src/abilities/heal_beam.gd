@@ -108,10 +108,11 @@ func tick(dt: float) -> void:
         cooldown.remaining = minf(cooldown.remaining, cooldown.duration)
 
 # ---------------------------------------------------------------------------------------------
-# Visual ribbon (client-side only, never replicated). Driven from REPLICATED state so remote
-# players see it: channel active = ability cooldown was triggered < `duration` s ago
-# (cooldown.remaining is in every snapshot); target = pick_target() evaluated locally from
-# replicated positions / yaw / pitch / team / dead. Same path on host, own hero and puppets.
+# Visual ribbon (client-side only, never replicated). Driven from replicated state:
+# channel_visible() is cooldown.remaining > cooldown.duration (while channelling, remaining
+# is stored as cooldown + time left). On a client the ribbon target is snapshot field 18
+# (heal_target_id) when that entity resolves, otherwise pick_target() from replicated
+# position / yaw / pitch / team / dead. Same path on host, own hero and puppets.
 const FADE := 0.2
 var vis_alpha := 0.0                ## 0..1 current ribbon opacity
 var vis_target = null               ## hero the ribbon points at (self = aura)
