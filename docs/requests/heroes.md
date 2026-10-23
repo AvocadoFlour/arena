@@ -2,11 +2,15 @@
 
 ## Status (2026-10-23, branch grokChatBotBuilder)
 
-Continued work from this session is on `grokChatBotBuilder`. `master` is at `0d5c2ae`. This branch is that commit plus the four commits below. Version is still 0.9.4.
+Continued work from this session is on `grokChatBotBuilder`. `master` is at `121ac97`. This branch is that `master` plus `380e604` and the notes after it. Version is still 0.9.4.
+
+Already on `master` (`121ac97`):
 
 - `00ad722`, notes `74724e3`. Based on the hero notes and `docs/INTERFACES.md` being behind the code already on `master`. Documented burst, root, damage reduction, blink, shockwave, pull, rollback, ride, line_slash, and the Übel roster line. Snapshot fields 19–20 are `root_left` and `slow_mult`. `./build.sh` passed: 735 tests, smoke, network test.
 - `7aab9b6`, notes `0d5c2ae`. Based on `BotBrain.want_ability` having no case for those abilities. Added `blink`, `shockwave`, `pull`, `rollback`, `ride`, and `line_slash`. While mounted, bots do not jump. `./build.sh` passed: 736 tests.
-- `2bd0bfe`, notes `121ac97`. Based on the request that Twin Tails' Shift heal beam turn red and damage the enemy it is aimed at. That commit is a 3 s channel, 30 damage/s, colour `#ff3b3b`, no cancel, no lockout, no width change, no ally heals. `./build.sh` passed: 737 tests.
+- `2bd0bfe`, notes `121ac97`. Based on the request that Twin Tails' Shift heal beam turn red and damage the enemy it is aimed at. That commit is a 3 s channel, 30 damage/s, colour `#ff3b3b`, no cancel, no lockout, no width change, no ally heals. `./build.sh` passed: 737 tests. This is the tip of `master`.
+
+Only on `grokChatBotBuilder`:
 - `380e604`. Based on `heroes-tt-wip` tip `d94d32d` (merge-base with `master` was `a0a9613`). The user asked for the gameplay part of that branch after the Blender half could not be finished here (no Blender installed, and `d94d32d` did not export a new `.glb`). `heroes-tt-wip` was not merged. The gameplay files were brought over and adapted: `src/heroes/twin_tails.json`, `src/abilities/heal_beam.gd`, `src/abilities/projectile_shot.gd`, `src/heroes/hero.gd`, `src/heroes/hero_abilities.gd`, `src/ui/stat_labels.gd`, `tests/heroes_tt_heal_sim.gd`, and the beam/model tests that now set `cooldown.remaining` above the cooldown length to mean the beam just started. Left on `heroes-tt-wip`: `src/heroes/models/twin_tails/blender/build_twin_tails.py` (face v3, larger headset wings) and `src/heroes/models/cob/blender/build_cob.py` (shell plates). `./build.sh` on `380e604` passed 2026-10-23: 768 tests, 0 failed, smoke 12/12, network test pass. Windows zip `dist/arena-0.9.4-windows.zip`.
 
 What `380e604` set the kit to, in place of the 3 s beam from `2bd0bfe`:
