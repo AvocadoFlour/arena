@@ -122,11 +122,11 @@ func test_heal_beam_self_fallback() -> void:
     var ab = h.abilities["ability1"]
     h.health.hp = 100.0
     check(ab.activate(), "activates")
-    check(not ab.activate(), "on cooldown")
+    check(ab.channeling() and not ab.can_activate(), "a second start is blocked; Shift again would cancel")
     for i in 60:
         ab.tick(1.0 / 60.0)
     near(h.health.hp, 160.0, 1.0, "self heal 60 hps for 1 s")
-    for i in 180:
+    for i in 190:
         ab.tick(1.0 / 60.0)
     check(not ab.channeling(), "channel ends")
     near(h.health.hp, 225.0, 0.01, "capped")

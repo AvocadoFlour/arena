@@ -4,12 +4,19 @@
 `master` is the default branch. Do not redo a line marked done.
 - `00ad722` (build passed, 735 tests, smoke and network test, version left at 0.9.4): documented burst, root, damage reduction, blink, shockwave, pull, rollback, ride, line_slash. Übel roster line. Snapshot fields 19–20 are `root_left` and `slow_mult`.
 - Bot policies for `blink`, `shockwave`, `pull`, `rollback`, `ride`, and `line_slash` are in `BotBrain.want_ability` (`7aab9b6`). While mounted, bots do not jump. `./build.sh` passed (736 tests). Version left at 0.9.4.
-- Encore Beam (Twin Tails, Shift) now targets the hero nearest the aim, ally or enemy (`2bd0bfe`). An ally or the caster is healed at 60 HP/s and the ribbon stays blue. An enemy takes 30 damage per second and the ribbon turns red (`color_damage` `#ff3b3b`). Duration, cooldown and the self-heal fallback are unchanged. Not the parked `heroes-tt-wip` kit: no 4 s duration, no cancel, no lockout, no primary ally-heal. `./build.sh` passed. Version left at 0.9.4.
+- Twin Tails healing kit from `heroes-tt-wip` (`d94d32d`) is on `master`. Gameplay only. The Blender face, wing and Cob shell scripts on that branch were NOT taken: no Blender here, and the GLBs were never exported. Do not merge `heroes-tt-wip`.
+  - Shift / Encore Beam: 4 s, 60 HP/s on an ally or herself, 30 damage/s to every enemy the 1 m beam touches, red when it is damaging, blue when it is healing. Press Shift again to cancel. The 8 s cooldown starts when the beam ends. `exclusive`: she cannot shoot or use E or Q while it runs. Walk and aim stay. Snapshot trick, no new net field: while the beam runs `cooldown.remaining` = cooldown + time left, and clients show the ribbon when `remaining` > cooldown. The host target is still `heal_target_id`.
+  - Left click: `primary.ally_heal` 7. A hit on a living ally heals 7 instead of dealing 11. Enemies still take 11. Dead allies are ignored. Credited through `Events.healed`.
+  - E / Staccato Note: `ally_heal` 19. The shot already flies through allies. Each ally it passes or catches in the 2 m splash is healed 19 once, not slowed. The enemy still takes 30 and the slow. She does not heal herself.
+  - Bots do not press a `heal_beam` that is already channeling (`BotBrain._apply_abilities`), or the second press would cancel it. Support already pressed only when the beam was off.
+  - Test: `tests/heroes_tt_heal_sim.gd` (copied from the WIP). `heroes_beam_sim.gd` and `heroes_test_model.gd` now set `cooldown.remaining` above the cooldown length to mean "beam just started".
+  - HUD: during the beam the cooldown number is about 12 s (8 + time left), then drops to 8 when the beam ends. That is the snapshot trick, not a missing field. Change it only if a channel clock is wanted.
+  - Not done, and not required for this kit: bot Twin Tails still do not aim left-click or Staccato at allies, so bot copies of those heals do not happen. Support bots still aim the beam at a hurt ally.
 
 Still open. Older sections below are history, not a fresh queue. `ui`, `maps`, `tomo` and `nidjo` are already merged.
 1. **Optional, net:** a snapshot field for the ride (rider, victim, time left) instead of the `mount:<rider>:<victim>` prop. Hop-off on the client still waits for the host.
 2. **Not done:** `damage_taken_mult()` is not in the snapshot. Only add it if the HUD needs a damage-reduction indicator on clients. Nothing in `src/ui` reads it today.
-3. **Parked, do not merge:** `heroes-melee-wip` (`on_hit_speed` is not on `master`), `heroes-tt-wip`, `ai-tuning-wip`.
+3. **Parked, do not merge:** `heroes-melee-wip` (`on_hit_speed` is not on `master`), `heroes-tt-wip` (its gameplay is already on `master`; only the unexported Blender face, wing and Cob shell scripts remain there), `ai-tuning-wip`.
 4. **Optional FX, not started:** Tomo and Niđo have no per-hero cases in `src/heroes/fx/hero_fx.gd` (tomo.md #4, nidjo.md #4).
 
 ## Round 6 (open, optional; nothing blocks heroes)

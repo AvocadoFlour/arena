@@ -213,7 +213,7 @@ func _do_chase(h, f: InputFrame, dt: float, low: bool) -> void:
         ctx.merge({"dist": dist, "flat_dist": Vector2(to.x, to.z).length(),
             "height_above": h.global_position.y - target.global_position.y, "los": los,
             "aim_ok": err < 0.25, "moving": f.move.length() > 0.5}, true)
-        _apply_abilities(f, decide_abilities(ctx), dt)
+        _apply_abilities(h, f, decide_abilities(ctx), dt)
 
 ## Primary melee reach (0 for ranged heroes), from the hero def (INTERFACES §2.1).
 static func melee_range(h) -> float:
@@ -363,7 +363,7 @@ func _do_cover(h, f: InputFrame, dt: float) -> void:
             if use_abilities and flat > 5.0:
                 var ctx := _ctx(h, true, true)
                 ctx.moving = f.move.length() > 0.5
-                _apply_abilities(f, decide_abilities(ctx), dt)
+                _apply_abilities(h, f, decide_abilities(ctx), dt)
             if flat < 0.8:
                 _cphase = "hide"
                 _cphase_left = cover_time if not _hid_once else _rng.randf_range(hide_min, hide_max)
@@ -612,11 +612,16 @@ static func want_ability(t: String, c: Dictionary) -> bool:
             return not fleeing and los and c.get("aim_ok", false) and dist < float(c.get("slash_range", 6.0))
     return false
 
-func _apply_abilities(f: InputFrame, want: Dictionary, dt: float) -> void:
+func _apply_abilities(h, f: InputFrame, want: Dictionary, dt: float) -> void:
     # Each wish fires with a per-tick chance -> mean delay `ability_delay` (difficulty).
     var p := 1.0 if ability_delay <= 0.0 else clampf(dt / ability_delay, 0.0, 1.0)
     for k in want:
-        if want[k] and _rng.randf() < p:
+        if not want[k]:
+            continue
+        # Encore Beam cancels on a second press. Do not press a channel that is already running.
+        if h.abilities.has(k) and h.abilities[k].has_method("channeling") and h.abilities[k].channeling():
+            continue
+        if _rng.randf() < p:
             f.set(k, true)
 
 func _ab_ready(h, slot: String) -> bool:

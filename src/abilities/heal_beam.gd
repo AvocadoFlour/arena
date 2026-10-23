@@ -1,13 +1,34 @@
 extends Ability
-## Channelled beam: for `duration` seconds the hero nearest the aim line within `range` and `cone_deg`
-## is the target (ally or enemy). An ally, or the caster if nobody is there, is healed at `hps`.
-## An enemy takes `enemy_dps` and the ribbon is drawn in `color_damage` (red) instead of `color_heal`.
+## Channelled beam (Encore Beam): for `duration` s it locks onto the hero nearest the aim line within `range` and
+## `cone_deg` — ally or enemy (falls back to self when nobody is in reach). Allies and self are healed at `hps`.
+## Every enemy the beam touches — the target, and any enemy whose body is within `width` / 2 of the beam — takes
+## `enemy_dps`. Press again while channelling to cancel. The cooldown starts when the beam ends or is cancelled:
+## while it runs, cooldown.remaining = cooldown + time left, so clients see the beam from the snapshot
+## (`remaining` > cooldown length). `exclusive` (Hero.channel_lock): no firing or other abilities; walk and aim stay.
+## Colours: `color_heal` on an ally or nobody, `color_damage` (red) when the beam is on or passing through an enemy.
 var left := 0.0
 var target = null
+var hit_enemy := false              ## HOST: an enemy took beam damage this tick
 
 func _do() -> bool:
     left = float(def.get("duration", 3.0))
     return true
+
+## Shift again while channelling = cancel. The cooldown is held at (cooldown + duration) until the beam ends.
+func activate() -> bool:
+    if left > 0.0:
+        cancel()
+        return true
+    if not can_activate() or not _do():
+        return false
+    cooldown.remaining = cooldown.duration + left
+    return true
+
+func cancel() -> void:
+    left = 0.0
+    target = null
+    hit_enemy = false
+    cooldown.remaining = minf(cooldown.remaining, cooldown.duration)
 
 func channeling() -> bool:
     return left > 0.0
@@ -32,11 +53,33 @@ func pick_target():
                 best = h
     return best if best != null else hero
 
-## "damage" when the beam is on an enemy, otherwise "heal". Same rule on host and clients.
+## Enemies the beam from the hero's eye to `t` passes through (`t` itself if it is an enemy).
+func enemies_on_beam(t) -> Array:
+    var out: Array = []
+    if t == null or t == hero or not hero.is_inside_tree():
+        return out
+    var a: Vector3 = hero.eye_position()
+    var b: Vector3 = t.global_position + Vector3(0, 1.0, 0)
+    var r := float(def.get("width", 1.0)) * 0.5
+    for h in hero.get_tree().get_nodes_in_group("heroes"):
+        if h == hero or h.dead or h.team == hero.team or h.get_world_3d() != hero.get_world_3d():
+            continue
+        if h == t:
+            out.append(h)
+            continue
+        var col: Dictionary = h.def.get("collider", {})
+        var cr := float(col.get("radius", 0.4))
+        var ch := float(col.get("height", 1.8))
+        var p0: Vector3 = h.global_position + Vector3(0, cr, 0)
+        var p1: Vector3 = h.global_position + Vector3(0, maxf(ch - cr, cr), 0)
+        var cp := Geometry3D.get_closest_points_between_segments(a, b, p0, p1)
+        if cp[0].distance_to(cp[1]) <= r + cr:
+            out.append(h)
+    return out
+
+## "damage" when the beam is aimed at or passing through an enemy, else "heal". Same rule on host and clients.
 func mode_for(t) -> String:
-    if t != null and is_instance_valid(t) and t != hero and t.team != hero.team:
-        return "damage"
-    return "heal"
+    return "damage" if not enemies_on_beam(t).is_empty() else "heal"
 
 func mode_color(mode: String) -> Color:
     if mode == "damage":
@@ -49,15 +92,20 @@ func tick(dt: float) -> void:
         return
     left -= dt
     if hero.dead:
-        left = 0.0
+        cancel()
         return
     target = pick_target()
     if target == hero or target.team == hero.team:
         target.heal(float(def.get("hps", 60.0)) * dt, hero, id)
-    else:
-        var dps := float(def.get("enemy_dps", 0.0))
-        if dps > 0.0:
-            target.take_damage(dps * dt * hero.damage_mult(), hero, target.global_position + Vector3(0, 1.2, 0), "ability", id)
+    var foes := enemies_on_beam(target)
+    hit_enemy = not foes.is_empty()
+    var dps := float(def.get("enemy_dps", 0.0))
+    if dps > 0.0:
+        for e in foes:
+            e.take_damage(dps * dt * hero.damage_mult(), hero, e.global_position + Vector3(0, 1.2, 0), "ability", id)
+    if left <= 0.0:
+        left = 0.0
+        cooldown.remaining = minf(cooldown.remaining, cooldown.duration)
 
 # ---------------------------------------------------------------------------------------------
 # Visual ribbon (client-side only, never replicated). Driven from REPLICATED state so remote
@@ -77,11 +125,11 @@ var _vis_t := 0.0
 var vis_mode := "heal"
 var _applied_mode := ""
 
-## True while the channel runs, derived only from replicated cooldown.remaining.
+## True while the channel runs. While channelling, remaining is cooldown + time left, so it is above the cooldown length.
 func channel_visible() -> bool:
-    if hero.dead or cooldown.remaining <= 0.0:
+    if hero.dead:
         return false
-    return cooldown.duration - cooldown.remaining < float(def.get("duration", 3.0))
+    return cooldown.remaining > cooldown.duration + 0.001
 
 func beam_start() -> Vector3:
     return hero.beam_origin() if hero.is_inside_tree() else hero.global_position + Vector3(0, 1.1, 0)

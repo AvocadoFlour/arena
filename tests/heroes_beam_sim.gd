@@ -44,7 +44,7 @@ func _process(dt: float) -> void:
         0:
             if t > 0.2:
                 _rec("idle_no_ribbon", ab.ribbon == null or not ab.ribbon.visible)
-                ab.cooldown.remaining = ab.cooldown.duration   # snapshot: Encore Beam just used
+                ab.cooldown.remaining = ab.cooldown.duration + float(ab.def.get("duration", 3.0))   # snapshot: beam just started (remaining > cooldown)
                 step = 1
                 t = 0.0
         1:
@@ -97,7 +97,7 @@ func _process(dt: float) -> void:
             if t > 0.3:
                 _rec("gone_after_fade", not ab.ribbon.visible and _alpha() == 0.0 and ab.beads.all(func(n): return not n.visible))
                 ally.global_position = Vector3(30, 0, 30)    # nobody in cone -> self heal aura
-                ab.cooldown.remaining = ab.cooldown.duration
+                ab.cooldown.remaining = ab.cooldown.duration + float(ab.def.get("duration", 3.0))
                 step = 5
                 t = 0.0
         5:
