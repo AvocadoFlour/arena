@@ -409,12 +409,13 @@ team with fewer humans). Modes: `OFFLINE` (single player, unchanged), `HOST`, `C
   Broadcasts go only to peers that completed hello/welcome.
 - Smoke (`--smoke`) seeds the global RNG, hero spread and BotBrain RNGs from `--seed=N` (default 4242); it
   passes on damage dealt + taken, match_ended and every ability slot used (kills reported, not required).
-- `Net.offline` (true under `--headless` or with `-- --net_offline`): skips the api.ipify.org public-IP lookup;
+- `Net.offline` (true under `--headless` or with `-- --net_offline`): skips the api.ipify.org public-IP lookup and the UPnP port map;
   `fetch_public_ip()` then reports `""` on the next frame, so the Host screen is testable.
 - Command line: `--net_host=PORT`, `--net_join=IP:PORT`, `--autopilot` (bot-driven player), `--net_test=S`
   (prints `NETDUMP` JSON, quits). `tools/net_test.sh` (build.sh step) runs headless host + client on localhost.
+- `Net.host` maps its UDP port on the router with UPnP (`_map_port`) and `Net.close` deletes that mapping. `port_mapped` and `port_note` are what the host corner shows. Friends join `public_ip:port`. This does not cross an ISP that hides the host.
 - Not yet: rejoin/host migration, bot re-fill when a human leaves, ability-movement prediction (dash/leap are
-  corrected by reconciliation), NAT traversal / relay.
+  corrected by reconciliation), a relay for networks the router map cannot reach.
 
 - **In-match control RPCs** (§8.1 logic lives in main.gd): client -> host `_rq_hero(hero_id)`, `_rq_team(team)`
   (`Net.request_hero` / `request_team`); host -> requester `_swap_cancelled(net_id, reason)`; host -> all

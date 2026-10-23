@@ -4,7 +4,11 @@
 
 Continued work from this session is on `grokChatBotBuilder`. `master` is at `121ac97`. Version is still 0.9.4.
 
-Asked for on 2026-10-23, after the bot / beam / magma commit `558b328`:
+Asked for on 2026-10-23, so friends can play without a VPN:
+
+- `Net.host` asks the router to forward the match UDP port with UPnP (`Net._map_port`). `Net.close` removes the mapping. Based on the request to play together without installing a virtual network. The host screen and the in-match corner say whether the router opened the port. Friends still join the public `IP:24565` from Host online. If the ISP hides the PC, the corner says so and someone else should host. Tests stay offline (`Net.offline`), so they do not discover a router.
+
+Asked for earlier the same day, commit `ef006a7`:
 
 - Twin Tails' primary damage is 6, down from 11. Fire rate stays 7. Based on her dealing too much damage for a healer. Ally heal per shot stays 7.
 - Shift still replaces left click with the beam. It no longer blocks E or Q. `Hero._use` does not consult `channel_lock`. The gun path still does. Based on the request that Shift is an upgrade of the primary, not a lockout of the rest of the kit.
@@ -13,7 +17,7 @@ Asked for on 2026-10-23, after the bot / beam / magma commit `558b328`:
 Asked for earlier the same day, commit `558b328`:
 
 - Each bot in a match can be set to a specific hero. Based on `set_bot_count` only storing a count and assigning the next roster id. `Main.match_bot_heroes(team)` and `Main.set_bot_hero(team, index, hero_id)` replace that bot in place (position and yaw kept, respawned hero, `Net.broadcast_spawn`). The Match page (Esc) shows a `< hero >` row per bot under the team stepper. The host changes it. New bots from `+` still take the old roster cycle until a row is used.
-- Twin Tails' Shift replaces left click for the beam's duration. Based on the request that she stop shooting and aim the beam at an ally (heal), an enemy (damage), or nobody (gray, and that has to be possible). `heal_beam.gd` follows `aim_end()` instead of locking onto the nearest hero or herself. Allies on the beam are healed, enemies on it take `enemy_dps`, nobody leaves `color_empty` `#9aa3ad`. `cone_deg` is no longer on her def. The gun stays blocked while it runs. E and Q are not blocked; that change is the bullet at the top of this file.
+- Twin Tails' Shift replaces left click for the beam's duration. Based on the request that she stop shooting and aim the beam at an ally (heal), an enemy (damage), or nobody (gray, and that has to be possible). `heal_beam.gd` follows `aim_end()` instead of locking onto the nearest hero or herself. Allies on the beam are healed, enemies on it take `enemy_dps`, nobody leaves `color_empty` `#9aa3ad`. `cone_deg` is no longer on her def. The gun stays blocked while it runs. E and Q are not blocked; that is the Shift bullet under `ef006a7`.
 - Übel's primary is Magma Thread. Based on the request that she be a mage and that left click be a held magma beam, wavy and not the Encore ribbon. `ubel.json` role is `mage`, primary type `magma`, 36 damage/s, 16 m, width 0.7. `Hero._magma_tick` applies the damage. The drawing is `src/heroes/fx/magma_stream.gd` (corkscrew of hot and crust blobs, depth-tested). Ride, Clean Cut and Last Smile are unchanged. Snapshot field 21 is `primary_beam` so other clients see the stream. The owning client draws from its own fire.
 
 Already on `master` (`121ac97`):

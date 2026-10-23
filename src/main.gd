@@ -352,8 +352,9 @@ func _show_net_status() -> void:
     cl.add_child(_net_status)
     add_child(cl)
     var upd := func(_x = null):
-        _net_status.text = "Hosting  %s:%d   players %d/%d" % [Net.public_ip if Net.public_ip != "" else "<your public IP>", Net.port, 1 + Net.peers.size(), Net.MAX_HUMANS]
+        _net_status.text = "Hosting  %s:%d   players %d/%d\n%s" % [Net.public_ip if Net.public_ip != "" else "<your public IP>", Net.port, 1 + Net.peers.size(), Net.MAX_HUMANS, Net.port_note]
     Net.public_ip_ready.connect(upd)
+    Net.port_map_ready.connect(func(_ok): upd.call())
     Net.peer_count_changed.connect(upd)
     upd.call()
     if Net.public_ip == "" and not args.has("net_test"):

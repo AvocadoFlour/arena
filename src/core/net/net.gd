@@ -24,6 +24,7 @@ signal hero_despawning(net_id: int, node)   ## CLIENT: just before a despawned n
 signal peer_count_changed(n: int)
 signal disconnected(reason: String)
 signal public_ip_ready(ip: String)
+signal port_map_ready(ok: bool)
 
 var mode := OFFLINE
 var port := DEFAULT_PORT
@@ -43,6 +44,10 @@ var teleports := 0               ## CLIENT: respawn snaps (not counted as correc
 var max_teleport := 0.0
 var big_corrections: Array = []  ## CLIENT: [tick, err] for errors > 2 m (diagnostics, net test)
 var public_ip := ""
+var port_mapped := false          ## HOST: the router accepted a UPnP mapping for `port`
+var port_note := ""               ## HOST: extra line for the corner status (mapping failed, or the ISP hides the PC)
+var _upnp: UPNP
+var _mapped_port := 0
 ## Skip all internet lookups (api.ipify.org). Set by tests, or `-- --net_offline`; headless runs default to it.
 var offline := DisplayServer.get_name() == "headless" or OS.get_cmdline_user_args().has("--net_offline")
 var _rtt_ms := -1.0              ## CLIENT: smoothed round-trip time
@@ -92,6 +97,7 @@ func host(p: int = DEFAULT_PORT) -> int:
     multiplayer.multiplayer_peer = peer
     mode = HOST
     port = p
+    _map_port(p)
     return OK
 
 func join(address: String, p: int = DEFAULT_PORT) -> int:
@@ -105,6 +111,7 @@ func join(address: String, p: int = DEFAULT_PORT) -> int:
     return OK
 
 func close() -> void:
+    _unmap_port()
     if multiplayer.multiplayer_peer:
         multiplayer.multiplayer_peer.close()
     multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
@@ -141,6 +148,46 @@ func fetch_public_ip() -> void:
         req.queue_free())
     if req.request("https://api.ipify.org") != OK:
         public_ip_ready.emit("")
+
+## Ask the router to forward UDP `p` to this PC (UPnP). No extra program. Skipped in tests (`offline`).
+## A successful map means friends on other networks can join the public address. CGNAT still cannot be opened.
+func _map_port(p: int) -> void:
+    port_mapped = false
+    port_note = ""
+    if offline:
+        port_map_ready.emit.call_deferred(false)
+        return
+    var upnp := UPNP.new()
+    var found := upnp.discover(2000, 2, "InternetGatewayDevice")
+    if found != UPNP.UPNP_RESULT_SUCCESS or upnp.get_gateway() == null or not upnp.get_gateway().is_valid_gateway():
+        port_note = "The router did not open the port. Forward UDP %d to this PC, or have a friend host." % p
+        port_map_ready.emit(false)
+        return
+    upnp.delete_port_mapping(p, "UDP")
+    if upnp.add_port_mapping(p, p, "Arena", "UDP", 0) != UPNP.UPNP_RESULT_SUCCESS:
+        port_note = "The router refused the port. Forward UDP %d to this PC, or have a friend host." % p
+        port_map_ready.emit(false)
+        return
+    _upnp = upnp
+    _mapped_port = p
+    port_mapped = true
+    var ext := String(upnp.get_gateway().query_external_address()).strip_edges()
+    if public_ip != "" and ext != "" and ext != public_ip:
+        port_note = "Your ISP hides this PC, so friends may not be able to join you. Someone else should host."
+    else:
+        port_note = "Port opened on the router. Friends join the address above. No extra program."
+        if ext != "" and not ext.begins_with("0."):
+            public_ip = ext
+            public_ip_ready.emit(public_ip)
+    port_map_ready.emit(true)
+
+func _unmap_port() -> void:
+    if _upnp != null and _mapped_port > 0:
+        _upnp.delete_port_mapping(_mapped_port, "UDP")
+    _upnp = null
+    _mapped_port = 0
+    port_mapped = false
+    port_note = ""
 
 static func lan_addresses() -> Array:
     var out: Array = []
