@@ -1,17 +1,15 @@
 # Requests from heroes
 
 ## Status for Grokbot (2026-10-23, branch master, on top of 78d2d49 / v0.9.4)
-Done in `00ad722`. Do not redo it. `master` is the default branch.
-- Documented in `docs/INTERFACES.md`: `primary.burst` / `burst_delay`, `apply_root` / `rooted` / `root_left`, `apply_damage_reduction` / `damage_taken_mult`, and ability types `blink`, `shockwave`, `pull`, `rollback`, `ride`, `line_slash`.
-- `docs/ROSTER.md` item 6 is Übel, including the required private-play line. `tests/core_test_roster.gd` already expected Übel before this commit.
-- Snapshot fields 19 and 20 are `root_left` and `slow_mult` (`Net._hero_state` / `_apply_state`). A predicted hero ticks `root_left` down and does not walk or jump while rooted. Reconcile does the same. `slow_mult` feeds `effective_move_cfg()`. `slow_left` is not replicated.
-- `./build.sh` on this commit with Godot 4.7.2: 735 passed, 0 failed. Smoke passed for every hero on arena01 and arena02, including both Übel runs. Network test passed. Zip: `dist/arena-0.9.4-windows.zip`. Version left at 0.9.4.
+`master` is the default branch. Do not redo a line marked done.
+- `00ad722` (build passed, 735 tests, smoke and network test, version left at 0.9.4): documented burst, root, damage reduction, blink, shockwave, pull, rollback, ride, line_slash. Übel roster line. Snapshot fields 19–20 are `root_left` and `slow_mult`.
+- Bot policies for `blink`, `shockwave`, `pull`, `rollback`, `ride`, and `line_slash` are in `BotBrain.want_ability`. While mounted, bots do not jump. Tests: `tests/ai_unit_tests.gd::test_tomo_nidjo_ubel_ability_policy`. Ranges come from the hero def.
 
-Still open. Do not treat the older sections below as a fresh queue; `ui`, `maps`, `tomo` and `nidjo` are already merged into `master`.
+Still open. Older sections below are history, not a fresh queue. `ui`, `maps`, `tomo` and `nidjo` are already merged.
 1. **Optional, net:** a snapshot field for the ride (rider, victim, time left) instead of the `mount:<rider>:<victim>` prop. Hop-off on the client still waits for the host.
-2. **Optional, AI:** `BotBrain.want_ability` still has no case for `blink`, `shockwave`, `pull`, `rollback`, `ride`, or `line_slash`. Suggested rules are in the Übel section below and in `docs/requests/tomo.md` and `docs/requests/nidjo.md`.
-3. **Not done:** `damage_taken_mult()` is not in the snapshot. Only add it if the HUD needs a damage-reduction indicator on clients.
-4. **Parked, do not merge:** `heroes-melee-wip` (`on_hit_speed` is not on `master`), `heroes-tt-wip`, `ai-tuning-wip`.
+2. **Not done:** `damage_taken_mult()` is not in the snapshot. Only add it if the HUD needs a damage-reduction indicator on clients. Nothing in `src/ui` reads it today.
+3. **Parked, do not merge:** `heroes-melee-wip` (`on_hit_speed` is not on `master`), `heroes-tt-wip`, `ai-tuning-wip`.
+4. **Optional FX, not started:** Tomo and Niđo have no per-hero cases in `src/heroes/fx/hero_fx.gd` (tomo.md #4, nidjo.md #4).
 
 ## Round 6 (open, optional; nothing blocks heroes)
 The Encore Beam ribbon is driven from replicated state only:
@@ -141,6 +139,4 @@ shooting and other abilities work. Distinct from slows (slow_mult stays 1). Proj
    (rider -> victim id + ride time left) would remove the dependency on the reliable prop spawn order and let the
    client predict the hop-off on jump (today the hop-off waits for the host). Also: while mounted the client-predicted
    rider sits on the *interpolated* victim, so reconcile counts rise during rides (harmless, the predicted step re-seats).
-5. **AI (bot_brain.want_ability):** `ride` and `line_slash` are unknown types today, so bots never use Übel's Shift/E.
-   Suggested: `ride` like `leap` (aimed, visible enemy within 10 m), `line_slash` like `charge` but dist < 6; while
-   mounted (`h.mounted_on() != null`) keep swinging and don't jump.
+5. **AI (bot_brain.want_ability). DONE on master 2026-10-23.** `ride`: aimed, on the ground, visible enemy inside the def `range`, never while mounted. `line_slash`: aimed visible enemy inside the def `length` (6 m). Mounted bots do not jump, so a ride is not ended by the stuck-jump.

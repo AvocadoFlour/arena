@@ -184,6 +184,28 @@ func test_team_buff_policy() -> void:
     check(not BotBrain.decide_abilities(_typed(t, {"dist": 3.0, "los": false})).ultimate, "no buff without enemy in sight")
     check(not BotBrain.decide_abilities(_typed(t, {"dist": 3.0, "fleeing": true})).ultimate, "no buff while fleeing")
 
+func test_tomo_nidjo_ubel_ability_policy() -> void:
+    var tomo := {"ability1": "blink", "ability2": "projectile", "ultimate": "shockwave"}
+    check(BotBrain.decide_abilities(_typed(tomo, {"dist": 15.0, "moving": true})).ability1, "blink closes a gap like dash")
+    check(not BotBrain.decide_abilities(_typed(tomo, {"dist": 6.0, "moving": true})).ability1, "no blink when already close")
+    check(BotBrain.decide_abilities(_typed(tomo, {"dist": 7.0, "aim_ok": true, "shock_range": 9.0})).ultimate, "shockwave when aimed inside 9 m")
+    check(not BotBrain.decide_abilities(_typed(tomo, {"dist": 7.0, "aim_ok": false, "shock_range": 9.0})).ultimate, "no shockwave when not aimed")
+    check(not BotBrain.decide_abilities(_typed(tomo, {"dist": 12.0, "aim_ok": true, "shock_range": 9.0})).ultimate, "no shockwave past the cone")
+    var nidjo := {"ability1": "shield_wall", "ability2": "pull", "ultimate": "rollback"}
+    check(BotBrain.decide_abilities(_typed(nidjo, {"dist": 5.0, "pull_range": 8.0})).ability2, "pull an enemy inside the radius")
+    check(not BotBrain.decide_abilities(_typed(nidjo, {"dist": 2.0, "pull_range": 8.0})).ability2, "no pull when already in reach")
+    check(not BotBrain.decide_abilities(_typed(nidjo, {"dist": 10.0, "pull_range": 8.0})).ability2, "no pull past the radius")
+    check(BotBrain.decide_abilities(_typed(nidjo, {"hurt": true})).ultimate, "rollback when the caster is hurt")
+    check(BotBrain.decide_abilities(_typed(nidjo, {"allies_hurt": 1})).ultimate, "rollback when an ally lost HP")
+    check(not BotBrain.decide_abilities(_typed(nidjo, {"dist": 4.0, "ult_targets": 1})).ultimate, "no rollback at full HP just because a fight started")
+    var ubel := {"ability1": "ride", "ability2": "line_slash", "ultimate": "nova"}
+    check(BotBrain.decide_abilities(_typed(ubel, {"dist": 8.0, "aim_ok": true, "ride_range": 10.0})).ability1, "ride an aimed enemy within 10 m")
+    check(not BotBrain.decide_abilities(_typed(ubel, {"dist": 8.0, "aim_ok": true, "ride_range": 10.0, "mounted": true})).ability1, "no ride while already mounted")
+    check(not BotBrain.decide_abilities(_typed(ubel, {"dist": 12.0, "aim_ok": true, "ride_range": 10.0})).ability1, "no ride past range")
+    check(BotBrain.decide_abilities(_typed(ubel, {"dist": 4.0, "aim_ok": true, "slash_range": 6.0})).ability2, "line slash when aimed inside 6 m")
+    check(not BotBrain.decide_abilities(_typed(ubel, {"dist": 8.0, "aim_ok": true, "slash_range": 6.0})).ability2, "no line slash past its length")
+    check(not BotBrain.decide_abilities(_typed(ubel, {"dist": 4.0, "aim_ok": false, "slash_range": 6.0})).ability2, "no line slash when not aimed")
+
 func test_standoff_dir_restores_range() -> void:
     var tgt := Vector3.ZERO
     var far := BotBrain.standoff_dir(Vector3(0, 0, 12), tgt, 10.0, 1.0)

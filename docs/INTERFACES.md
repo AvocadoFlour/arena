@@ -184,7 +184,10 @@ Convention: abilities adding transient world geometry add it as a direct child o
 Cover detection: meta `kind == "cover"` (fallback: name prefix `cover`). States: `wander`, `chase`, `cover`, `support`.
 Param `escort_allies` (true): idle bots escort teammates; support bots (Willow) heal hurt allies.
 Ability policy is type-based: `BotBrain.want_ability(type, ctx)` for dash, charge, ground_slam, nova, rally,
-shield_wall, projectile, heal_beam, leap, team_buff. Melee awareness (v0.4): for heroes with `primary.type ==
+shield_wall, projectile, heal_beam, leap, team_buff, blink (same as dash), shockwave (aimed, inside `shock_range`,
+default 9 m), pull (visible enemy from 3 m to `pull_range`, default 8 m), rollback (self or an ally already hurt),
+ride (aimed, on the ground, inside `ride_range`, never while `mounted`), line_slash (aimed, inside `slash_range`,
+default 6 m). While `mounted_on()` is set, bots do not jump. Melee awareness (v0.4): for heroes with `primary.type ==
 "melee"` BotBrain closes to ~0.6 × `primary.range` and only swings in reach (the old core MeleeCloser shim is
 removed); ranged bots keep their ~10 m stand-off. `BotBrain.resolve_difficulty(name) -> Dictionary` is the pure
 preset lookup (unknown names → `normal` with a runtime warning).
