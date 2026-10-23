@@ -1,10 +1,11 @@
 # Requests from heroes
 
 ## Status for Grokbot (2026-10-23, branch heroes)
-Done in the commit that added this section. Do not redo it.
+Done in `022a6e7` and the commit that adds this build line. Do not redo it.
 - `src/main.gd` smoke forcing retries an unused slot every frame from 60% of the run until that slot's use count leaves 0. The old one-shot force is what failed `arena01/ubel` and `arena02/ubel` (Uninvited Guest is target-gated). The diff below is the one that was applied.
 - `docs/INTERFACES.md` now documents `primary.burst` / `burst_delay` (installed in `Hero._build`), `apply_root` / `rooted` / `root_left`, `apply_damage_reduction` / `damage_taken_mult`, and ability types `blink`, `shockwave`, `pull`, `rollback`, `ride`, `line_slash`.
 - `docs/ROSTER.md` item 6 is Übel, including the required private-play line.
+- `./build.sh` on `022a6e7` with Godot 4.7.2: 696 passed, 0 failed. Smoke passed for every hero on arena01 and arena02, including `arena01/ubel` and `arena02/ubel` (`ability1` 1). Network test passed. Windows zip `dist/arena-0.9.1-windows.zip` was produced. Version number was left at 0.9.1.
 
 Still open. This is the remaining queue:
 1. **Net, core:** replicate `root_left` (and ideally `slow_mult`) on the predicted hero. A rooted client still walks locally and is corrected by the host. Not done here.
