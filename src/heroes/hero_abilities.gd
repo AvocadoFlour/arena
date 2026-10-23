@@ -12,7 +12,7 @@ extends RefCounted
 const SLOTS := ["primary", "ability1", "ability2", "ultimate", "passive"]
 const HERO_DIR := "res://src/heroes/"
 ## Keys that never change gameplay (visual/bookkeeping) - not described.
-const COSMETIC := ["id", "name", "type", "color", "visual", "beam_color", "kind", "size", "glyph"]
+const COSMETIC := ["id", "name", "type", "color", "visual", "beam_color", "color_heal", "color_damage", "kind", "size", "glyph"]
 ## Keys every ability type understands (base Ability class).
 const COMMON := ["cooldown", "needs_ult"]
 ## Stat keys each template reads. Add the key here AND use it in _text_<type> when a script gains one.
@@ -25,7 +25,7 @@ const TEMPLATES := {
     "leap": ["forward_speed", "up_speed", "air_time", "radius", "damage", "knockback"],
     "dash": ["distance", "duration"],
     "team_buff": ["radius", "duration", "damage_mult", "knockback_immune", "overheal"],
-    "heal_beam": ["duration", "hps", "range", "cone_deg"],
+    "heal_beam": ["duration", "hps", "enemy_dps", "range", "cone_deg"],
     "projectile": ["speed", "damage", "gravity", "lifetime", "hit_radius", "splash_radius", "slow", "root"],
     "rally": ["radius", "heal"],
     "nova": ["radius", "damage"],
@@ -222,8 +222,13 @@ static func _text_team_buff(d: Dictionary, s: Dictionary) -> String:
 static func _text_heal_beam(d: Dictionary, s: Dictionary) -> String:
     var tot := float(d.get("hps", 60)) * float(d.get("duration", 3))
     s["total_heal"] = tot
-    return "Channels a beam for %s s healing %s HP/s (%s HP total) on the ally nearest your aim within %s m and a %s° cone; heals you instead if no ally is in reach. Heals up to max HP." % [
-        n(d.get("duration", 3)), n(d.get("hps", 60)), n(tot), n(d.get("range", 15)), n(d.get("cone_deg", 15))]
+    var txt := "Channels a beam for %s s on the hero nearest your aim within %s m and a %s° cone. An ally, or you if nobody is there, is healed for %s HP/s (%s HP total), up to max HP." % [
+        n(d.get("duration", 3)), n(d.get("range", 15)), n(d.get("cone_deg", 15)), n(d.get("hps", 60)), n(tot)]
+    var dps := float(d.get("enemy_dps", 0))
+    if dps > 0.0:
+        s["enemy_dps"] = dps
+        txt += " An enemy takes %s damage per second and the beam turns red." % n(dps)
+    return txt
 
 static func _text_projectile(d: Dictionary, s: Dictionary) -> String:
     var rng := float(d.get("speed", 20)) * float(d.get("lifetime", 3))

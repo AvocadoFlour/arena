@@ -95,6 +95,7 @@ Ability types (registry): `dash, ground_slam, nova, projectile, shield_wall, cha
 - `leap`: `{forward_speed, up_speed, air_time, radius, damage, knockback}` — jump forward, AoE + knockback on landing; query `leaping()`.
 - `team_buff`: `{radius, duration, damage_mult, knockback_immune, overheal}` — buffs self + allies in radius.
 - `ground_slam` now impacts only on landing after its own dive. Optional `color` on heal_beam / ground_slam.
+- `heal_beam`: the hero nearest the aim inside `range` and `cone_deg`, ally or enemy. Allies and self are healed at `hps`. An enemy takes `enemy_dps` (0 = none) and the ribbon uses `color_damage` (default `#ff3b3b`) instead of `color_heal`. The host's target is already `heal_target_id`, so other clients draw the same colour. Twin Tails' Encore Beam (Shift) is 60 heal / 30 damage.
 - `blink` (extends dash): `{distance, duration, bonus_mult, bonus_shots, bonus_window, color}`. When the dash ends, horizontal speed is capped to run speed. Query `bonus_pending()`.
 - `shockwave` (extends nova, needs a full meter): `{radius, arc_deg, damage, knockback, lift, color}`. Frontal cone, `HitMath` falloff, knockback away from the caster, damage to `destructible` cover in the cone. Damage kind `ultimate`.
 - `pull`: `{radius, pull_speed, up_speed, stop_distance, slow, slow_duration, color}`. Enemies in `radius` are pulled toward the caster, not closer than `stop_distance`, then slowed. No damage. Query `last_pulled`.

@@ -8,7 +8,7 @@
   "primary": {"type": "hitscan", "damage": 11, "fire_rate": 7, "mag": 24, "reload_time": 1.5, "spread_deg": 1.0, "range": 60},
   "ultimate_cost": 450,
   "abilities": {
-    "ability1": {"id": "encore_beam", "type": "heal_beam", "name": "Encore Beam", "cooldown": 8.0, "duration": 3.0, "hps": 60, "range": 15.0, "cone_deg": 15.0, "color": "#b8e4ff"},
+    "ability1": {"id": "encore_beam", "type": "heal_beam", "name": "Encore Beam", "cooldown": 8.0, "duration": 3.0, "hps": 60, "enemy_dps": 30, "range": 15.0, "cone_deg": 15.0, "color": "#b8e4ff", "color_heal": "#5cb8ff", "color_damage": "#ff3b3b"},
     "ability2": {"id": "staccato_note", "type": "projectile", "name": "Staccato Note", "cooldown": 5.0, "speed": 28.0, "damage": 30, "gravity": 0.0, "lifetime": 2.5, "hit_radius": 0.35, "splash_radius": 2.0, "slow": {"mult": 0.5, "duration": 2.0}, "kind": "projectile", "color": "#d8ecff", "size": 0.18, "visual": "res://src/abilities/prop_visuals.gd"},
     "ultimate": {"id": "grand_finale", "type": "rally", "name": "Grand Finale", "cooldown": 1.0, "radius": 12.0, "heal": 175}
   },

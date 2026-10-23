@@ -1,6 +1,7 @@
 extends Ability
-## Channelled beam: for `duration` seconds heals the ally (or self if none) nearest the aim
-## line within `range` and `cone_deg`, at `hps` health per second.
+## Channelled beam: for `duration` seconds the hero nearest the aim line within `range` and `cone_deg`
+## is the target (ally or enemy). An ally, or the caster if nobody is there, is healed at `hps`.
+## An enemy takes `enemy_dps` and the ribbon is drawn in `color_damage` (red) instead of `color_heal`.
 var left := 0.0
 var target = null
 
@@ -11,7 +12,7 @@ func _do() -> bool:
 func channeling() -> bool:
     return left > 0.0
 
-## Ally nearest to the look ray inside range/cone; falls back to self.
+## Hero nearest to the look ray inside range/cone (either team); falls back to self.
 func pick_target():
     var best = null
     var best_ang := deg_to_rad(float(def.get("cone_deg", 15.0)))
@@ -20,7 +21,7 @@ func pick_target():
         var eye: Vector3 = hero.eye_position()
         var look: Vector3 = hero.look_dir()
         for h in hero.get_tree().get_nodes_in_group("heroes"):
-            if h == hero or h.dead or h.team != hero.team:
+            if h == hero or h.dead or h.get_world_3d() != hero.get_world_3d():
                 continue
             var to: Vector3 = h.global_position + Vector3(0, 1.0, 0) - eye
             if to.length() > rng:
@@ -31,6 +32,17 @@ func pick_target():
                 best = h
     return best if best != null else hero
 
+## "damage" when the beam is on an enemy, otherwise "heal". Same rule on host and clients.
+func mode_for(t) -> String:
+    if t != null and is_instance_valid(t) and t != hero and t.team != hero.team:
+        return "damage"
+    return "heal"
+
+func mode_color(mode: String) -> Color:
+    if mode == "damage":
+        return Color(String(def.get("color_damage", "#ff3b3b")))
+    return Color(String(def.get("color_heal", def.get("beam_color", "#5cb8ff"))))
+
 func tick(dt: float) -> void:
     super.tick(dt)
     if left <= 0.0:
@@ -40,7 +52,12 @@ func tick(dt: float) -> void:
         left = 0.0
         return
     target = pick_target()
-    target.heal(float(def.get("hps", 60.0)) * dt, hero, id)
+    if target == hero or target.team == hero.team:
+        target.heal(float(def.get("hps", 60.0)) * dt, hero, id)
+    else:
+        var dps := float(def.get("enemy_dps", 0.0))
+        if dps > 0.0:
+            target.take_damage(dps * dt * hero.damage_mult(), hero, target.global_position + Vector3(0, 1.2, 0), "ability", id)
 
 # ---------------------------------------------------------------------------------------------
 # Visual ribbon (client-side only, never replicated). Driven from REPLICATED state so remote
@@ -57,6 +74,8 @@ const BEADS := 6
 const SEG := 14                     ## ribbon segments (a travelling sound wave)
 const WAVE := 0.22                  ## wave amplitude (m): keeps the beam visible end-on
 var _vis_t := 0.0
+var vis_mode := "heal"
+var _applied_mode := ""
 
 ## True while the channel runs, derived only from replicated cooldown.remaining.
 func channel_visible() -> bool:
@@ -88,6 +107,7 @@ func _mat(c: Color, emis: float) -> StandardMaterial3D:
     return m
 
 func _build_vis(world: Node) -> void:
+    _applied_mode = "heal"
     ribbon = Node3D.new()
     ribbon.name = "EncoreRibbon"
     ribbon.top_level = true
@@ -97,7 +117,7 @@ func _build_vis(world: Node) -> void:
         var core := k % 2 == 1
         bm.size = Vector3(0.1, 0.1, 1.0) if core else Vector3(0.3, 0.07, 1.0)
         mi.mesh = bm
-        var c := Color("#f4f8ff") if core else Color(String(def.get("beam_color", "#5cb8ff")))
+        var c := Color("#f4f8ff") if core else mode_color("heal")
         var ba := 1.0 if core else 0.85
         mi.material_override = _mat(Color(c.r, c.g, c.b, ba), 3.0 if core else 2.0)
         mi.set_meta("base_a", ba)
@@ -116,9 +136,9 @@ func _build_vis(world: Node) -> void:
         bs.radial_segments = 10
         bs.rings = 5
         b.mesh = bs
-        var c := Color("#f4f8ff") if i % 2 == 0 else Color(String(def.get("beam_color", "#5cb8ff")))
+        var c := Color("#f4f8ff") if i % 2 == 0 else mode_color("heal")
         if i == BEADS:
-            c = Color("#3d9cff")
+            c = mode_color("heal").darkened(0.15)
         var ba := 0.95 if i < BEADS else 0.6
         b.material_override = _mat(Color(c.r, c.g, c.b, ba), 2.5)
         b.set_meta("base_a", ba)
@@ -152,6 +172,7 @@ func visual_process(dt: float) -> void:
             var rt = Net.entities.get(int(hero.heal_target_id))
             if is_instance_valid(rt):
                 vis_target = rt
+        vis_mode = mode_for(vis_target)
         vis_alpha = minf(1.0, vis_alpha + dt / 0.05)
     else:
         vis_alpha = maxf(0.0, vis_alpha - dt / FADE)
@@ -169,6 +190,8 @@ func visual_process(dt: float) -> void:
     aura.visible = show_aura
     for bd in beads:
         bd.visible = show_ribbon
+    if show_ribbon and vis_mode != _applied_mode:
+        _apply_mode_colors()
     if show_ribbon:
         var a := beam_start()
         var b := beam_end()
@@ -203,6 +226,25 @@ func visual_process(dt: float) -> void:
         aura.scale = Vector3.ONE * (1.0 + 0.08 * sin(_vis_t * 10.0))
         _set_alpha(aura, vis_alpha)
 
+## Recolours the outer ribbon, the coloured beads and the target glow. The white core stays white.
+func _apply_mode_colors() -> void:
+    _applied_mode = vis_mode
+    var c := mode_color(vis_mode)
+    var kids := ribbon.get_children()
+    for k in kids.size():
+        if k % 2 == 0:
+            _tint(kids[k], c, 2.0)
+    for i in beads.size():
+        if i == BEADS:
+            _tint(beads[i], c.darkened(0.15), 2.5)
+        elif i % 2 == 1:
+            _tint(beads[i], c, 2.5)
+
+func _tint(mi: MeshInstance3D, c: Color, emis: float) -> void:
+    var m := mi.material_override as StandardMaterial3D
+    m.albedo_color = Color(c.r, c.g, c.b, m.albedo_color.a)
+    m.emission = Color(c.r, c.g, c.b) * emis
+
 func free_visuals() -> void:
     for n in [ribbon, aura] + beads:
         if n != null and is_instance_valid(n):
@@ -210,3 +252,4 @@ func free_visuals() -> void:
     ribbon = null
     aura = null
     beads = []
+    _applied_mode = ""

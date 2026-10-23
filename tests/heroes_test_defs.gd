@@ -132,6 +132,46 @@ func test_heal_beam_self_fallback() -> void:
     near(h.health.hp, 225.0, 0.01, "capped")
     h.free()
 
+func test_encore_beam_damages_the_enemy_it_aims_at() -> void:
+    var tree := Engine.get_main_loop()
+    var healer := Hero.from_def("res://src/heroes/twin_tails.json")
+    var foe := Hero.from_def("res://src/heroes/cob.json")
+    var ally := Hero.from_def("res://src/heroes/the_best.json")
+    tree.root.add_child(healer)
+    tree.root.add_child(foe)
+    tree.root.add_child(ally)
+    healer.set_team(0)
+    foe.set_team(1)
+    ally.set_team(0)
+    healer.global_position = Vector3.ZERO
+    healer.yaw = 0.0
+    healer.rotation.y = 0.0
+    foe.global_position = Vector3(0, 0, -8)
+    ally.global_position = Vector3(6, 0, -2)
+    var ab = healer.abilities["ability1"]
+    check(ab.pick_target() == foe, "the enemy in front is the target")
+    check(ab.mode_for(foe) == "damage", "an enemy target is the damage mode")
+    check(ab.mode_color("damage").is_equal_approx(Color("#ff3b3b")), "damage colour is red")
+    check(ab.mode_for(ally) == "heal", "an ally target stays the heal mode")
+    var before := foe.health.hp
+    check(ab.activate(), "beam starts")
+    for i in 60:
+        ab.tick(1.0 / 60.0)
+    check(foe.health.hp < before - 25.0, "about 30 damage in 1 s (lost %.1f)" % (before - foe.health.hp))
+    check(ab.target == foe, "the channel stays on the enemy")
+    ab.left = 0.0
+    ab.cooldown.remaining = 0.0
+    ally.global_position = Vector3(0, 0, -8)
+    foe.global_position = Vector3(8, 0, -2)
+    ally.health.hp = 100.0
+    check(ab.pick_target() == ally, "an ally in front is healed instead")
+    check(ab.activate(), "beam starts on the ally")
+    for i in 60:
+        ab.tick(1.0 / 60.0)
+    check(ally.health.hp > 150.0, "ally healed, hp=%.1f" % ally.health.hp)
+    for n in [healer, foe, ally]:
+        n.free()
+
 func test_models_animated_and_visual_only() -> void:
     Hero.use_primitive_models = true   # primitive fallback model (GLB model: heroes_test_model.gd)
     for id in HEROES:
