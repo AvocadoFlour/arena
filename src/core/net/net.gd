@@ -525,7 +525,7 @@ func _hero_state(h) -> Array:
     var acked: int = h.input_source.acked if h.input_source is RemoteInput else -1
     return [h.net_id, h.global_position, h.velocity, h.yaw, h.pitch, h.health.hp, h.dead, h.visible,
         h.weapon.ammo, h.weapon.reloading(), h.ult.charge, cds, h.overheal, h.respawn_left, acked, h.team,
-        h.combo_step, h.dash_time, _heal_target_id(h)]
+        h.combo_step, h.dash_time, _heal_target_id(h), h.root_left, h.slow_mult]
 
 ## HOST: net id of the ally a hero's heal beam is channelling into; -1 for none or self.
 func _heal_target_id(h) -> int:
@@ -613,6 +613,9 @@ func _apply_state(h, s: Array) -> void:
         h.dash_time = float(s[17])
     if s.size() > 18:
         h.heal_target_id = int(s[18])
+    if s.size() > 20:   # prediction: root and slow, so the local hero stops matching the host instead of being corrected
+        h.root_left = float(s[19])
+        h.slow_mult = float(s[20])
     if h.team != int(s[15]):
         h.set_team(int(s[15]))
     if was_dead and not h.dead:
@@ -654,8 +657,16 @@ func _reconcile(h, s: Array) -> void:
     var dt := 1.0 / Engine.physics_ticks_per_second
     for e in ci.pending:
         var wish := Basis(Vector3.UP, float(e.yaw)) * Vector3(e.move.x, 0, -e.move.y)
+        var jump := bool(e.jump)
+        if h.rooted():
+            wish = Vector3.ZERO
+            jump = false
         h.velocity = predict_pad(h.global_position, h.velocity)   # jump pads: same rule as the host (maps §6)
-        h.velocity = Motion.step_velocity(h.velocity, wish, h.is_on_floor(), bool(e.jump), h.effective_move_cfg(), dt)
+        h.velocity = Motion.step_velocity(h.velocity, wish, h.is_on_floor(), jump, h.effective_move_cfg(), dt)
+        if h.rooted():
+            h.velocity.x = 0.0
+            h.velocity.z = 0.0
+            h.velocity.y = minf(h.velocity.y, 0.0)
         h.move_and_slide()
         e.pos = h.global_position
 

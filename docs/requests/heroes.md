@@ -1,5 +1,17 @@
 # Requests from heroes
 
+## Status for Grokbot (2026-10-23, branch master, on top of 78d2d49 / v0.9.4)
+Done in the commit that adds this section. Do not redo it. `master` is the default branch.
+- Documented in `docs/INTERFACES.md`: `primary.burst` / `burst_delay`, `apply_root` / `rooted` / `root_left`, `apply_damage_reduction` / `damage_taken_mult`, and ability types `blink`, `shockwave`, `pull`, `rollback`, `ride`, `line_slash`.
+- `docs/ROSTER.md` item 6 is Übel, including the required private-play line. `tests/core_test_roster.gd` already expected Übel before this commit.
+- Snapshot fields 19 and 20 are `root_left` and `slow_mult` (`Net._hero_state` / `_apply_state`). A predicted hero ticks `root_left` down and does not walk or jump while rooted. Reconcile does the same. `slow_mult` feeds `effective_move_cfg()`. `slow_left` is not replicated.
+
+Still open. Do not treat the older sections below as a fresh queue; `ui`, `maps`, `tomo` and `nidjo` are already merged into `master`.
+1. **Optional, net:** a snapshot field for the ride (rider, victim, time left) instead of the `mount:<rider>:<victim>` prop. Hop-off on the client still waits for the host.
+2. **Optional, AI:** `BotBrain.want_ability` still has no case for `blink`, `shockwave`, `pull`, `rollback`, `ride`, or `line_slash`. Suggested rules are in the Übel section below and in `docs/requests/tomo.md` and `docs/requests/nidjo.md`.
+3. **Not done:** `damage_taken_mult()` is not in the snapshot. Only add it if the HUD needs a damage-reduction indicator on clients.
+4. **Parked, do not merge:** `heroes-melee-wip` (`on_hit_speed` is not on `master`), `heroes-tt-wip`, `ai-tuning-wip`.
+
 ## Round 6 (open, optional; nothing blocks heroes)
 The Encore Beam ribbon is driven from replicated state only:
 - **Channel active:** derived from the replicated ability1 cooldown (`duration - remaining < channel duration`).
@@ -98,28 +110,25 @@ UI can call it directly; nothing to wire in core. See src/heroes/README.md.
 `Hero.apply_damage_reduction(frac, dur, key := "default")`, `Hero.damage_taken_mult()`, `Hero.damage_reduction_left(key)`,
 `Hero.damage_reductions` (key -> [frac, secs]). Applied in `take_damage` BEFORE overheal and HP (host/offline only), so it
 can stop a one-shot; keys stack multiplicatively, same key refreshes (max frac / max time); cleared by `clear_buffs()`.
-Niđo's Rollback now uses it (no next-tick refund). Please document it in INTERFACES. Not replicated (HP is); if the
+Niđo's Rollback now uses it (no next-tick refund). Documented in INTERFACES 2026-10-23. Not replicated (HP is); if the
 HUD wants a DR indicator on clients, net.gd would need to send `damage_taken_mult()` (core).
 
-## Oct 19: burst fire built into hero.gd (tomo.md #1 done) - for the lead (INTERFACES §2.1)
+## Oct 19: burst fire built into hero.gd (tomo.md #1 done) - DOCUMENTED 2026-10-23 on master
 `primary.burst` (> 1 rounds per burst) and `primary.burst_delay` (s between bursts; `fire_rate` = rate inside a burst).
 `Hero._build` creates a `BurstWeapon` for it; `_physics_process` calls `BurstWeapon.continue_burst(self)` each auth tick
 before the fire input, so a started burst completes. Hotfix (blink.gd) no longer installs/drives it. Please document.
 
-## Oct 19: real root hook (tomo.md #6 done) - for the lead (INTERFACES) and core net
+## Oct 19: real root hook (tomo.md #6 done) - DOCUMENTED, and root_left/slow_mult replicated 2026-10-23
 `Hero.apply_root(dur)`, `Hero.rooted()`, `Hero.root_left`; `Hero.ROOT_BLOCKS = ["dash", "blink", "leap", "charge"]`.
 While rooted (host/offline): no walking, no jumping, horizontal velocity zeroed (knockback/pull can't move it), no upward
 launch, a running dash/leap is cancelled, movement abilities in ROOT_BLOCKS can't be cast (no cooldown spent); aiming,
 shooting and other abilities work. Distinct from slows (slow_mult stays 1). Projectile defs take `"root": seconds`
 (projectile_shot.gd). Breakpoint now uses `"root": 1.1` instead of `slow {mult 0}`. Cleared on death.
-**Core (net.gd):** root_left (like slow_mult today) is not in the snapshot, so a client-predicted own hero keeps walking
-locally and gets corrected by the host. Please replicate `root_left` (and ideally `slow_mult`) for `_predict_step`.
+**Core (net.gd):** DONE. `root_left` and `slow_mult` are snapshot fields 19 and 20. `_predict_step` and reconcile honour a root.
 **AI:** bots may still try movement abilities while rooted (harmless: _use() refuses).
 
-## Oct 13: Übel (id `ubel`, user-approved fan character) - roster, core, AI, docs
-1. **docs/ROSTER.md (lead):** please add Übel with exactly this line:
-   'Fan character based on Übel (Frieren). Fine for private play; must be replaced with an original design before any commercial release.'
-   (Also in src/heroes/ubel/README.md.)
+## Oct 13: Übel (id `ubel`, user-approved fan character) - roster line and INTERFACES done 2026-10-23
+1. **docs/ROSTER.md:** done. The entry includes exactly: 'Fan character based on Übel (Frieren). Fine for private play; must be replaced with an original design before any commercial release.'
 2. **tests/core_test_roster.gd (core-owned):** edited in this branch the same way tomo 4c4aee1 / nidjo f5b6f50 did
    (adds "ubel" / "Übel" to the expected roster), because adding src/heroes/ubel.json otherwise fails the build.
    Please keep or redo it on master as you prefer.
