@@ -4,7 +4,7 @@
 `master` is the default branch. Do not redo a line marked done.
 - `00ad722` (build passed, 735 tests, smoke and network test, version left at 0.9.4): documented burst, root, damage reduction, blink, shockwave, pull, rollback, ride, line_slash. Übel roster line. Snapshot fields 19–20 are `root_left` and `slow_mult`.
 - Bot policies for `blink`, `shockwave`, `pull`, `rollback`, `ride`, and `line_slash` are in `BotBrain.want_ability` (`7aab9b6`). While mounted, bots do not jump. `./build.sh` passed (736 tests). Version left at 0.9.4.
-- Encore Beam (Twin Tails, Shift) now targets the hero nearest the aim, ally or enemy. An ally or the caster is healed at 60 HP/s and the ribbon stays blue. An enemy takes 30 damage per second and the ribbon turns red (`color_damage` `#ff3b3b`). Duration, cooldown and the self-heal fallback are unchanged. Not the parked `heroes-tt-wip` kit: no 4 s duration, no cancel, no lockout, no primary ally-heal.
+- Encore Beam (Twin Tails, Shift) now targets the hero nearest the aim, ally or enemy (`2bd0bfe`). An ally or the caster is healed at 60 HP/s and the ribbon stays blue. An enemy takes 30 damage per second and the ribbon turns red (`color_damage` `#ff3b3b`). Duration, cooldown and the self-heal fallback are unchanged. Not the parked `heroes-tt-wip` kit: no 4 s duration, no cancel, no lockout, no primary ally-heal. `./build.sh` passed. Version left at 0.9.4.
 
 Still open. Older sections below are history, not a fresh queue. `ui`, `maps`, `tomo` and `nidjo` are already merged.
 1. **Optional, net:** a snapshot field for the ride (rider, victim, time left) instead of the `mount:<rider>:<victim>` prop. Hop-off on the client still waits for the host.
